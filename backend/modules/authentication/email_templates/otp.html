@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>{{ app_name }} verification code</title>
+</head>
+<body style="margin:0;padding:0;font-family:Arial,Helvetica,sans-serif;background:#f4f6f8;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:24px 0;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="480" cellpadding="0" cellspacing="0"
+               style="background:#ffffff;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.05);overflow:hidden;">
+          <tr>
+            <td style="padding:24px 32px;background:#0f172a;color:#ffffff;">
+              <h1 style="margin:0;font-size:20px;">{{ app_name }}</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px;">
+              <p style="font-size:16px;color:#0f172a;margin:0 0 12px;">
+                Hi <strong>{{ username }}</strong>,
+              </p>
+              <p style="font-size:14px;color:#334155;line-height:1.5;margin:0 0 24px;">
+                Use the verification code below to complete your sign-up. This code
+                expires in <strong>{{ expiry_minutes }} minutes</strong>.
+              </p>
+              <div style="text-align:center;margin:24px 0;">
+                <span style="display:inline-block;font-size:32px;letter-spacing:8px;
+                             font-weight:700;color:#0f172a;background:#f1f5f9;
+                             padding:16px 24px;border-radius:8px;">
+                  {{ otp_code }}
+                </span>
+              </div>
+              <p style="font-size:12px;color:#64748b;margin:24px 0 0;">
+                If you didn't request this, you can safely ignore this email.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 32px;background:#f8fafc;color:#94a3b8;font-size:12px;text-align:center;">
+              &copy; {{ app_name }}
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

@@ -1,0 +1,5 @@
+USERS_COLLECTION = "users"
+OTPS_COLLECTION = "email_otps"
+STUDENT_PROFILES_COLLECTION = "student_profiles"
+
+OTP_LENGTH = 6

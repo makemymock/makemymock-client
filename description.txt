@@ -1,0 +1,9 @@
+We are making a startup in edtech domain. We specifically try to address personalization in the students education. 
+We provide questions and platform for mock tests\and depending upon the wheather he solved the question correctly/incorrectly 
+for easy/medium/hard question we score the topic according to that so that higher score for the topic for a student means that 
+the student is less confident. The score is called priority score and it means how much priority to provide to that topic. And from
+next time ownwards more focus will be provided to the topic. 
+
+Next we have whole analytics which will provide overall, subject level, topic level analysis of past hitory of the student performance
+
+Next we have 1 Vs 1 battle where students can challenge each other and compete against same set of questions whoever solves first
