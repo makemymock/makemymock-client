@@ -1,0 +1,47 @@
+.eyebrow {
+  margin: 0;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 300;
+  font-size: clamp(18px, 2vw, 26px);
+  color: #03545a;
+}
+
+.title {
+  margin: 0 0 8px;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 600;
+  font-size: clamp(26px, 3.5vw, 35px);
+  color: #111;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 6px;
+}
+
+.footer {
+  margin: 8px 0 0;
+  text-align: center;
+  font-family: 'Poppins', sans-serif;
+  font-size: 13px;
+  color: #ffffff;
+  letter-spacing: 0.2px;
+}
+
+.footerLink {
+  color: #fffcdc;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.footerLink:hover {
+  color: #ffffff;
+}
+
+@media (max-width: 600px) {
+  .form {
+    gap: 14px;
+  }
+}

@@ -1,0 +1,329 @@
+.page {
+  position: relative;
+  min-height: 100vh;
+  width: 100%;
+  background-color: #fbfdf4;
+  overflow-x: hidden;
+  font-family: 'Poppins', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+
+.grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    linear-gradient(rgba(13, 150, 120, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(13, 150, 120, 0.07) 1px, transparent 1px);
+  background-size: 80px 80px;
+  background-position: -1px -1px;
+  -webkit-mask-image: radial-gradient(circle at 50% 40%, #000 60%, transparent 100%);
+  mask-image: radial-gradient(circle at 50% 40%, #000 60%, transparent 100%);
+}
+
+.header {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px clamp(20px, 4vw, 56px);
+  background: rgba(0, 0, 0, 0.06);
+  backdrop-filter: blur(6px);
+}
+
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.logoMark {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+}
+
+.logoText {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+
+.logoTitle {
+  font-family: 'Poppins', sans-serif;
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: 0.6px;
+  color: #111;
+}
+
+.logoTagline {
+  font-family: 'Poppins', sans-serif;
+  font-weight: 400;
+  font-size: 11px;
+  color: #333;
+  letter-spacing: 0.2px;
+}
+
+.headerCta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 130px;
+  padding: 10px 22px;
+  background: #ffffff;
+  border: 1px solid #111;
+  border-radius: 999px;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: 0.4px;
+  color: #111;
+  text-decoration: none;
+  transition: transform 0.15s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+.headerCta:hover {
+  background: #f8f8f0;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+}
+
+.main {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(20px, 4vw, 60px);
+  padding: clamp(24px, 5vw, 60px) clamp(20px, 4vw, 56px) 80px;
+  max-width: 1440px;
+  margin: 0 auto;
+  align-items: start;
+}
+
+.heroCard {
+  background: rgba(255, 255, 255, 0.35);
+  backdrop-filter: blur(4px);
+  border: 1px solid #676767;
+  border-radius: 24px;
+  padding: clamp(24px, 3vw, 40px);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-height: 640px;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tagLine {
+  display: inline-block;
+  width: 130px;
+  height: 2px;
+  background: linear-gradient(90deg, #865e33, #0d9678);
+  border-radius: 2px;
+}
+
+.tagText {
+  font-family: 'Poppins', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 1.2px;
+  color: #03545a;
+}
+
+.heroTitle {
+  margin: 8px 0 6px;
+  font-family: 'Inter', 'Poppins', sans-serif;
+  font-weight: 900;
+  font-size: clamp(28px, 4vw, 44px);
+  line-height: 1.1;
+  letter-spacing: -0.5px;
+  color: #111;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.heroLine1 {
+  display: block;
+}
+
+.heroLine2 {
+  display: block;
+  background: linear-gradient(90deg, #865e33, #0d9678);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.heroSubtitle {
+  margin: 0;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 300;
+  font-size: clamp(14px, 1.2vw, 17px);
+  line-height: 1.55;
+  color: #03545a;
+  max-width: 540px;
+}
+
+.features {
+  list-style: none;
+  margin: 18px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.feature {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.featureNum {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid #1a1a1a;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 400;
+  font-size: 15px;
+  color: #1a1a1a;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.featureBody {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.featureTitle {
+  margin: 0;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.4px;
+  color: #111;
+}
+
+.featureText {
+  margin: 0;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 400;
+  font-size: 12px;
+  color: #333;
+  line-height: 1.5;
+}
+
+.heroFooter {
+  margin-top: auto;
+  padding-top: 22px;
+}
+
+.heroFooterLine {
+  display: block;
+  width: clamp(220px, 60%, 490px);
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #045181, transparent);
+  margin-bottom: 14px;
+}
+
+.heroFooterText {
+  margin: 0;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 400;
+  font-size: clamp(13px, 1vw, 16px);
+  color: #045181;
+  letter-spacing: 0.2px;
+}
+
+.formCard {
+  position: relative;
+  background: rgba(114, 114, 114, 0.19);
+  backdrop-filter: blur(6px);
+  border: 1px solid #676767;
+  border-radius: 24px;
+  padding: clamp(24px, 3vw, 40px) clamp(20px, 3vw, 38px);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-height: 640px;
+}
+
+@media (max-width: 960px) {
+  .main {
+    grid-template-columns: 1fr;
+    gap: 24px;
+    padding-bottom: 60px;
+  }
+
+  .heroCard,
+  .formCard {
+    min-height: auto;
+  }
+
+  .heroCard {
+    padding: 24px;
+  }
+
+  .features {
+    gap: 16px;
+  }
+}
+
+@media (max-width: 600px) {
+  .header {
+    padding: 14px 18px;
+  }
+
+  .logoTitle {
+    font-size: 15px;
+  }
+
+  .logoTagline {
+    font-size: 10px;
+  }
+
+  .logoMark {
+    width: 36px;
+    height: 36px;
+  }
+
+  .headerCta {
+    min-width: 96px;
+    padding: 8px 16px;
+    font-size: 14px;
+  }
+
+  .heroTitle {
+    font-size: 30px;
+  }
+
+  .tagText {
+    font-size: 11px;
+    letter-spacing: 1px;
+  }
+
+  .tagLine {
+    width: 60px;
+  }
+
+  .heroCard,
+  .formCard {
+    border-radius: 18px;
+    padding: 20px;
+  }
+}
