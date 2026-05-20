@@ -1,9 +1,9 @@
-import React from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import Landing from '../pages/landing/Landing';
 import Signup from '../pages/signup/Signup';
 import Login from '../pages/login/Login';
 import Dashboard from '../pages/dashboard/Dashboard';
+import ProfileSetup from '../pages/profile/ProfileSetup';
 import ProtectedRoute from './ProtectedRoute';
 import { tokenStorage } from '../utils/token';
 
@@ -32,6 +32,14 @@ const AppRoutes = () => {
           <RedirectIfAuthed>
             <Login />
           </RedirectIfAuthed>
+        }
+      />
+      <Route
+        path="/profile/setup"
+        element={
+          <ProtectedRoute>
+            <ProfileSetup />
+          </ProtectedRoute>
         }
       />
       <Route

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import AuthLayout from '../../components/auth/AuthLayout/AuthLayout';
 import InputField from '../../components/common/InputField/InputField';
@@ -85,7 +85,7 @@ const Signup = () => {
 
   const handleVerified = () => {
     setOtpOpen(false);
-    navigate('/dashboard', { replace: true });
+    navigate('/profile/setup', { replace: true });
   };
 
   return (
