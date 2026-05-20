@@ -1,0 +1,128 @@
+.siteFooter {
+  position: relative;
+  padding: 6rem 1.5rem 2rem;
+  background: linear-gradient(115deg, var(--footer-surface-from) 0%, var(--footer-surface-to) 100%);
+  color: var(--footer-text-color);
+  border-top: 1px solid var(--footer-surface-border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+:root[data-theme='dark'] .siteFooter,
+:root:not([data-theme='light']) .siteFooter {
+  border-top-color: var(--footer-surface-border);
+}
+
+.siteFooterInner {
+  width: min(92rem, 100%);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) repeat(2, minmax(0, 0.8fr));
+  gap: 2.5rem;
+  align-items: start;
+}
+
+.siteFooterBrand h3,
+.siteFooterColumn h4 {
+  margin: 0;
+  font-family: var(--font-primary);
+  font-weight: 400;
+}
+
+.siteFooterBrand h3 {
+  font-size: clamp(2rem, 2.8vw, 3.2rem);
+}
+
+.siteFooterBrand p,
+.siteFooterColumn li,
+.siteFooterBar {
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+}
+
+.siteFooterBrand p {
+  margin: 1.5rem 0 0;
+  max-width: 34rem;
+  font-size: 1.1rem;
+  line-height: 1.45;
+}
+
+.siteFooterColumn h4 {
+  font-size: clamp(1.8rem, 2.2vw, 2.6rem);
+  margin-bottom: 1rem;
+}
+
+.siteFooterColumn ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.siteFooterColumn li {
+  font-size: 1.05rem;
+  line-height: 1.7;
+}
+
+.siteFooterBar {
+  width: min(92rem, 100%);
+  margin: 5rem auto 0;
+  padding-top: 2rem;
+  border-top: 1px solid rgba(20, 42, 65, 0.5);
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  font-size: 0.95rem;
+}
+
+:root[data-theme='dark'] .siteFooterBar,
+:root:not([data-theme='light']) .siteFooterBar {
+  border-top-color: rgba(20, 42, 65, 0.5);
+}
+
+.siteFooterBar a {
+  color: inherit;
+  text-decoration: none;
+}
+
+@media (max-width: 860px) {
+  .siteFooter {
+    padding: 2.5rem 1.25rem 1.25rem;
+  }
+
+  .siteFooterInner {
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem 1.25rem;
+  }
+
+  .siteFooterBrand {
+    grid-column: 1 / -1;
+  }
+
+  .siteFooterBrand h3 {
+    font-size: 1.75rem;
+  }
+
+  .siteFooterBrand p {
+    margin: 0.6rem 0 0;
+    font-size: 0.95rem;
+    line-height: 1.45;
+  }
+
+  .siteFooterColumn h4 {
+    font-size: 1.25rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .siteFooterColumn li {
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+
+  .siteFooterBar {
+    margin-top: 1.75rem;
+    padding-top: 1rem;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.4rem;
+    font-size: 0.82rem;
+  }
+}

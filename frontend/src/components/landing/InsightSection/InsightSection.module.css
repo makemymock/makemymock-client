@@ -1,0 +1,220 @@
+.insightSection {
+  position: relative;
+  height: 100svh;
+}
+
+.insightSectionSticky {
+  position: absolute;
+  inset: 0;
+  background: transparent;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.insightSectionGrid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(116, 116, 116, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(116, 116, 116, 0.06) 1px, transparent 1px);
+  background-size: 34px 34px;
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.insightSectionOrnament {
+  position: absolute;
+  opacity: 0.18;
+  object-fit: contain;
+  pointer-events: none;
+  filter: grayscale(1);
+}
+
+:root[data-theme='dark'] .insightSectionOrnament,
+:root:not([data-theme='light']) .insightSectionOrnament {
+  opacity: 0.32;
+  filter:
+    brightness(0)
+    saturate(100%)
+    invert(90%)
+    sepia(8%)
+    saturate(1018%)
+    hue-rotate(166deg)
+    brightness(106%)
+    contrast(92%);
+}
+
+.insightSectionOrnamentOne {
+  width: 4.5rem;
+  top: 16%;
+  left: 10%;
+  transform: rotate(-14deg);
+}
+
+.insightSectionOrnamentTwo {
+  width: 6rem;
+  top: 18%;
+  right: 9%;
+  transform: rotate(9deg);
+}
+
+.insightSectionOrnamentThree {
+  width: 7rem;
+  bottom: 28%;
+  left: 14%;
+  transform: rotate(-10deg);
+}
+
+.insightSectionOrnamentFour {
+  width: 5rem;
+  bottom: 18%;
+  right: 12%;
+  transform: rotate(7deg);
+}
+
+.insightSectionHeadline {
+  position: absolute;
+  top: 4rem;
+  left: 50%;
+  z-index: 1;
+  width: min(78rem, calc(100% - 2rem));
+  transform: translateX(-50%);
+  text-align: center;
+  pointer-events: none;
+}
+
+.insightSectionHeadline p,
+.insightSectionHeadline h2 {
+  margin: 0;
+  color: #16a085;
+  font-family: var(--font-primary);
+  line-height: 0.94;
+  letter-spacing: -0.04em;
+}
+
+.insightSectionHeadline p {
+  font-size: clamp(3rem, 5.8vw, 5.6rem);
+}
+
+.insightSectionHeadline h2 {
+  margin-top: 0.9rem;
+  font-size: clamp(3.2rem, 6.2vw, 6.4rem);
+}
+
+.insightSectionCards {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  overflow: hidden;
+}
+
+.insightCard {
+  pointer-events: auto;
+  position: absolute;
+  top: 50%;
+  width: min(42rem, 82vw);
+  perspective: 1400px;
+  transform-origin: center;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+}
+
+.insightCardInner {
+  position: relative;
+  width: 100%;
+  min-height: 13rem;
+  transform-style: preserve-3d;
+  will-change: transform;
+  border-radius: 0.4rem;
+}
+
+.insightCardFace {
+  display: flex;
+  flex-direction: column;
+  padding: 1.75rem 1.85rem 1.95rem;
+  border-radius: 0.4rem;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.12);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.insightCardFaceFront {
+  position: absolute;
+  inset: 0;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  overflow: hidden;
+}
+
+.insightCardFaceBack {
+  position: relative;
+  min-height: 13rem;
+  transform: rotateX(180deg);
+  justify-content: center;
+  gap: 0.6rem;
+}
+
+.insightCardFaceFront h3 {
+  margin: 0;
+  font-family: var(--font-primary);
+  font-size: clamp(1.8rem, 2.8vw, 3.2rem);
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+}
+
+.insightCardFaceBack p {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+  font-size: clamp(0.95rem, 1.25vw, 1.4rem);
+  line-height: 1.45;
+}
+
+.insightCardAmber .insightCardFace {
+  background: linear-gradient(180deg, rgba(255, 231, 43, 0.95) 0%, rgba(255, 214, 10, 0.96) 100%);
+  color: rgba(0, 0, 0, 0.88);
+}
+
+.insightCardPink .insightCardFace {
+  background: linear-gradient(180deg, rgba(215, 28, 184, 0.88) 0%, rgba(242, 131, 207, 0.92) 100%);
+  color: rgba(0, 0, 0, 0.9);
+}
+
+.insightCardCyan .insightCardFace {
+  background: linear-gradient(180deg, rgba(119, 233, 245, 0.9) 0%, rgba(85, 221, 235, 0.95) 100%);
+  color: rgba(0, 0, 0, 0.92);
+}
+
+.insightCardAmber {
+  left: 6vw;
+}
+
+.insightCardPink {
+  right: 8vw;
+  left: auto;
+}
+
+.insightCardCyan {
+  left: calc(50% + 6vw - min(21rem, 41vw));
+}
+
+@media (max-width: 860px) {
+  .insightSectionHeadline {
+    top: 3.5rem;
+  }
+
+  .insightCard,
+  .insightCardAmber,
+  .insightCardPink,
+  .insightCardCyan {
+    width: calc(100% - 2rem);
+    left: 1rem;
+    right: auto;
+  }
+}

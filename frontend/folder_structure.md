@@ -1,6 +1,6 @@
 # Frontend Folder Structure
 
-React (CRA) frontend for **MakeMyMock**. Talks to the FastAPI backend over HTTP, uses **CSS Modules** for styling, **Axios** for HTTP, **React Router DOM** for routing, and **React hooks** for state. No Tailwind, no Bootstrap, no MUI, no Redux.
+React (Vite + PWA) frontend for **MakeMyMock**. Talks to the FastAPI backend over HTTP, uses **CSS Modules** for styling, **Axios** for HTTP, **React Router DOM** for routing, and **React hooks** for state. No Tailwind, no Bootstrap, no MUI, no Redux.
 
 This document describes the conventions every new page/feature must follow so the codebase stays consistent.
 
@@ -10,7 +10,7 @@ This document describes the conventions every new page/feature must follow so th
 
 ```
 frontend/
-├── public/                      # CRA static shell (index.html, favicon, manifest)
+├── public/                      # Vite static shell (favicon, manifest, PWA icons)
 ├── src/
 │   ├── assets/                  # Static images / icons imported by components
 │   ├── components/              # Reusable UI — never page-specific
@@ -29,11 +29,13 @@ frontend/
 │   ├── utils/                   # Pure, framework-free helpers
 │   │   ├── token.js
 │   │   └── validators.js
-│   ├── App.js                   # BrowserRouter + AppRoutes
-│   ├── App.css                  # Global resets + focus styles
-│   ├── index.js                 # ReactDOM root
-│   └── index.css                # Google Fonts (Inter + Poppins) + body defaults
-├── .env                         # REACT_APP_API_BASE_URL (gitignored)
+│   ├── App.jsx                  # BrowserRouter + AppRoutes
+│   ├── App.css                  # Focus styles + small app-level globals
+│   ├── main.jsx                 # ReactDOM root (Vite entry)
+│   └── index.css                # Page-level body defaults
+├── index.html                   # Vite HTML entry (lives at project root, not in public/)
+├── vite.config.js               # Vite + vite-plugin-pwa config
+├── .env                         # VITE_API_BASE_URL (gitignored)
 ├── .env.example                 # Template
 └── package.json
 ```
@@ -45,7 +47,7 @@ frontend/
 ### `services/`
 All HTTP traffic lives here. **Components and pages NEVER import axios directly** — they import a service.
 
-- `axiosInstance.js` — the single configured Axios client. Reads `REACT_APP_API_BASE_URL`, attaches `Authorization: Bearer <token>` from `tokenStorage` on every request, and on `401` automatically calls `/auth/refresh-token` (single-flight, no stampede) and retries the original request. If refresh fails, it clears storage and redirects to `/login`. Auth endpoints (`/auth/login`, `/auth/signup`, etc.) are excluded from refresh so their 401s surface to the form.
+- `axiosInstance.js` — the single configured Axios client. Reads `VITE_API_BASE_URL` (via `import.meta.env`), attaches `Authorization: Bearer <token>` from `tokenStorage` on every request, and on `401` automatically calls `/auth/refresh-token` (single-flight, no stampede) and retries the original request. If refresh fails, it clears storage and redirects to `/login`. Auth endpoints (`/auth/login`, `/auth/signup`, etc.) are excluded from refresh so their 401s surface to the form.
 - `authService.js` — typed wrapper around `/auth/*` endpoints (`signup`, `verifyOtp`, `resendOtp`, `login`, `me`, `logout`). Handles writing tokens to storage on successful auth.
 - **New domains get a new service file** (e.g. `testService.js`, `profileService.js`). Each service `import api from './axiosInstance'` and exports named methods that return `data` (not the full Axios response).
 
@@ -99,8 +101,8 @@ One folder per route. **Pages own their CSS module** (lowercase: `login.module.c
 6. **Form pattern**: keep one `form` object in state, one `errors` object, and a top-level `formError` string for API failures. Validate on `blur`, then again on submit; clear field error on next change. Use `parseApiError` for backend errors.
 7. **Validators return strings, not booleans.** Empty string = valid. Always run them against the backend's exact rules (see `backend/modules/authentication/schema.py`).
 8. **Page components are default-exported.** Reusable components are default-exported too. Named exports only for grouped helpers (e.g. `tokenStorage`).
-9. **File extensions**: `.jsx` for any file with JSX, `.js` for plain JS (services, utils, App.js). CSS Modules are `<page>.module.css` lowercase, `<Component>.module.css` PascalCase to match their component.
-10. **Env vars** must start with `REACT_APP_` and be added to **both** `.env` and `.env.example`. Read them only inside `services/`.
+9. **File extensions**: `.jsx` for any file with JSX (including `App.jsx` and `main.jsx`), `.js` for plain JS (services, utils). CSS Modules are `<page>.module.css` lowercase, `<Component>.module.css` PascalCase to match their component.
+10. **Env vars** must start with `VITE_` and be added to **both** `.env` and `.env.example`. Read them via `import.meta.env.VITE_*`, only inside `services/`.
 11. **Routes are added in one place** (`routes/AppRoutes.jsx`). Don't sprinkle `<Routes>` blocks across pages.
 12. **Accessibility**: labels are real `<label htmlFor=…>` (handled by `InputField`), errors use `role="alert"`, modals use `role="dialog" aria-modal`, focusable elements get a visible `:focus-visible` ring.
 
@@ -161,7 +163,7 @@ Token keys in localStorage: `mmm_access_token`, `mmm_refresh_token`, `mmm_user`.
 
 ## Tech stack reference
 
-- **Framework**: React 19 (CRA / react-scripts 5)
+- **Framework**: React 19 (Vite 8 + `@vitejs/plugin-react` + `vite-plugin-pwa`)
 - **Routing**: react-router-dom v6
 - **HTTP**: axios (single instance + interceptors)
 - **Styling**: CSS Modules (no preprocessor)

@@ -1,0 +1,146 @@
+:root {
+  font-family: var(--font-primary);
+  line-height: 1.5;
+  font-weight: 400;
+  color: #f8fafc;
+  background: #09090f;
+
+  --font-primary: 'Patrick Hand SC', cursive;
+  --font-secondary: 'Jost', 'Avenir Next', 'Aptos', sans-serif;
+
+  --color-bg-page: #09090f;
+  --color-text-primary: #f8fafc;
+  --color-text-secondary: rgba(248, 250, 252, 0.84);
+  --color-text-muted: rgba(226, 232, 240, 0.76);
+  --color-accent: #14b8a6;
+
+  --color-glow-yellow: rgba(245, 193, 80, 0.247);
+  --color-glow-cyan: rgba(56, 189, 248, 0.18);
+  --color-glow-teal: rgba(45, 212, 191, 0.14);
+  --color-glow-navy: rgba(30, 58, 138, 0.09);
+
+  --color-panel-bg: rgba(15, 15, 23, 0.56);
+  --color-panel-bg-soft: rgba(10, 10, 16, 0.58);
+  --color-panel-border: rgba(255, 255, 255, 0.12);
+  --color-border-strong: rgba(255, 255, 255, 0.24);
+  --color-chip-bg: rgba(255, 255, 255, 0.07);
+  --color-chip-border: rgba(255, 255, 255, 0.09);
+  --color-action-primary-bg: rgba(255, 255, 255, 0.08);
+
+  --color-brand-grad-from: #045181;
+  --color-brand-grad-to: #14b8a6;
+  --color-brand-contrast: #06161c;
+  --color-cta-grad-from: #fbfdf4;
+  --color-cta-grad-to: #f7e78e;
+  --color-cta-contrast: #1a1a1a;
+
+  --color-focus: #14b8a6;
+  /* Muted slate so the wave grid reads on dark backgrounds without
+     being blindingly white. Glow is dimmer still, keeping the soft
+     halo without overpowering the surrounding content. */
+  --waves-line-color: rgba(148, 163, 184, 0.42);
+  --waves-glow-color: rgba(100, 116, 139, 0.35);
+  --waves-core-color: rgba(148, 163, 184, 0.32);
+  --shadow-soft: 0 18px 50px rgba(0, 0, 0, 0.24);
+  --footer-surface-from: rgba(168, 225, 233, 0.86);
+  --footer-surface-to: rgba(190, 237, 242, 0.82);
+  --footer-surface-border: rgba(20, 42, 65, 0.44);
+  --footer-text-color: #101828;
+  /* Navbar colors (minimal new variables) */
+  --nav-bg: rgb(227, 226, 219); /* light, slightly off-white for dark theme */
+  --nav-text: rgba(17, 24, 39, 0.88);
+
+  /* Dashboard tokens — dark theme variants (derived from existing palette) */
+  --dash-bg: #0f1117;
+  /* One sidebar colour for both themes — a muted slate that reads as a
+     proper navigation rail on both the dark page and the cream page. */
+  --dash-sidebar-bg: #1e293b;
+  --dash-sidebar-text: rgba(226, 232, 240, 0.82);
+  --dash-sidebar-text-active: #ffffff;
+  --dash-card-bg: rgba(20, 24, 33, 0.86);
+  --dash-card-border: rgba(255, 255, 255, 0.10);
+  --dash-text-strong: #f8fafc;
+  --dash-text-muted: rgba(226, 232, 240, 0.72);
+  --dash-icon-bg: #0b0d12;
+  --dash-icon-fg: #f8fafc;
+  --dash-accent-yellow: #f5c451;
+  --dash-accent-yellow-strong: #f0b429;
+  --dash-mint-bg: #173a3a;
+  --dash-mint-border: rgba(255, 255, 255, 0.10);
+  --dash-pill-green: #22c55e;
+  --dash-pill-green-fg: #06120b;
+  --dash-progress-track: rgba(255, 255, 255, 0.08);
+  --dash-progress-fill: #f5c451;
+  --dash-logout-color: #f87171;
+  --dash-input-bg: rgba(255, 255, 255, 0.04);
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+:root[data-theme='light'] {
+  --color-bg-page: #f6f7fb;
+  --color-text-primary: #101828;
+  --color-text-secondary: rgba(16, 24, 40, 0.82);
+  --color-text-muted: rgba(44, 53, 72, 0.76);
+  --color-accent: #03545a;
+
+  --color-glow-yellow: rgba(255, 251, 28, 0.707);
+  --color-glow-cyan: rgba(6, 182, 212, 0.16);
+  --color-glow-teal: rgba(20, 184, 166, 0.12);
+  --color-glow-navy: rgba(30, 64, 175, 0.06);
+
+  --color-panel-bg: rgba(255, 255, 255, 0.68);
+  --color-panel-bg-soft: rgba(255, 255, 255, 0.62);
+  --color-panel-border: rgba(71, 85, 105, 0.18);
+  --color-border-strong: rgba(71, 85, 105, 0.34);
+  --color-chip-bg: rgba(255, 255, 255, 0.72);
+  --color-chip-border: rgba(71, 85, 105, 0.18);
+  --color-action-primary-bg: rgba(255, 255, 255, 0.72);
+
+  --color-brand-grad-from: #865e33;
+  --color-brand-grad-to: #0d9678;
+  --color-brand-contrast: #042a26;
+  --color-cta-grad-from: #fbfdf4;
+  --color-cta-grad-to: #f7e78e;
+  --color-cta-contrast: #1a1a1a;
+
+  --color-focus: #0d9678;
+  --waves-line-color: rgba(194, 203, 216, 0.92);
+  --waves-glow-color: rgba(59, 130, 246, 0.75);
+  --waves-core-color: rgba(168, 175, 187, 0.72);
+  --shadow-soft: 0 16px 44px rgba(15, 23, 42, 0.16);
+  --footer-surface-from: rgba(168, 225, 233, 0.86);
+  --footer-surface-to: rgba(190, 237, 242, 0.82);
+  --footer-surface-border: rgba(20, 42, 65, 0.44);
+  --footer-text-color: #101828;
+  /* Navbar color overrides for light theme (near-black nav with light text) */
+  --nav-bg: rgba(33, 33, 33, 0.88);
+  --nav-text: rgba(255, 255, 255, 0.92);
+
+  /* Dashboard tokens — light theme matches the Figma cream/teal/yellow palette */
+  --dash-bg: #f6f4ec;
+  /* Sidebar uses a deep slate even in light mode — the saturated teal felt
+     too loud / "glittering" against the cream page background. */
+  --dash-sidebar-bg: #1e293b;
+  --dash-sidebar-text: rgba(226, 232, 240, 0.86);
+  --dash-sidebar-text-active: #ffffff;
+  --dash-card-bg: #ffffff;
+  --dash-card-border: rgba(15, 23, 42, 0.08);
+  --dash-text-strong: #0f172a;
+  --dash-text-muted: rgba(15, 23, 42, 0.6);
+  --dash-icon-bg: #1d2433;
+  --dash-icon-fg: #ffffff;
+  --dash-accent-yellow: #f5c451;
+  --dash-accent-yellow-strong: #e0a82c;
+  --dash-mint-bg: #c6efe5;
+  --dash-mint-border: rgba(15, 118, 110, 0.16);
+  --dash-pill-green: #22c55e;
+  --dash-pill-green-fg: #06120b;
+  --dash-progress-track: rgba(15, 23, 42, 0.08);
+  --dash-progress-fill: #f0b429;
+  --dash-logout-color: #ef4444;
+  --dash-input-bg: #ffffff;
+}

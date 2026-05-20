@@ -7,15 +7,15 @@
   min-height: 57px;
   padding: 14px 28px;
   border-radius: 10px;
-  border: 1px solid #676767;
-  font-family: 'Poppins', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  border: 1px solid var(--color-panel-border);
+  font-family: var(--font-secondary);
   font-weight: 700;
   font-size: 22px;
   letter-spacing: 0.5px;
   cursor: pointer;
   transition: transform 0.12s ease, box-shadow 0.18s ease, filter 0.18s ease, opacity 0.18s ease;
   user-select: none;
-  color: #111;
+  color: var(--color-text-primary);
 }
 
 .fullWidth {
@@ -32,14 +32,15 @@
 }
 
 .primary {
-  background: linear-gradient(90deg, rgb(251, 253, 244) 15%, rgb(247, 231, 142) 80%);
-  color: #1a1a1a;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  background: linear-gradient(90deg, var(--color-cta-grad-from), var(--color-cta-grad-to));
+  color: var(--color-cta-contrast);
+  border-color: transparent;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
 }
 
 .primary:hover:not(:disabled) {
-  filter: brightness(1.03);
-  box-shadow: 0 6px 16px rgba(247, 231, 142, 0.45);
+  filter: brightness(1.05);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--color-cta-grad-to) 35%, transparent);
   transform: translateY(-1px);
 }
 
@@ -49,22 +50,23 @@
 }
 
 .outline {
-  background: #ffffff;
-  color: #111;
-  border-color: #111;
+  background: var(--color-action-primary-bg);
+  color: var(--color-text-primary);
+  border-color: var(--color-border-strong);
   border-radius: 999px;
   min-height: 44px;
   font-size: 18px;
 }
 
 .outline:hover:not(:disabled) {
-  background: #f8f8f0;
+  background: var(--color-panel-bg);
+  border-color: var(--color-text-primary);
 }
 
 .ghost {
   background: transparent;
-  border-color: #919191;
-  color: #111;
+  border-color: var(--color-panel-border);
+  color: var(--color-text-primary);
   border-radius: 24px;
   min-height: 36px;
   padding: 8px 14px;
@@ -73,7 +75,7 @@
 }
 
 .ghost:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.7);
+  background: var(--color-panel-bg-soft);
 }
 
 .button:disabled {
@@ -84,8 +86,8 @@
 .spinner {
   width: 18px;
   height: 18px;
-  border: 2px solid rgba(0, 0, 0, 0.18);
-  border-top-color: #1a1a1a;
+  border: 2px solid color-mix(in srgb, var(--color-cta-contrast) 25%, transparent);
+  border-top-color: var(--color-cta-contrast);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }

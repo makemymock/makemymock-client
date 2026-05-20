@@ -1,17 +1,17 @@
 .eyebrow {
   margin: 0;
-  font-family: 'Poppins', sans-serif;
+  font-family: var(--font-secondary);
   font-weight: 300;
   font-size: clamp(18px, 2vw, 26px);
-  color: #03545a;
+  color: var(--color-accent);
 }
 
 .title {
   margin: 0 0 8px;
-  font-family: 'Poppins', sans-serif;
+  font-family: var(--font-primary);
   font-weight: 600;
   font-size: clamp(26px, 3.5vw, 35px);
-  color: #111;
+  color: var(--color-text-primary);
 }
 
 .form {
@@ -24,20 +24,20 @@
 .footer {
   margin: 8px 0 0;
   text-align: center;
-  font-family: 'Poppins', sans-serif;
+  font-family: var(--font-secondary);
   font-size: 13px;
-  color: #ffffff;
+  color: var(--color-text-secondary);
   letter-spacing: 0.2px;
 }
 
 .footerLink {
-  color: #fffcdc;
+  color: var(--color-accent);
   font-weight: 600;
   text-decoration: underline;
 }
 
 .footerLink:hover {
-  color: #ffffff;
+  filter: brightness(1.15);
 }
 
 @media (max-width: 600px) {

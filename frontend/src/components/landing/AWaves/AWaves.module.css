@@ -1,0 +1,13 @@
+.aWaves {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  --x: -0.5rem;
+  --y: 50%;
+}
+
+.jsCanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}

@@ -1,0 +1,10 @@
+@import './abstracts/_variables.css';
+@import './base/_reset.css';
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100svh;
+  background: var(--color-bg-page);
+  color: var(--color-text-primary);
+}

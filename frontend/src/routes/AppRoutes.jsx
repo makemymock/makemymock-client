@@ -1,5 +1,6 @@
 import React from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
+import Landing from '../pages/landing/Landing';
 import Signup from '../pages/signup/Signup';
 import Login from '../pages/login/Login';
 import Dashboard from '../pages/dashboard/Dashboard';
@@ -16,15 +17,7 @@ const RedirectIfAuthed = ({ children }) => {
 const AppRoutes = () => {
   return (
     <Routes>
-      <Route
-        path="/"
-        element={
-          <Navigate
-            to={tokenStorage.isAuthenticated() ? '/dashboard' : '/signup'}
-            replace
-          />
-        }
-      />
+      <Route path="/" element={<Landing />} />
       <Route
         path="/signup"
         element={
