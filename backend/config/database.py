@@ -61,6 +61,61 @@ async def _ensure_indexes() -> None:
     await mongo.db["email_otps"].create_index([("email", ASCENDING)])
     await mongo.db["email_otps"].create_index("expires_at", expireAfterSeconds=0)
 
+    # ---------- mock-test state ----------
+    # Attempts must be unique per (user, question) so retakes overwrite,
+    # which is exactly what the engine's `upsert_attempts` relies on.
+    await mongo.db["user_topic_attempts"].create_index(
+        [("user_id", ASCENDING), ("question_id", ASCENDING)],
+        unique=True,
+    )
+    await mongo.db["user_topic_attempts"].create_index(
+        [("user_id", ASCENDING), ("topic_id", ASCENDING)],
+    )
+    await mongo.db["user_topic_attempts"].create_index(
+        [("session_id", ASCENDING)],
+    )
+
+    await mongo.db["mock_test_sessions"].create_index([("user_id", ASCENDING)])
+    await mongo.db["mock_test_sessions"].create_index(
+        [("user_id", ASCENDING), ("created_at", -1)],
+    )
+
+    await mongo.db["mock_test_topics"].create_index([("session_id", ASCENDING)])
+
+    await mongo.db["mock_test_responses"].create_index(
+        [("session_id", ASCENDING), ("question_id", ASCENDING)],
+        unique=True,
+    )
+    await mongo.db["mock_test_responses"].create_index(
+        [("session_id", ASCENDING), ("display_order", ASCENDING)],
+    )
+
+    # ---------- id-mapping helpers ----------
+    # Question int-id map: unique by (obj_id, sub_index).
+    await mongo.db["question_id_map"].create_index(
+        [("obj_id", ASCENDING), ("sub_index", ASCENDING)],
+        unique=True,
+    )
+    await mongo.db["topic_id_map"].create_index(
+        [("chapter_id", ASCENDING), ("name", ASCENDING)],
+        unique=True,
+    )
+    await mongo.db["chapter_id_map"].create_index(
+        [("subject_id", ASCENDING), ("name", ASCENDING)],
+        unique=True,
+    )
+    await mongo.db["subject_id_map"].create_index(
+        [("name", ASCENDING)],
+        unique=True,
+    )
+
+    # ---------- questions catalog (bbd_db schema) ----------
+    # Backs the per-test candidate-pool query (subject/chapter/topic triple).
+    # Created only if it doesn't already exist; safe to call repeatedly.
+    await mongo.db["questions"].create_index(
+        [("subject", ASCENDING), ("chapter", ASCENDING), ("topic", ASCENDING)],
+    )
+
 
 def get_database() -> AsyncIOMotorDatabase:
     if mongo.db is None:

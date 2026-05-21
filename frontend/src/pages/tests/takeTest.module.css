@@ -1,0 +1,113 @@
+.metaPill {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--color-chip-bg);
+  border: 1px solid var(--color-chip-border);
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  font-weight: 600;
+}
+
+.submitBtn {
+  min-height: 44px;
+  font-size: 15px;
+  padding: 8px 22px;
+  border-radius: 999px;
+}
+
+.layout {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 980px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr) 320px;
+  }
+}
+
+.questionColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.paletteColumn {
+  position: relative;
+}
+
+@media (min-width: 980px) {
+  .paletteColumn {
+    position: sticky;
+    top: 92px;
+    align-self: flex-start;
+  }
+}
+
+.controlsBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  background: var(--color-panel-bg);
+  border: 1px solid var(--color-panel-border);
+  border-radius: 16px;
+  padding: 10px;
+}
+
+.ctrlBtn {
+  flex: 1;
+  min-width: 130px;
+  appearance: none;
+  font: inherit;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--color-chip-bg);
+  border: 1px solid var(--color-chip-border);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+
+.ctrlBtn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--color-border-strong);
+}
+
+.ctrlBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ctrlBtnOn {
+  background: rgba(124, 58, 237, 0.22);
+  border-color: rgba(124, 58, 237, 0.6);
+  color: #ddd6fe;
+}
+
+.ctrlBtnPrimary {
+  background: linear-gradient(90deg, var(--color-brand-grad-from), var(--color-brand-grad-to));
+  border-color: transparent;
+  color: var(--color-brand-contrast);
+}
+
+.ctrlBtnPrimary:hover:not(:disabled) {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+}
+
+.linkBtn {
+  margin-top: 12px;
+  background: none;
+  border: none;
+  font: inherit;
+  font-size: 14px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  text-decoration: underline;
+}

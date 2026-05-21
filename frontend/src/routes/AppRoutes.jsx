@@ -4,6 +4,11 @@ import Signup from '../pages/signup/Signup';
 import Login from '../pages/login/Login';
 import Dashboard from '../pages/dashboard/Dashboard';
 import ProfileSetup from '../pages/profile/ProfileSetup';
+import TestsLaunch from '../pages/tests/TestsLaunch';
+import TakeTest from '../pages/tests/TakeTest';
+import Result from '../pages/tests/Result';
+import Analytics from '../pages/analytics/Analytics';
+import History from '../pages/history/History';
 import ProtectedRoute from './ProtectedRoute';
 import { tokenStorage } from '../utils/token';
 
@@ -47,6 +52,47 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute>
             <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      {/* Mock-test section — URL-only access for now (no buttons). */}
+      <Route
+        path="/tests"
+        element={
+          <ProtectedRoute>
+            <TestsLaunch />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/tests/:sessionId"
+        element={
+          <ProtectedRoute>
+            <TakeTest />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/tests/:sessionId/result"
+        element={
+          <ProtectedRoute>
+            <Result />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/analytics"
+        element={
+          <ProtectedRoute>
+            <Analytics />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/history"
+        element={
+          <ProtectedRoute>
+            <History />
           </ProtectedRoute>
         }
       />

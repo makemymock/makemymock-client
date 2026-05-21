@@ -1,0 +1,88 @@
+.root {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: 1.6;
+  color: inherit;
+  overflow-wrap: anywhere;
+}
+
+.root p {
+  margin: 0 0 8px;
+}
+
+.root p:last-child {
+  margin-bottom: 0;
+}
+
+.root pre {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--color-panel-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  font-size: 0.9em;
+}
+
+.root code {
+  font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+  background: rgba(255, 255, 255, 0.07);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+
+.root pre code {
+  background: transparent;
+  padding: 0;
+}
+
+.root ul, .root ol {
+  margin: 6px 0 6px 1.2em;
+  padding: 0;
+}
+
+.root table {
+  border-collapse: collapse;
+  margin: 6px 0;
+  font-size: 0.95em;
+}
+
+.root th, .root td {
+  border: 1px solid var(--color-panel-border);
+  padding: 4px 8px;
+}
+
+.root img {
+  max-width: 100%;
+  border-radius: 8px;
+  margin: 6px 0;
+}
+
+.root blockquote {
+  margin: 8px 0;
+  padding: 6px 14px;
+  border-left: 3px solid var(--color-accent);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--color-text-secondary);
+}
+
+/* KaTeX block math: lots of vertical space by default — tighten a bit. */
+.root :global(.katex-display) {
+  margin: 8px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.inline {
+  display: inline;
+}
+
+.inline p, .inline ul, .inline ol {
+  margin: 0;
+  display: inline;
+}
+
+.inline pre {
+  display: inline-block;
+  vertical-align: middle;
+}
