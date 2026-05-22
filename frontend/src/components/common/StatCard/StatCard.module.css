@@ -1,0 +1,41 @@
+.card {
+  background: var(--color-panel-bg);
+  border: 1px solid var(--color-panel-border);
+  border-radius: 16px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--color-text-muted);
+}
+
+.value {
+  font-family: var(--font-secondary);
+  font-size: clamp(22px, 3vw, 30px);
+  font-weight: 800;
+  letter-spacing: -0.4px;
+  color: var(--color-text-primary);
+}
+
+.sub {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.warn .value {
+  color: #f59e0b;
+}
+
+.bad .value {
+  color: #ef4444;
+}
+
+.good .value {
+  color: #22c55e;
+}

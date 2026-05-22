@@ -8,6 +8,8 @@ import TestsLaunch from '../pages/tests/TestsLaunch';
 import TakeTest from '../pages/tests/TakeTest';
 import Result from '../pages/tests/Result';
 import Analytics from '../pages/analytics/Analytics';
+import ChapterAnalytics from '../pages/analytics/ChapterAnalytics';
+import TopicAnalytics from '../pages/analytics/TopicAnalytics';
 import History from '../pages/history/History';
 import ProtectedRoute from './ProtectedRoute';
 import { tokenStorage } from '../utils/token';
@@ -85,6 +87,22 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute>
             <Analytics />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/analytics/chapter/:chapterId"
+        element={
+          <ProtectedRoute>
+            <ChapterAnalytics />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/analytics/topic/:topicId"
+        element={
+          <ProtectedRoute>
+            <TopicAnalytics />
           </ProtectedRoute>
         }
       />

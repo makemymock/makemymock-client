@@ -45,6 +45,8 @@ from modules.mock_test.model import (
 )
 from modules.mock_test.repository import MockTestRepository
 from modules.mock_test.schema import (
+    AccuracyTrendPoint,
+    AnalyticsChaptersResponse,
     AnalyticsOverviewResponse,
     AnalyticsTopicsResponse,
     AnswerInput,
@@ -52,19 +54,27 @@ from modules.mock_test.schema import (
     CatalogResponse,
     CatalogSubject,
     CatalogTopic,
+    ChapterAnalytics,
+    ChapterDetailResponse,
     CreateMockTestRequest,
     CreateMockTestResponse,
+    CumulativePoint,
     DifficultyBreakdown,
     HistoryItem,
     HistoryResponse,
     MatchingColumn,
     PerQuestionResult,
+    PriorityTrendPoint,
     QuestionPayload,
     QuestionPayloadOption,
+    RecentAttempt,
     SessionResponse,
     SubmitMockTestRequest,
     SubmitMockTestResponse,
+    TopicAccuracyTrend,
     TopicAnalytics,
+    TopicDetailResponse,
+    TopicPriorityTrend,
     TrendPoint,
     TypeBreakdown,
 )
@@ -118,6 +128,47 @@ def _options_from_doc(doc: dict) -> list[QuestionPayloadOption]:
         if text is None or str(text).strip() == "":
             continue
         out.append(QuestionPayloadOption(key=key, text=str(text)))
+    return out
+
+
+def _bucket_by_key(
+    attempts: list[dict],
+    *,
+    key_fn,
+) -> dict[str, tuple[int, float]]:
+    """Group attempts by `key_fn(attempt)` → (count, sum-of-effective-correctness)."""
+    out: dict[str, tuple[int, float]] = {}
+    for a in attempts:
+        k = key_fn(a)
+        corr = a.get("correctness")
+        if corr is None:
+            corr = 1.0 if a.get("is_correct") else 0.0
+        cur = out.get(k, (0, 0.0))
+        out[k] = (cur[0] + 1, cur[1] + float(corr))
+    return out
+
+
+def _cumulative_by_day(attempts: list[dict]):
+    """Return [(day, delta, cumulative)] ordered by day."""
+    from modules.mock_test.schema import CumulativePoint  # local import avoids cycles
+    if not attempts:
+        return []
+    by_day: dict[datetime, int] = defaultdict(int)
+    for a in attempts:
+        at = a.get("attempted_at")
+        if at is None:
+            continue
+        if isinstance(at, datetime):
+            day = at.replace(hour=0, minute=0, second=0, microsecond=0)
+        else:
+            continue
+        by_day[day] += 1
+    out = []
+    cumulative = 0
+    for day in sorted(by_day.keys()):
+        delta = by_day[day]
+        cumulative += delta
+        out.append(CumulativePoint(date=day, delta=delta, cumulative=cumulative))
     return out
 
 
@@ -1100,5 +1151,437 @@ class MockTestService:
                 priority_score=float(ps.score) if ps else 0.0,
                 decay_factor=float(ps.decay_factor) if ps else 1.0,
                 last_attempted_at=last,
+            ))
+        return out
+
+    # ------------------------------------------------------------------
+    # Chapter analytics — list (used by the analytics index page)
+    # ------------------------------------------------------------------
+
+    async def get_chapter_analytics(
+        self, user_oid: ObjectId,
+    ) -> AnalyticsChaptersResponse:
+        attempts = await self.repo.list_user_attempts(user_oid)
+        if not attempts:
+            return AnalyticsChaptersResponse(chapters=[])
+
+        # Topic-level metrics first (we already have this helper).
+        topic_analytics = await self._topic_analytics(user_oid, attempts)
+        topic_by_id = {t.topic_id: t for t in topic_analytics}
+
+        # Map topic_id → chapter_id and the chapter doc.
+        all_topic_ids = list(topic_by_id.keys())
+        topic_docs: list[dict] = []
+        async for d in self.repo.topic_map.find({"_id": {"$in": all_topic_ids}}):
+            topic_docs.append(d)
+        topic_to_chapter: dict[int, int] = {
+            int(d["_id"]): int(d.get("chapter_id", 0)) for d in topic_docs
+        }
+        chapter_ids = sorted({cid for cid in topic_to_chapter.values() if cid})
+
+        chapter_docs: dict[int, dict] = {}
+        async for d in self.repo.chapter_map.find({"_id": {"$in": chapter_ids}}):
+            chapter_docs[int(d["_id"])] = d
+
+        subject_ids = sorted({int(d.get("subject_id", 0)) for d in chapter_docs.values()})
+        subject_docs: dict[int, dict] = {}
+        async for d in self.repo.subject_map.find({"_id": {"$in": subject_ids}}):
+            subject_docs[int(d["_id"])] = d
+
+        # Total topics per chapter from the catalog (denominator for coverage).
+        catalog_by_chapter = await self.repo.list_all_topics_grouped_by_chapter()
+
+        # Roll up topic analytics into chapters.
+        by_chapter: dict[int, list[TopicAnalytics]] = defaultdict(list)
+        for tid, ta in topic_by_id.items():
+            cid = topic_to_chapter.get(tid)
+            if cid:
+                by_chapter[cid].append(ta)
+
+        out: list[ChapterAnalytics] = []
+        for cid, topics in by_chapter.items():
+            ch_doc = chapter_docs.get(cid, {})
+            subj_doc = subject_docs.get(int(ch_doc.get("subject_id", 0)), {})
+            attempts_sum = sum(t.attempts for t in topics)
+            correct_sum = sum(t.correct for t in topics)
+            priority_avg = (
+                sum(t.priority_score for t in topics) / len(topics)
+                if topics else 0.0
+            )
+            priority_max = max((t.priority_score for t in topics), default=0.0)
+            decay_avg = (
+                sum(t.decay_factor for t in topics) / len(topics)
+                if topics else 1.0
+            )
+            last_at = None
+            for t in topics:
+                if t.last_attempted_at is not None and (
+                    last_at is None or t.last_attempted_at > last_at
+                ):
+                    last_at = t.last_attempted_at
+
+            out.append(ChapterAnalytics(
+                chapter_id=cid,
+                chapter_name=ch_doc.get("name", ""),
+                subject_id=int(ch_doc.get("subject_id", 0)),
+                subject_name=subj_doc.get("name", ""),
+                attempted_topic_count=len(topics),
+                total_topic_count=len(catalog_by_chapter.get(cid, [])),
+                attempts=attempts_sum,
+                correct=correct_sum,
+                accuracy_pct=(correct_sum / attempts_sum * 100) if attempts_sum else 0.0,
+                avg_priority_score=priority_avg,
+                max_priority_score=priority_max,
+                avg_decay_factor=decay_avg,
+                last_attempted_at=last_at,
+            ))
+
+        # Default: weakest chapters first.
+        out.sort(key=lambda c: c.avg_priority_score, reverse=True)
+        return AnalyticsChaptersResponse(chapters=out)
+
+    # ------------------------------------------------------------------
+    # Chapter detail (drill-down for one chapter)
+    # ------------------------------------------------------------------
+
+    async def get_chapter_detail(
+        self, user_oid: ObjectId, chapter_id: int,
+    ) -> ChapterDetailResponse:
+        ch_doc = await self.repo.get_chapter_doc(chapter_id)
+        if ch_doc is None:
+            raise AppException("Chapter not found.", status.HTTP_404_NOT_FOUND)
+        subj_doc = await self.repo.get_subject_doc(int(ch_doc.get("subject_id", 0))) or {}
+
+        # Catalog topics belonging to this chapter.
+        catalog_topics = await self.repo.list_topics_for_chapter(chapter_id)
+        chapter_topic_ids = {int(t["_id"]) for t in catalog_topics}
+
+        attempts = await self.repo.list_user_attempts(user_oid)
+        chapter_attempts = [
+            a for a in attempts if int(a.get("topic_id", 0)) in chapter_topic_ids
+        ]
+
+        topic_analytics_all = await self._topic_analytics(user_oid, attempts)
+        topics_in_chapter = [
+            t for t in topic_analytics_all if t.topic_id in chapter_topic_ids
+        ]
+        topics_in_chapter.sort(key=lambda t: t.priority_score, reverse=True)
+
+        # --- Difficulty / type breakdowns over chapter attempts ---
+        by_difficulty = _bucket_by_key(
+            chapter_attempts,
+            key_fn=lambda a: str(a.get("difficulty", "medium")).lower(),
+        )
+        diff_rows = [
+            DifficultyBreakdown(
+                difficulty=k, attempts=cnt, correct=int(round(score)),
+                accuracy_pct=(score / cnt * 100) if cnt else 0.0,
+            )
+            for k, (cnt, score) in sorted(by_difficulty.items())
+        ]
+
+        type_rows = await self._type_breakdown_for_attempts(chapter_attempts)
+
+        # --- Priority trend per topic + chapter rollup ---
+        allocs = await self.repo.list_topic_allocations_for_user(user_oid)
+        chapter_allocs = [a for a in allocs if int(a["topic_id"]) in chapter_topic_ids]
+
+        per_topic_priority_map: dict[int, list[PriorityTrendPoint]] = defaultdict(list)
+        # Chapter trend = per-session average of priority scores across all
+        # topics from this chapter that appeared in that session.
+        rolled_priority_by_session: dict[int, dict] = {}
+        for row in chapter_allocs:
+            tid = int(row["topic_id"])
+            sid = int(row["session_id"])
+            completed_at = row.get("completed_at") or row.get("created_at")
+            if completed_at is None:
+                continue
+            pt = PriorityTrendPoint(
+                session_id=sid,
+                completed_at=completed_at,
+                priority_score=float(row.get("priority_score", 0.0)),
+                decay_factor=float(row.get("decay_factor", 1.0)),
+            )
+            per_topic_priority_map[tid].append(pt)
+            bucket = rolled_priority_by_session.setdefault(
+                sid, {"completed_at": completed_at, "total": 0.0, "count": 0, "decay": 0.0},
+            )
+            bucket["total"] += pt.priority_score
+            bucket["decay"] += pt.decay_factor
+            bucket["count"] += 1
+
+        priority_trend = [
+            PriorityTrendPoint(
+                session_id=sid,
+                completed_at=b["completed_at"],
+                priority_score=b["total"] / b["count"] if b["count"] else 0.0,
+                decay_factor=b["decay"] / b["count"] if b["count"] else 1.0,
+            )
+            for sid, b in sorted(
+                rolled_priority_by_session.items(), key=lambda kv: kv[1]["completed_at"],
+            )
+        ]
+
+        # --- Accuracy trend per session (chapter rollup) ---
+        accuracy_trend = await self._accuracy_trend_for_topics(
+            user_oid, chapter_topic_ids,
+        )
+
+        # --- Cumulative attempts over time (per chapter) ---
+        cumulative = _cumulative_by_day(chapter_attempts)
+
+        # --- Per-topic accuracy trends (kept lightweight: just per topic in chapter) ---
+        per_topic_priority = [
+            TopicPriorityTrend(
+                topic_id=tid,
+                topic_name=next(
+                    (t.topic_name for t in topics_in_chapter if t.topic_id == tid),
+                    "",
+                ),
+                points=sorted(pts, key=lambda p: p.completed_at),
+            )
+            for tid, pts in per_topic_priority_map.items()
+        ]
+
+        per_topic_accuracy: list[TopicAccuracyTrend] = []
+        for t in topics_in_chapter:
+            pts = await self._accuracy_trend_for_topics(user_oid, {t.topic_id})
+            per_topic_accuracy.append(TopicAccuracyTrend(
+                topic_id=t.topic_id, topic_name=t.topic_name, points=pts,
+            ))
+
+        attempts_sum = sum(t.attempts for t in topics_in_chapter)
+        correct_sum = sum(t.correct for t in topics_in_chapter)
+        avg_priority = (
+            sum(t.priority_score for t in topics_in_chapter) / len(topics_in_chapter)
+            if topics_in_chapter else 0.0
+        )
+        max_priority = max((t.priority_score for t in topics_in_chapter), default=0.0)
+        avg_decay = (
+            sum(t.decay_factor for t in topics_in_chapter) / len(topics_in_chapter)
+            if topics_in_chapter else 1.0
+        )
+        total_score = 0.0
+        for a in chapter_attempts:
+            corr = a.get("correctness")
+            if corr is None:
+                corr = 1.0 if a.get("is_correct") else 0.0
+            total_score += float(corr)
+
+        last_at = None
+        for t in topics_in_chapter:
+            if t.last_attempted_at is not None and (
+                last_at is None or t.last_attempted_at > last_at
+            ):
+                last_at = t.last_attempted_at
+
+        return ChapterDetailResponse(
+            chapter_id=chapter_id,
+            chapter_name=ch_doc.get("name", ""),
+            subject_id=int(ch_doc.get("subject_id", 0)),
+            subject_name=subj_doc.get("name", ""),
+            attempts=attempts_sum,
+            correct=correct_sum,
+            accuracy_pct=(correct_sum / attempts_sum * 100) if attempts_sum else 0.0,
+            total_score=total_score,
+            avg_priority_score=avg_priority,
+            max_priority_score=max_priority,
+            avg_decay_factor=avg_decay,
+            last_attempted_at=last_at,
+            topics=topics_in_chapter,
+            priority_trend=priority_trend,
+            accuracy_trend=accuracy_trend,
+            cumulative_attempts=cumulative,
+            by_difficulty=diff_rows,
+            by_type=type_rows,
+            per_topic_priority=per_topic_priority,
+            per_topic_accuracy=per_topic_accuracy,
+        )
+
+    # ------------------------------------------------------------------
+    # Topic detail (drill-down for one topic)
+    # ------------------------------------------------------------------
+
+    async def get_topic_detail(
+        self, user_oid: ObjectId, topic_id: int,
+    ) -> TopicDetailResponse:
+        t_doc = await self.repo.get_topic_doc(topic_id)
+        if t_doc is None:
+            raise AppException("Topic not found.", status.HTTP_404_NOT_FOUND)
+
+        attempts = await self.repo.list_user_attempts(user_oid)
+        topic_attempts = [a for a in attempts if int(a.get("topic_id", 0)) == topic_id]
+
+        # Current priority via the existing helper.
+        topic_analytics_all = await self._topic_analytics(user_oid, attempts)
+        ta = next((t for t in topic_analytics_all if t.topic_id == topic_id), None)
+
+        # Difficulty breakdown.
+        by_difficulty = _bucket_by_key(
+            topic_attempts,
+            key_fn=lambda a: str(a.get("difficulty", "medium")).lower(),
+        )
+        diff_rows = [
+            DifficultyBreakdown(
+                difficulty=k, attempts=cnt, correct=int(round(score)),
+                accuracy_pct=(score / cnt * 100) if cnt else 0.0,
+            )
+            for k, (cnt, score) in sorted(by_difficulty.items())
+        ]
+
+        type_rows = await self._type_breakdown_for_attempts(topic_attempts)
+
+        # Priority trend from allocation history.
+        allocs = await self.repo.list_topic_allocations_for_user(user_oid)
+        topic_allocs = [a for a in allocs if int(a["topic_id"]) == topic_id]
+        priority_trend = [
+            PriorityTrendPoint(
+                session_id=int(a["session_id"]),
+                completed_at=a.get("completed_at") or a.get("created_at"),
+                priority_score=float(a.get("priority_score", 0.0)),
+                decay_factor=float(a.get("decay_factor", 1.0)),
+            )
+            for a in topic_allocs
+            if (a.get("completed_at") or a.get("created_at")) is not None
+        ]
+        priority_trend.sort(key=lambda p: p.completed_at)
+
+        # Accuracy trend per session.
+        accuracy_trend = await self._accuracy_trend_for_topics(user_oid, {topic_id})
+
+        cumulative = _cumulative_by_day(topic_attempts)
+
+        recent = sorted(
+            topic_attempts,
+            key=lambda a: a.get("attempted_at") or datetime.utcnow(),
+            reverse=True,
+        )[:25]
+        recent_rows = []
+        for a in recent:
+            corr = a.get("correctness")
+            eff = float(corr) if corr is not None else (
+                1.0 if a.get("is_correct") else 0.0
+            )
+            recent_rows.append(RecentAttempt(
+                session_id=int(a.get("session_id", 0)),
+                question_id=int(a.get("question_id", 0)),
+                attempted_at=a.get("attempted_at") or datetime.utcnow(),
+                is_correct=bool(a.get("is_correct", False)),
+                correctness=eff,
+                difficulty=str(a.get("difficulty", "medium")),
+                score_contribution=int(a.get("score_contribution", 0)),
+            ))
+
+        # Chapter/subject hydration for the header.
+        ch_doc = await self.repo.get_chapter_doc(int(t_doc.get("chapter_id", 0))) or {}
+        subj_doc = await self.repo.get_subject_doc(int(t_doc.get("subject_id", 0))) or {}
+
+        return TopicDetailResponse(
+            topic_id=topic_id,
+            topic_name=t_doc.get("name", ""),
+            chapter_id=int(t_doc.get("chapter_id", 0)),
+            chapter_name=ch_doc.get("name", t_doc.get("chapter", "")),
+            subject_id=int(t_doc.get("subject_id", 0)),
+            subject_name=subj_doc.get("name", t_doc.get("subject", "")),
+            attempts=(ta.attempts if ta else len(topic_attempts)),
+            correct=(ta.correct if ta else 0),
+            accuracy_pct=(ta.accuracy_pct if ta else 0.0),
+            current_priority_score=(ta.priority_score if ta else 0.0),
+            current_decay_factor=(ta.decay_factor if ta else 1.0),
+            last_attempted_at=(ta.last_attempted_at if ta else None),
+            priority_trend=priority_trend,
+            accuracy_trend=accuracy_trend,
+            cumulative_attempts=cumulative,
+            by_difficulty=diff_rows,
+            by_type=type_rows,
+            recent_attempts=recent_rows,
+        )
+
+    # ------------------------------------------------------------------
+    # Shared analytics helpers
+    # ------------------------------------------------------------------
+
+    async def _type_breakdown_for_attempts(
+        self, attempts: list[dict],
+    ) -> list[TypeBreakdown]:
+        if not attempts:
+            return []
+        qids = list({int(a["question_id"]) for a in attempts})
+        map_docs = await self.repo.bulk_lookup_question_int_to_obj(qids)
+        obj_ids = list({d["obj_id"] for d in map_docs.values() if d.get("obj_id")})
+        raw_by_obj = await self.repo.fetch_question_docs_by_obj_ids(obj_ids)
+        bucket: dict[str, tuple[int, float]] = {}
+        for a in attempts:
+            qid = int(a["question_id"])
+            md = map_docs.get(qid)
+            if md is None:
+                continue
+            doc = raw_by_obj.get(md["obj_id"])
+            if doc is None:
+                continue
+            if md.get("sub_index") is not None:
+                qtype = "passage"
+            else:
+                qtype = (doc.get("questionType") or "single_correct").lower()
+            corr = a.get("correctness")
+            if corr is None:
+                corr = 1.0 if a.get("is_correct") else 0.0
+            cur = bucket.get(qtype, (0, 0.0))
+            bucket[qtype] = (cur[0] + 1, cur[1] + float(corr))
+        return [
+            TypeBreakdown(
+                question_type=qt, attempts=cnt, correct=int(round(score)),
+                accuracy_pct=(score / cnt * 100) if cnt else 0.0,
+            )
+            for qt, (cnt, score) in sorted(bucket.items())
+        ]
+
+    async def _accuracy_trend_for_topics(
+        self, user_oid: ObjectId, topic_ids: set[int],
+    ) -> list[AccuracyTrendPoint]:
+        """Per-session accuracy on the given topic set, ordered by completion."""
+        if not topic_ids:
+            return []
+        sessions = await self.repo.list_user_sessions(user_oid, limit=500)
+        completed = [s for s in sessions if s.get("status") == "completed"]
+        if not completed:
+            return []
+        completed.sort(key=lambda s: s.get("completed_at") or s.get("created_at"))
+        sids = [int(s["_id"]) for s in completed]
+
+        # Fetch all relevant responses in one shot.
+        cursor = self.repo.responses.find({
+            "session_id": {"$in": sids},
+            "topic_id": {"$in": list(topic_ids)},
+        })
+        rows = [doc async for doc in cursor]
+        by_session: dict[int, list[dict]] = defaultdict(list)
+        for r in rows:
+            by_session[int(r["session_id"])].append(r)
+
+        out: list[AccuracyTrendPoint] = []
+        for s in completed:
+            sid = int(s["_id"])
+            session_rows = by_session.get(sid, [])
+            if not session_rows:
+                continue
+            total = 0
+            score = 0.0
+            for r in session_rows:
+                if r.get("is_correct") is None:
+                    continue
+                total += 1
+                corr = r.get("correctness")
+                if corr is None:
+                    corr = 1.0 if r.get("is_correct") else 0.0
+                score += float(corr)
+            if total == 0:
+                continue
+            out.append(AccuracyTrendPoint(
+                session_id=sid,
+                completed_at=s.get("completed_at") or s.get("created_at"),
+                accuracy_pct=(score / total * 100) if total else 0.0,
+                attempts=total,
+                correct=int(round(score)),
             ))
         return out

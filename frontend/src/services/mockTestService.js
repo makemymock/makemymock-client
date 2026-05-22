@@ -47,4 +47,19 @@ export const mockTestService = {
     const { data } = await api.get('/mock-test/analytics/topics');
     return data;
   },
+
+  async getChapterAnalytics() {
+    const { data } = await api.get('/mock-test/analytics/chapters');
+    return data;
+  },
+
+  async getChapterDetail(chapterId) {
+    const { data } = await api.get(`/mock-test/analytics/chapter/${chapterId}`);
+    return data;
+  },
+
+  async getTopicDetail(topicId) {
+    const { data } = await api.get(`/mock-test/analytics/topic/${topicId}`);
+    return data;
+  },
 };
