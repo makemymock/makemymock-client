@@ -106,14 +106,18 @@ def grade_matching(user_mapping, doc: dict) -> GradedAnswer:
 
 
 def grade_passage_sub(user_selected: Optional[str], sub_doc: dict) -> GradedAnswer:
-    """A passage sub-Q is single_correct on its own correctOption(s)."""
+    """Sub-Qs of a passage are single_correct.
+
+    bbd_db schema uses `correctOption` (singular string) for passage
+    sub-questions, distinct from standalone questions which use
+    `correctOptions` (array). We only check the singular form here.
+    """
     raw_correct = sub_doc.get("correctOption")
-    if raw_correct is None:
-        raw_correct = sub_doc.get("correctOptions")
-    if isinstance(raw_correct, str):
-        correct_set = {raw_correct.strip().upper()} if raw_correct.strip() else set()
-    else:
-        correct_set = _as_set(raw_correct)
+    correct_set = (
+        {raw_correct.strip().upper()}
+        if isinstance(raw_correct, str) and raw_correct.strip()
+        else set()
+    )
     pick = str(user_selected).strip().upper() if user_selected else ""
     is_correct = bool(pick) and pick in correct_set
     return GradedAnswer(

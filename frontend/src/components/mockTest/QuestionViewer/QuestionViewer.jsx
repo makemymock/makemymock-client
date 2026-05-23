@@ -55,17 +55,11 @@ const QuestionViewer = ({
         <section className={styles.passage}>
           <p className={styles.passageEyebrow}>Passage</p>
           <MarkdownText text={question.passage_text} />
-          {question.passage_image ? (
-            <img src={question.passage_image} alt="" className={styles.passageImg} />
-          ) : null}
         </section>
       ) : null}
 
       <section className={styles.body}>
         <MarkdownText text={question.question_text} />
-        {question.question_image ? (
-          <img src={question.question_image} alt="" className={styles.qImg} />
-        ) : null}
       </section>
 
       {(qtype === 'single_correct') && (
@@ -161,7 +155,6 @@ const OptionList = ({ options, multi, selected, onToggle, readOnly, correctSet }
               <span className={styles.optionText}>
                 <MarkdownText text={opt.text} inline />
               </span>
-              {opt.image ? <img src={opt.image} alt="" className={styles.optionImg} /> : null}
             </button>
           </li>
         );

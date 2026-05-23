@@ -47,21 +47,26 @@ class CreateMockTestRequest(BaseModel):
 
 
 class QuestionPayloadOption(BaseModel):
+    # Images embedded inline via markdown in `text` — no separate field.
     key: str
     text: str
-    image: Optional[str] = None
 
 
 class MatchingColumn(BaseModel):
+    # Images embedded inline via markdown in `text` — no separate field.
     key: str
     text: str
-    image: Optional[str] = None
 
 
 class QuestionPayload(BaseModel):
-    """A test-taking-safe question payload — answers are stripped."""
+    """A test-taking-safe question payload — answers are stripped.
 
-    model_config = ConfigDict(extra="allow")
+    `extra="forbid"` ensures that a future bug like `QuestionPayload(**raw_doc)`
+    would raise at construction instead of silently passing through
+    `correctOptions` / `solution` / `integerAnswer` to the client.
+    """
+
+    model_config = ConfigDict(extra="forbid")
 
     question_id: int
     topic_id: int
@@ -74,13 +79,11 @@ class QuestionPayload(BaseModel):
     # carry the passage text on every sibling so the client can render).
     passage_id: Optional[int] = None
     passage_text: Optional[str] = None
-    passage_image: Optional[str] = None
     passage_sub_index: Optional[int] = None
     passage_sub_total: Optional[int] = None
 
-    # Content (always present)
+    # Content. Images live inline as markdown inside `question_text`.
     question_text: str = ""
-    question_image: Optional[str] = None
 
     # Single/multi-correct
     options: list[QuestionPayloadOption] = Field(default_factory=list)
@@ -149,18 +152,16 @@ class PerQuestionResult(BaseModel):
     score_contribution: int
     # Question content + solution — populated by `get_results` so the
     # review screen can show the prompt and explanation side by side.
+    # Images for question/passage/solution are embedded inline as markdown.
     question_text: Optional[str] = None
-    question_image: Optional[str] = None
     options: list[QuestionPayloadOption] = Field(default_factory=list)
     left_column: list[MatchingColumn] = Field(default_factory=list)
     right_column: list[MatchingColumn] = Field(default_factory=list)
     passage_text: Optional[str] = None
-    passage_image: Optional[str] = None
     passage_sub_index: Optional[int] = None
     passage_sub_total: Optional[int] = None
     passage_id: Optional[int] = None
     solution_text: Optional[str] = None
-    solution_image: Optional[str] = None
 
 
 class SubmitMockTestResponse(BaseModel):

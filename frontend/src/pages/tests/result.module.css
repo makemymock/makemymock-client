@@ -241,11 +241,6 @@
   color: #fca5a5;
 }
 
-.solutionImg {
-  max-width: 100%;
-  border-radius: 12px;
-}
-
 .solutionEmpty {
   margin: 0;
   color: var(--color-text-muted);

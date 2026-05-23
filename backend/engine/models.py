@@ -8,8 +8,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional
-from uuid import UUID
+from typing import Any, Optional
+
+# user_id is opaque to the engine — it's only stored on records and
+# compared for equality (so the same object you pass in comes back out).
+# Typing it as Any keeps the engine agnostic to whatever id type the
+# consumer uses (ObjectId in our case, but it could be UUID, str, int…).
+_UserId = Any
 
 
 @dataclass(frozen=True)
@@ -31,7 +36,7 @@ class Attempt:
     (single_correct, integer, passage sub-Qs) it is None and consumers
     fall back to `is_correct` (1.0 / 0.0).
     """
-    user_id: UUID
+    user_id: _UserId
     topic_id: int
     question_id: int
     is_correct: bool
@@ -71,7 +76,7 @@ class TopicQuota:
 class MockTest:
     """The output of create_mock_test()."""
     session_id: int
-    user_id: UUID
+    user_id: _UserId
     total_questions: int
     extra_questions: int
     topics: list[TopicQuota]

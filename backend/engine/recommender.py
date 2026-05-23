@@ -10,10 +10,8 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import datetime
-from typing import Iterable
-from uuid import UUID
+from typing import Any, Iterable
 
-from engine.clock import Clock, SystemClock
 from engine.models import (
     AnswerEvaluation, Attempt, MockTest, SubmissionResult, TopicQuota,
 )
@@ -23,7 +21,12 @@ from engine.scoring import score_contribution, score_contribution_partial
 from engine.selection import (
     select_questions, select_extra_performance_questions,
 )
-from engine.repository import Repository
+
+
+# Engine only needs structural conformance to the BufferedRepository
+# adapter (modules/mock_test/engine_adapter.py). Typing as Any keeps the
+# engine decoupled from its consumer.
+from typing import Any as _Repository  # noqa: N812
 
 
 # ---------------------------------------------------------------------------
@@ -31,24 +34,22 @@ from engine.repository import Repository
 # ---------------------------------------------------------------------------
 
 def create_mock_test(
-    repo: Repository,
+    repo: _Repository,
     *,
-    user_id: UUID,
+    user_id: Any,
     topic_ids: list[int],
     total_questions: int,
     include_extra: bool = False,
     extra_count: int = 0,
-    clock: Clock | None = None,
     shuffle_seed: int | None = None,
 ) -> MockTest:
     """Build a fresh mock test for the user.
 
-    shuffle_seed: forwarded to select_questions. None = deterministic order
-    (current/test default); int = seeded shuffle within each rotation pool.
-    In production, pass `int(time.time())` or a session-derived hash.
+    shuffle_seed: forwarded to select_questions. None preserves stable
+    lead-id order; an int seeds the per-pool shuffle. In production, pass
+    `int(time.time())` or a session-derived hash.
     """
-    clock = clock or SystemClock()
-    now = clock.now()
+    now = datetime.utcnow()
 
     # Pre-fetch all attempts for the selected topics.
     all_attempts = repo.get_attempts_for_topics(user_id, topic_ids)
@@ -144,13 +145,12 @@ def create_mock_test(
 # ---------------------------------------------------------------------------
 
 def submit_test(
-    repo: Repository,
+    repo: _Repository,
     *,
     session_id: int,
-    user_id: UUID,
+    user_id: Any,
     evaluations: Iterable[AnswerEvaluation],
     difficulty_by_question: dict[int, str],
-    clock: Clock | None = None,
 ) -> SubmissionResult:
     """Update attempt history from the answer evaluations.
 
@@ -162,8 +162,7 @@ def submit_test(
       - `AnswerEvaluation(question_id, is_correct)`
       - the question's difficulty (so we can compute score_contribution)
     """
-    clock = clock or SystemClock()
-    now = clock.now()
+    now = datetime.utcnow()
 
     new_attempts: list[Attempt] = []
     correct = 0

@@ -80,13 +80,6 @@
   color: var(--color-accent);
 }
 
-.passageImg, .qImg {
-  margin-top: 10px;
-  max-width: 100%;
-  height: auto;
-  border-radius: 10px;
-}
-
 .body {
   font-size: clamp(15px, 1.6vw, 17px);
   line-height: 1.6;
@@ -159,11 +152,6 @@
 .optionText {
   flex: 1;
   overflow-wrap: anywhere;
-}
-
-.optionImg {
-  max-width: 160px;
-  border-radius: 8px;
 }
 
 .integerWrap {

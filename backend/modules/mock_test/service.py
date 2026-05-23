@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import logging
 import time
-import uuid
 from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Any, Optional
@@ -18,7 +17,6 @@ from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from core.exceptions import AppException
-from engine.clock import SystemClock
 from engine.models import Attempt as EngineAttempt, Question as EngineQuestion
 from engine.recommender import create_mock_test as engine_create_mock_test
 from engine.recommender import submit_test as engine_submit_test
@@ -83,34 +81,6 @@ _TYPE_RANK = {
 }
 
 
-def _user_uuid_from_object_id(oid: ObjectId) -> uuid.UUID:
-    """Stable UUID derived from a Mongo ObjectId.
-
-    The engine's models declare `user_id: UUID`. We don't have UUIDs; we
-    derive a deterministic one from the 12-byte ObjectId. Same input → same
-    UUID across calls, which keeps engine semantics intact.
-    """
-    raw = oid.binary
-    # ObjectId is 12 bytes; pad to 16 for UUID.
-    padded = raw + b"\x00" * 4
-    return uuid.UUID(bytes=padded)
-
-
-def _strip_answers(payload: dict) -> dict:
-    """Remove answer-revealing fields from a question payload."""
-    safe = dict(payload)
-    safe.pop("correctOptions", None)
-    safe.pop("correctOption", None)
-    safe.pop("integerAnswer", None)
-    safe.pop("solution", None)
-    safe.pop("solutionImg", None)
-    md = safe.get("matchingData")
-    if isinstance(md, dict):
-        new_md = {k: v for k, v in md.items() if k != "correctMapping"}
-        safe["matchingData"] = new_md
-    return safe
-
-
 def _options_from_doc(doc: dict) -> list[QuestionPayloadOption]:
     out: list[QuestionPayloadOption] = []
     for key in ("A", "B", "C", "D"):
@@ -132,8 +102,7 @@ def _matching_cols(doc: dict) -> tuple[list[MatchingColumn], list[MatchingColumn
             if isinstance(item, dict):
                 key = str(item.get("key") or item.get("id") or f"{default_prefix}{i+1}")
                 text = str(item.get("text") or item.get("value") or "")
-                image = item.get("image") or item.get("img")
-                out.append(MatchingColumn(key=key, text=text, image=image))
+                out.append(MatchingColumn(key=key, text=text))
             else:
                 out.append(MatchingColumn(
                     key=f"{default_prefix}{i+1}", text=str(item),
@@ -282,14 +251,13 @@ class MockTestService:
         engine_questions.sort(key=lambda pair: (pair[1], pair[0].id))
 
         # Fetch user's prior attempts on these topics.
-        user_uuid = _user_uuid_from_object_id(user_oid)
         attempt_docs = await self.db["user_topic_attempts"].find(
             {"user_id": user_oid, "topic_id": {"$in": topic_ids}},
         ).to_list(length=None)
         engine_attempts: list[EngineAttempt] = []
         for ad in attempt_docs:
             engine_attempts.append(EngineAttempt(
-                user_id=user_uuid,
+                user_id=user_oid,
                 topic_id=int(ad["topic_id"]),
                 question_id=int(ad["question_id"]),
                 is_correct=bool(ad.get("is_correct", False)),
@@ -303,7 +271,7 @@ class MockTestService:
         session_id = await self.repo.next_id(COUNTER_SESSION)
 
         buffered = BufferedRepository(
-            user_id=user_uuid,
+            user_id=user_oid,
             preallocated_session_id=session_id,
             attempts_for_topics=engine_attempts,
             attempts_for_user=[],  # extras not supported in UI yet
@@ -314,12 +282,11 @@ class MockTestService:
         # Run the engine (synchronous on the buffered repo).
         mock_test = engine_create_mock_test(
             buffered,
-            user_id=user_uuid,
+            user_id=user_oid,
             topic_ids=topic_ids,
             total_questions=payload.total_questions,
             include_extra=payload.extra_questions > 0,
             extra_count=payload.extra_questions,
-            clock=SystemClock(),
             shuffle_seed=int(time.time()),
         )
 
@@ -440,11 +407,9 @@ class MockTestService:
                     is_extra=bool(is_extra_by_id.get(q.id, False)),
                     passage_id=q.passage_id,
                     passage_text=(doc.get("passageData") or {}).get("passageText", ""),
-                    passage_image=(doc.get("passageData") or {}).get("passageImg") or None,
                     passage_sub_index=sub_index,
                     passage_sub_total=len(sub_qs),
                     question_text=sub.get("questionText", ""),
-                    question_image=sub.get("questionImg") or None,
                     options=_options_from_doc(sub),
                 )
                 out.append(payload)
@@ -462,7 +427,6 @@ class MockTestService:
                 difficulty=q.difficulty,
                 is_extra=bool(is_extra_by_id.get(q.id, False)),
                 question_text=doc.get("questionText", ""),
-                question_image=doc.get("questionImg") or None,
                 options=_options_from_doc(doc) if qtype in (
                     "single_correct", "multi_correct",
                 ) else [],
@@ -676,19 +640,17 @@ class MockTestService:
             )
 
         # Run engine submit on a fresh buffered repo (writes only).
-        user_uuid = _user_uuid_from_object_id(user_oid)
         buffered = BufferedRepository(
-            user_id=user_uuid,
+            user_id=user_oid,
             preallocated_session_id=session_id,
             session_topic_lookup=session_topic_lookup,
         )
         result = engine_submit_test(
             buffered,
             session_id=session_id,
-            user_id=user_uuid,
+            user_id=user_oid,
             evaluations=evaluations,
             difficulty_by_question=difficulty_by_q,
-            clock=SystemClock(),
         )
 
         # Persist attempt rows.
@@ -781,34 +743,28 @@ class MockTestService:
 
             # ---- prompt content + solution per (sub-)question ----
             q_text = ""
-            q_image = None
             options: list = []
             left_col: list = []
             right_col: list = []
             passage_text = None
-            passage_image = None
             passage_sub_index = None
             passage_sub_total = None
             passage_id = None
             solution_text = None
-            solution_image = None
 
             if sub_index is not None:
                 sub_qs = (doc.get("passageData") or {}).get("subQuestions") or []
                 sub_doc = sub_qs[sub_index] if sub_index < len(sub_qs) else {}
-                correct_answer = sub_doc.get("correctOption") or sub_doc.get("correctOptions")
+                # bbd_db schema: passage sub-Qs use `correctOption` (singular).
+                correct_answer = sub_doc.get("correctOption")
                 qtype = "passage"
                 q_text = sub_doc.get("questionText", "")
-                q_image = sub_doc.get("questionImg") or None
                 options = _options_from_doc(sub_doc)
                 passage_text = (doc.get("passageData") or {}).get("passageText", "")
-                passage_image = (doc.get("passageData") or {}).get("passageImg") or None
                 passage_sub_index = sub_index
                 passage_sub_total = len(sub_qs)
-                # Parent doc int-id (we have it via md.obj_id → qid_map lookup
-                # earlier, but the response_row already carries the parent's
-                # int id only for standalones; sub-question rows carry the
-                # sub's int-id, so we look up the parent's separately).
+                # Parent doc int-id — sub-question rows carry the sub's
+                # int-id, so we look up the parent's separately.
                 parent_map = await self.repo.qid_map.find_one(
                     {"obj_id": md["obj_id"], "sub_index": None},
                 )
@@ -822,11 +778,6 @@ class MockTestService:
                     or doc.get("solution")
                     or None
                 )
-                solution_image = (
-                    sub_doc.get("solutionImg")
-                    or doc.get("solutionImg")
-                    or None
-                )
             else:
                 qtype = (doc.get("questionType") or "single_correct").lower()
                 if qtype == "matching":
@@ -834,15 +785,14 @@ class MockTestService:
                 elif qtype == "integer":
                     correct_answer = doc.get("integerAnswer")
                 else:
+                    # bbd_db schema: standalones use `correctOptions` (array).
                     correct_answer = doc.get("correctOptions")
                 q_text = doc.get("questionText", "")
-                q_image = doc.get("questionImg") or None
                 if qtype in ("single_correct", "multi_correct"):
                     options = _options_from_doc(doc)
                 elif qtype == "matching":
                     left_col, right_col = _matching_cols(doc)
                 solution_text = doc.get("solution") or doc.get("explanation") or None
-                solution_image = doc.get("solutionImg") or None
 
             difficulty = (doc.get("difficulty") or "medium").lower()
             is_correct = bool(r.get("is_correct"))
@@ -861,17 +811,14 @@ class MockTestService:
                 question_type=qtype,
                 score_contribution=sc_by_q.get(qid, 0),
                 question_text=q_text,
-                question_image=q_image,
                 options=options,
                 left_column=left_col,
                 right_column=right_col,
                 passage_text=passage_text,
-                passage_image=passage_image,
                 passage_sub_index=passage_sub_index,
                 passage_sub_total=passage_sub_total,
                 passage_id=passage_id,
                 solution_text=solution_text,
-                solution_image=solution_image,
             ))
 
         results.sort(key=lambda r: r.display_order)
@@ -1041,11 +988,10 @@ class MockTestService:
         topic_ids = sorted({int(a["topic_id"]) for a in attempts})
 
         # Build engine attempts so we can run priority scoring.
-        user_uuid = _user_uuid_from_object_id(user_oid)
         engine_attempts: list[EngineAttempt] = []
         for a in attempts:
             engine_attempts.append(EngineAttempt(
-                user_id=user_uuid,
+                user_id=user_oid,
                 topic_id=int(a["topic_id"]),
                 question_id=int(a["question_id"]),
                 is_correct=bool(a.get("is_correct", False)),
