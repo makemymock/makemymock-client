@@ -1,0 +1,159 @@
+.backRow {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.backRow a {
+  color: var(--color-text-muted);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.backRow a:hover {
+  color: var(--color-accent);
+}
+
+.overviewGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+}
+
+.card {
+  background: var(--color-panel-bg);
+  border: 1px solid var(--color-panel-border);
+  border-radius: 18px;
+  padding: clamp(16px, 3vw, 24px);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.cardHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.cardTitle {
+  margin: 0;
+  font-family: var(--font-secondary);
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: -0.2px;
+  color: var(--color-text-primary);
+}
+
+.cardSub {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.twoCol {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 880px) {
+  .twoCol {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.muted {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  color: var(--color-text-primary);
+}
+
+.table thead th {
+  text-align: left;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--color-panel-border);
+}
+
+.table tbody td {
+  padding: 10px;
+  border-bottom: 1px solid var(--color-chip-border);
+  font-variant-numeric: tabular-nums;
+}
+
+.table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.table a {
+  color: var(--color-accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.table a:hover {
+  text-decoration: underline;
+}
+
+.cap {
+  text-transform: capitalize;
+}
+
+.good {
+  color: #22c55e;
+  font-weight: 700;
+}
+
+.warn {
+  color: #f59e0b;
+  font-weight: 700;
+}
+
+.bad {
+  color: #ef4444;
+  font-weight: 700;
+}
+
+.emptyState {
+  background: var(--color-panel-bg);
+  border: 1px dashed var(--color-panel-border);
+  border-radius: 18px;
+  padding: 28px;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.emptyState h3 {
+  margin: 0 0 8px;
+  color: var(--color-text-primary);
+}
+
+.emptyState a {
+  color: var(--color-accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.emptyState a:hover {
+  text-decoration: underline;
+}

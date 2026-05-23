@@ -7,15 +7,18 @@ from fastapi import APIRouter, status
 
 from core.dependencies import CurrentVerifiedUser, DBDep
 from modules.mock_test.schema import (
+    AnalyticsChaptersResponse,
     AnalyticsOverviewResponse,
     AnalyticsTopicsResponse,
     CatalogResponse,
+    ChapterDetailResponse,
     CreateMockTestRequest,
     CreateMockTestResponse,
     HistoryResponse,
     SessionResponse,
     SubmitMockTestRequest,
     SubmitMockTestResponse,
+    TopicDetailResponse,
 )
 from modules.mock_test.service import MockTestService
 
@@ -118,3 +121,40 @@ async def analytics_topics(
     user: CurrentVerifiedUser, db: DBDep,
 ) -> AnalyticsTopicsResponse:
     return await MockTestService(db).get_topic_analytics(user["_id"])
+
+
+@router.get(
+    "/analytics/chapters",
+    response_model=AnalyticsChaptersResponse,
+    summary="Per-chapter rollup analytics for the current user",
+)
+async def analytics_chapters(
+    user: CurrentVerifiedUser, db: DBDep,
+) -> AnalyticsChaptersResponse:
+    return await MockTestService(db).get_chapter_analytics(user["_id"])
+
+
+@router.get(
+    "/analytics/chapter/{chapter_id}",
+    response_model=ChapterDetailResponse,
+    summary="Drill-down analytics for a single chapter",
+)
+async def analytics_chapter_detail(
+    chapter_id: int,
+    user: CurrentVerifiedUser,
+    db: DBDep,
+) -> ChapterDetailResponse:
+    return await MockTestService(db).get_chapter_detail(user["_id"], chapter_id)
+
+
+@router.get(
+    "/analytics/topic/{topic_id}",
+    response_model=TopicDetailResponse,
+    summary="Drill-down analytics for a single topic",
+)
+async def analytics_topic_detail(
+    topic_id: int,
+    user: CurrentVerifiedUser,
+    db: DBDep,
+) -> TopicDetailResponse:
+    return await MockTestService(db).get_topic_detail(user["_id"], topic_id)

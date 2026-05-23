@@ -1,0 +1,142 @@
+.backRow {
+  margin: 0;
+}
+
+.backRow a {
+  color: var(--color-text-muted);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.backRow a:hover {
+  color: var(--color-accent);
+}
+
+.overviewGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+}
+
+.card {
+  background: var(--color-panel-bg);
+  border: 1px solid var(--color-panel-border);
+  border-radius: 18px;
+  padding: clamp(16px, 3vw, 24px);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.cardHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.cardTitle {
+  margin: 0;
+  font-family: var(--font-secondary);
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: -0.2px;
+  color: var(--color-text-primary);
+}
+
+.cardSub {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.twoCol {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 880px) {
+  .twoCol {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.topicList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.topicRow {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  background: var(--color-chip-bg);
+  border: 1px solid var(--color-chip-border);
+  border-radius: 12px;
+  padding: 12px 16px;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.topicRow:hover,
+.topicRow:focus-visible {
+  background: rgba(255, 255, 255, 0.04);
+  outline: none;
+  transform: translateX(2px);
+}
+
+.topicName {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--color-text-primary);
+}
+
+.topicMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.topicArrow {
+  color: var(--color-accent);
+  font-weight: 700;
+}
+
+.emptyState {
+  background: var(--color-panel-bg);
+  border: 1px dashed var(--color-panel-border);
+  border-radius: 18px;
+  padding: 28px;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.emptyState h3 {
+  margin: 0 0 8px;
+  color: var(--color-text-primary);
+}
+
+.emptyState a {
+  color: var(--color-accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.emptyState a:hover {
+  text-decoration: underline;
+}

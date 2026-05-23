@@ -1,31 +1,7 @@
-.overview {
+.overviewGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 12px;
-}
-
-.stat {
-  background: var(--color-panel-bg);
-  border: 1px solid var(--color-panel-border);
-  border-radius: 16px;
-  padding: 16px 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.statLabel {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 1.5px;
-  color: var(--color-text-muted);
-}
-
-.statValue {
-  font-family: var(--font-secondary);
-  font-size: clamp(22px, 3vw, 30px);
-  font-weight: 800;
-  letter-spacing: -0.4px;
 }
 
 .card {
@@ -45,6 +21,7 @@
   align-items: baseline;
   justify-content: space-between;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 .cardTitle {
@@ -53,6 +30,7 @@
   font-weight: 700;
   font-size: 16px;
   letter-spacing: -0.2px;
+  color: var(--color-text-primary);
 }
 
 .cardSub {
@@ -66,16 +44,10 @@
   grid-template-columns: 1fr;
 }
 
-@media (min-width: 800px) {
+@media (min-width: 880px) {
   .twoCol {
     grid-template-columns: 1fr 1fr;
   }
-}
-
-.sparkline {
-  width: 100%;
-  height: 130px;
-  background: transparent;
 }
 
 .tableEmpty {
@@ -85,107 +57,111 @@
   font-style: italic;
 }
 
-.barTable {
+/* ---------- Chapter cards ---------- */
+
+.chapterGrid {
   list-style: none;
   margin: 0;
   padding: 0;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+
+.chapterCard {
   display: flex;
   flex-direction: column;
   gap: 10px;
-}
-
-.barRow {
-  display: grid;
-  grid-template-columns: 1fr auto auto;
-  gap: 8px;
-  align-items: baseline;
-}
-
-.barLabel {
-  font-weight: 600;
-  text-transform: capitalize;
-}
-
-.barMeta {
-  font-size: 11px;
-  color: var(--color-text-muted);
-  letter-spacing: 1px;
-  text-transform: uppercase;
-}
-
-.barValue {
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
-.barTrack {
-  height: 8px;
-  background: rgba(255, 255, 255, 0.06);
-  border-radius: 999px;
-  overflow: hidden;
-}
-
-.barFill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--color-brand-grad-from), var(--color-brand-grad-to));
-  border-radius: 999px;
-  transition: width 0.4s ease;
-}
-
-.topicList {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.topicRow {
   background: var(--color-chip-bg);
   border: 1px solid var(--color-chip-border);
-  border-radius: 12px;
-  padding: 12px 14px;
+  border-radius: 14px;
+  padding: 14px 16px;
+  text-decoration: none;
+  color: inherit;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.chapterCard:hover,
+.chapterCard:focus-visible {
+  transform: translateY(-2px);
+  border-color: var(--color-border-strong);
+  outline: none;
+}
+
+.chapterSubject {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--color-text-muted);
+}
+
+.chapterName {
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--color-text-primary);
+}
+
+.chapterMetrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.chapterMetrics > div {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 2px;
 }
 
-.topicHead {
+.metricNum {
+  font-family: var(--font-secondary);
+  font-weight: 800;
+  font-size: 18px;
+  color: var(--color-text-primary);
+}
+
+.metricLabel {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--color-text-muted);
+}
+
+.coverageRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.coverageLabel {
   font-size: 11px;
   color: var(--color-text-muted);
-  letter-spacing: 1px;
-  text-transform: uppercase;
 }
 
-.topicSep {
-  margin: 0 6px;
-}
-
-.topicName {
-  font-weight: 700;
-  font-size: 15px;
-}
-
-.topicBar {
+.coverageTrack {
   height: 6px;
   background: rgba(255, 255, 255, 0.06);
   border-radius: 999px;
   overflow: hidden;
 }
 
-.topicBarFill {
+.coverageFill {
   height: 100%;
-  background: linear-gradient(90deg, #f59e0b, #ef4444);
+  background: linear-gradient(
+    90deg,
+    var(--color-brand-grad-from),
+    var(--color-brand-grad-to)
+  );
 }
 
-.topicMeta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+.deepDive {
+  margin-top: 2px;
   font-size: 12px;
-  color: var(--color-text-muted);
+  font-weight: 700;
+  color: var(--color-accent);
 }
+
+/* ---------- Mini lists (weakest / strongest topics) ---------- */
 
 .miniList {
   list-style: none;
@@ -200,15 +176,29 @@
   background: var(--color-chip-bg);
   border: 1px solid var(--color-chip-border);
   border-radius: 12px;
-  padding: 10px 12px;
+}
+
+.miniList a {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 4px;
+  padding: 10px 12px;
+  text-decoration: none;
+  color: inherit;
+  border-radius: 12px;
+  transition: background 0.15s ease;
+}
+
+.miniList a:hover,
+.miniList a:focus-visible {
+  background: rgba(255, 255, 255, 0.04);
+  outline: none;
 }
 
 .miniList strong {
   grid-column: 1 / -1;
   font-size: 14px;
+  color: var(--color-text-primary);
 }
 
 .miniList span {
@@ -238,4 +228,14 @@
 .emptyState h3 {
   margin: 0 0 8px;
   color: var(--color-text-primary);
+}
+
+.emptyState a {
+  color: var(--color-accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.emptyState a:hover {
+  text-decoration: underline;
 }

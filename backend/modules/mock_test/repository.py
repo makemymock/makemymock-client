@@ -401,3 +401,63 @@ class MockTestRepository:
             return []
         cursor = self.responses.find({"session_id": {"$in": session_ids}})
         return [doc async for doc in cursor]
+
+    # ---------- analytics aggregations ----------
+
+    async def list_topic_allocations_for_user(
+        self, user_id: ObjectId,
+    ) -> list[dict]:
+        """Every (session_id, topic_id) allocation row across the user's
+        completed sessions, with the session's `completed_at` joined in.
+
+        Used to reconstruct priority-score-over-time per topic/chapter.
+        """
+        pipeline = [
+            {"$lookup": {
+                "from": SESSIONS_COLLECTION,
+                "localField": "session_id",
+                "foreignField": "_id",
+                "as": "session",
+            }},
+            {"$unwind": "$session"},
+            {"$match": {
+                "session.user_id": user_id,
+                "session.status": "completed",
+            }},
+            {"$project": {
+                "_id": 0,
+                "session_id": "$session_id",
+                "topic_id": "$topic_id",
+                "question_count": "$question_count",
+                "priority_score": "$priority_score",
+                "decay_factor": "$decay_factor",
+                "completed_at": "$session.completed_at",
+                "created_at": "$session.created_at",
+            }},
+            {"$sort": {"completed_at": 1}},
+        ]
+        cursor = self.topics_col.aggregate(pipeline)
+        return [doc async for doc in cursor]
+
+    async def list_all_topics_grouped_by_chapter(self) -> dict[int, list[dict]]:
+        """All catalog topics keyed by chapter_id. Used to compute
+        attempted_topic_count vs total_topic_count."""
+        cursor = self.topic_map.find({})
+        out: dict[int, list[dict]] = {}
+        async for doc in cursor:
+            cid = int(doc.get("chapter_id", 0))
+            out.setdefault(cid, []).append(doc)
+        return out
+
+    async def get_chapter_doc(self, chapter_id: int) -> Optional[dict]:
+        return await self.chapter_map.find_one({"_id": int(chapter_id)})
+
+    async def get_topic_doc(self, topic_id: int) -> Optional[dict]:
+        return await self.topic_map.find_one({"_id": int(topic_id)})
+
+    async def get_subject_doc(self, subject_id: int) -> Optional[dict]:
+        return await self.subject_map.find_one({"_id": int(subject_id)})
+
+    async def list_topics_for_chapter(self, chapter_id: int) -> list[dict]:
+        cursor = self.topic_map.find({"chapter_id": int(chapter_id)})
+        return [doc async for doc in cursor]

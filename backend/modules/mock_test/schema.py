@@ -245,3 +245,126 @@ class AnalyticsOverviewResponse(BaseModel):
 
 class AnalyticsTopicsResponse(BaseModel):
     topics: list[TopicAnalytics]
+
+
+# ---------------------------------------------------------------------------
+# Chapter analytics
+# ---------------------------------------------------------------------------
+
+class ChapterAnalytics(BaseModel):
+    chapter_id: int
+    chapter_name: str
+    subject_id: int
+    subject_name: str
+    attempted_topic_count: int
+    total_topic_count: int
+    attempts: int
+    correct: int
+    accuracy_pct: float
+    avg_priority_score: float
+    max_priority_score: float
+    avg_decay_factor: float
+    last_attempted_at: Optional[datetime] = None
+
+
+class AnalyticsChaptersResponse(BaseModel):
+    chapters: list[ChapterAnalytics]
+
+
+# ---------------------------------------------------------------------------
+# Trend points reused by chapter/topic detail
+# ---------------------------------------------------------------------------
+
+class PriorityTrendPoint(BaseModel):
+    session_id: int
+    completed_at: datetime
+    priority_score: float
+    decay_factor: float
+
+
+class AccuracyTrendPoint(BaseModel):
+    session_id: int
+    completed_at: datetime
+    accuracy_pct: float
+    attempts: int
+    correct: int
+
+
+class CumulativePoint(BaseModel):
+    date: datetime
+    delta: int
+    cumulative: int
+
+
+class TopicPriorityTrend(BaseModel):
+    topic_id: int
+    topic_name: str
+    points: list[PriorityTrendPoint]
+
+
+class TopicAccuracyTrend(BaseModel):
+    topic_id: int
+    topic_name: str
+    points: list[AccuracyTrendPoint]
+
+
+# ---------------------------------------------------------------------------
+# Chapter detail (one chapter, drilled down)
+# ---------------------------------------------------------------------------
+
+class ChapterDetailResponse(BaseModel):
+    chapter_id: int
+    chapter_name: str
+    subject_id: int
+    subject_name: str
+    attempts: int
+    correct: int
+    accuracy_pct: float
+    total_score: float
+    avg_priority_score: float
+    max_priority_score: float
+    avg_decay_factor: float
+    last_attempted_at: Optional[datetime] = None
+    topics: list[TopicAnalytics]
+    priority_trend: list[PriorityTrendPoint]
+    accuracy_trend: list[AccuracyTrendPoint]
+    cumulative_attempts: list[CumulativePoint]
+    by_difficulty: list[DifficultyBreakdown]
+    by_type: list[TypeBreakdown]
+    per_topic_priority: list[TopicPriorityTrend]
+    per_topic_accuracy: list[TopicAccuracyTrend]
+
+
+# ---------------------------------------------------------------------------
+# Topic detail (one topic, drilled down)
+# ---------------------------------------------------------------------------
+
+class RecentAttempt(BaseModel):
+    session_id: int
+    question_id: int
+    attempted_at: datetime
+    is_correct: bool
+    correctness: float
+    difficulty: str
+    score_contribution: int
+
+
+class TopicDetailResponse(BaseModel):
+    topic_id: int
+    topic_name: str
+    chapter_id: int
+    chapter_name: str
+    subject_id: int
+    subject_name: str
+    attempts: int
+    correct: int
+    accuracy_pct: float
+    current_priority_score: float
+    current_decay_factor: float
+    last_attempted_at: Optional[datetime] = None
+    priority_trend: list[PriorityTrendPoint]
+    accuracy_trend: list[AccuracyTrendPoint]
+    cumulative_attempts: list[CumulativePoint]
+    by_difficulty: list[DifficultyBreakdown]
+    by_type: list[TypeBreakdown]
+    recent_attempts: list[RecentAttempt]

@@ -3,12 +3,34 @@ import { Link } from 'react-router-dom';
 import ExamShell from '../../components/mockTest/ExamShell/ExamShell';
 import Loader from '../../components/common/Loader/Loader';
 import ErrorMessage from '../../components/common/ErrorMessage/ErrorMessage';
+import StatCard from '../../components/common/StatCard/StatCard';
+import LineChart from '../../components/common/LineChart/LineChart';
+import BarChart from '../../components/common/BarChart/BarChart';
+import DonutChart from '../../components/common/DonutChart/DonutChart';
 import { mockTestService } from '../../services/mockTestService';
 import { parseApiError } from '../../utils/validators';
 import styles from './analytics.module.css';
 
+const prettyType = (t) => {
+  switch (t) {
+    case 'single_correct':
+      return 'Single correct';
+    case 'multi_correct':
+      return 'Multiple correct';
+    case 'integer':
+      return 'Integer';
+    case 'matching':
+      return 'Matching';
+    case 'passage':
+      return 'Passage';
+    default:
+      return t;
+  }
+};
+
 const Analytics = () => {
   const [overview, setOverview] = useState(null);
+  const [chapters, setChapters] = useState(null);
   const [topics, setTopics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -17,12 +39,14 @@ const Analytics = () => {
     let cancelled = false;
     (async () => {
       try {
-        const [ov, tp] = await Promise.all([
+        const [ov, ch, tp] = await Promise.all([
           mockTestService.getOverview(),
+          mockTestService.getChapterAnalytics(),
           mockTestService.getTopicAnalytics(),
         ]);
         if (cancelled) return;
         setOverview(ov);
+        setChapters(ch);
         setTopics(tp);
       } catch (err) {
         if (!cancelled) setError(parseApiError(err, 'Could not load analytics.'));
@@ -35,9 +59,41 @@ const Analytics = () => {
     };
   }, []);
 
-  const maxPriority = useMemo(() => {
-    if (!topics) return 1;
-    return topics.topics.reduce((m, t) => Math.max(m, t.priority_score), 1);
+  const accuracyTrendSeries = useMemo(() => {
+    if (!overview) return [];
+    return [{
+      name: 'Accuracy %',
+      points: overview.trend.map((t) => ({
+        x: t.completed_at,
+        y: t.accuracy_pct,
+      })),
+    }];
+  }, [overview]);
+
+  const scoreTrendSeries = useMemo(() => {
+    if (!overview) return [];
+    return [{
+      name: 'Score',
+      points: overview.trend.map((t) => ({
+        x: t.completed_at,
+        y: t.score,
+      })),
+      color: 'var(--color-brand-grad-from)',
+    }];
+  }, [overview]);
+
+  const masteredCount = useMemo(() => {
+    if (!topics) return 0;
+    return topics.topics.filter(
+      (t) => t.attempts >= 3 && t.accuracy_pct >= 75,
+    ).length;
+  }, [topics]);
+
+  const needsWorkCount = useMemo(() => {
+    if (!topics) return 0;
+    return topics.topics.filter(
+      (t) => t.attempts >= 1 && t.accuracy_pct < 50,
+    ).length;
   }, [topics]);
 
   if (loading) {
@@ -62,103 +118,219 @@ const Analytics = () => {
     <ExamShell
       eyebrow="Personal analytics"
       title="How your practice is shaping your priority profile"
-      subtitle="Every submitted test feeds the recommender. Topics with higher priority get more questions next time; topics with the lowest priority get fewer."
+      subtitle="Every submitted test feeds the recommender. Higher priority means more questions next time."
     >
       {empty ? (
         <section className={styles.emptyState}>
           <h3>No completed tests yet</h3>
-          <p>Once you submit a mock test from <Link to="/tests">/tests</Link>, this page will populate with your score history, weak topics, and difficulty breakdown.</p>
+          <p>
+            Once you submit a mock test from <Link to="/tests">/tests</Link>, this
+            page will populate with score history, chapter rollups, and topic
+            deep-dives.
+          </p>
         </section>
       ) : (
         <>
-          <section className={styles.overview}>
-            <Stat label="Tests" value={overview.total_tests} />
-            <Stat label="Questions attempted" value={overview.total_questions} />
-            <Stat label="Total score" value={overview.total_score.toFixed(2)} />
-            <Stat label="Overall accuracy" value={`${overview.overall_accuracy_pct.toFixed(1)}%`} />
+          {/* ----- Headline stats ----- */}
+          <section className={styles.overviewGrid}>
+            <StatCard label="Tests submitted" value={overview.total_tests} />
+            <StatCard
+              label="Questions attempted"
+              value={overview.total_questions}
+            />
+            <StatCard
+              label="Overall accuracy"
+              value={`${overview.overall_accuracy_pct.toFixed(1)}%`}
+              tone={
+                overview.overall_accuracy_pct >= 70
+                  ? 'good'
+                  : overview.overall_accuracy_pct >= 50
+                  ? 'warn'
+                  : 'bad'
+              }
+            />
+            <StatCard
+              label="Total score"
+              value={overview.total_score.toFixed(1)}
+            />
+            <StatCard
+              label="Topics mastered"
+              value={masteredCount}
+              sub="3+ attempts · 75%+ accuracy"
+              tone="good"
+            />
+            <StatCard
+              label="Topics needing work"
+              value={needsWorkCount}
+              sub="Below 50% accuracy"
+              tone={needsWorkCount > 0 ? 'bad' : undefined}
+            />
           </section>
 
-          <section className={styles.card}>
-            <header className={styles.cardHead}>
-              <h2 className={styles.cardTitle}>Accuracy trend</h2>
-              <span className={styles.cardSub}>{overview.trend.length} tests</span>
-            </header>
-            <Sparkline points={overview.trend.map((p) => p.accuracy_pct)} />
-          </section>
-
+          {/* ----- Trend charts ----- */}
           <div className={styles.twoCol}>
             <section className={styles.card}>
               <header className={styles.cardHead}>
-                <h2 className={styles.cardTitle}>By difficulty</h2>
+                <h2 className={styles.cardTitle}>Accuracy over time</h2>
+                <span className={styles.cardSub}>
+                  {overview.trend.length} sessions
+                </span>
               </header>
-              <BarTable
-                rows={overview.by_difficulty.map((d) => ({
-                  label: d.difficulty,
-                  meta: `${d.attempts} qns`,
-                  value: d.accuracy_pct,
-                  suffix: '%',
-                }))}
+              <LineChart
+                series={accuracyTrendSeries}
+                yMin={0}
+                yMax={100}
+                yTickFormat={(v) => `${v.toFixed(0)}%`}
+                yLabel="Accuracy"
+                ariaLabel="Accuracy trend across sessions"
               />
             </section>
 
             <section className={styles.card}>
               <header className={styles.cardHead}>
-                <h2 className={styles.cardTitle}>By question type</h2>
+                <h2 className={styles.cardTitle}>Score per test</h2>
+                <span className={styles.cardSub}>Raw points earned</span>
               </header>
-              <BarTable
-                rows={overview.by_type.map((d) => ({
-                  label: prettyType(d.question_type),
-                  meta: `${d.attempts} qns`,
-                  value: d.accuracy_pct,
-                  suffix: '%',
-                }))}
+              <LineChart
+                series={scoreTrendSeries}
+                yMin={0}
+                yTickFormat={(v) => v.toFixed(1)}
+                yLabel="Score"
+                ariaLabel="Score trend across sessions"
               />
             </section>
           </div>
 
-          <section className={styles.card}>
-            <header className={styles.cardHead}>
-              <h2 className={styles.cardTitle}>Topics by recommender priority</h2>
-              <span className={styles.cardSub}>Higher score = more questions next test</span>
-            </header>
-            <ul className={styles.topicList}>
-              {topics.topics.map((t) => {
-                const w = Math.min(100, (t.priority_score / maxPriority) * 100);
-                return (
-                  <li key={t.topic_id} className={styles.topicRow}>
-                    <div className={styles.topicHead}>
-                      <span className={styles.topicSubject}>{t.subject_name}</span>
-                      <span className={styles.topicSep}>·</span>
-                      <span className={styles.topicChapter}>{t.chapter_name}</span>
-                    </div>
-                    <div className={styles.topicName}>{t.topic_name}</div>
-                    <div className={styles.topicBar}>
-                      <div className={styles.topicBarFill} style={{ width: `${w}%` }} />
-                    </div>
-                    <div className={styles.topicMeta}>
-                      <span>{t.attempts} attempts</span>
-                      <span>{t.accuracy_pct.toFixed(0)}% accuracy</span>
-                      <span>priority {t.priority_score.toFixed(2)}</span>
-                      <span>decay ×{t.decay_factor.toFixed(2)}</span>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-
+          {/* ----- Difficulty / Type distributions ----- */}
           <div className={styles.twoCol}>
             <section className={styles.card}>
               <header className={styles.cardHead}>
-                <h2 className={styles.cardTitle}>Weakest topics</h2>
-                <span className={styles.cardSub}>Need the most practice</span>
+                <h2 className={styles.cardTitle}>Difficulty breakdown</h2>
+                <span className={styles.cardSub}>Accuracy per difficulty</span>
+              </header>
+              <BarChart
+                rows={overview.by_difficulty.map((d) => ({
+                  label: d.difficulty,
+                  meta: `${d.attempts} qns`,
+                  value: d.accuracy_pct,
+                }))}
+                valueSuffix="%"
+                format={(v) => v.toFixed(1)}
+              />
+            </section>
+
+            <section className={styles.card}>
+              <header className={styles.cardHead}>
+                <h2 className={styles.cardTitle}>Question type mix</h2>
+              </header>
+              <DonutChart
+                segments={overview.by_type.map((d) => ({
+                  label: prettyType(d.question_type),
+                  value: d.attempts,
+                }))}
+                centerLabel={overview.total_questions}
+                centerSub="attempts"
+              />
+            </section>
+          </div>
+
+          {/* ----- Chapter cards (entry into drill-down) ----- */}
+          <section className={styles.card}>
+            <header className={styles.cardHead}>
+              <h2 className={styles.cardTitle}>Chapters you've practised</h2>
+              <span className={styles.cardSub}>
+                Sorted by recommender priority — weakest first
+              </span>
+            </header>
+            {chapters && chapters.chapters.length > 0 ? (
+              <ul className={styles.chapterGrid}>
+                {chapters.chapters.map((c) => {
+                  const coverage = c.total_topic_count
+                    ? Math.round(
+                        (c.attempted_topic_count / c.total_topic_count) * 100,
+                      )
+                    : 0;
+                  return (
+                    <li key={c.chapter_id}>
+                      <Link
+                        to={`/analytics/chapter/${c.chapter_id}`}
+                        className={styles.chapterCard}
+                      >
+                        <span className={styles.chapterSubject}>
+                          {c.subject_name}
+                        </span>
+                        <span className={styles.chapterName}>
+                          {c.chapter_name}
+                        </span>
+                        <div className={styles.chapterMetrics}>
+                          <div>
+                            <span className={styles.metricNum}>
+                              {c.accuracy_pct.toFixed(0)}%
+                            </span>
+                            <span className={styles.metricLabel}>
+                              accuracy
+                            </span>
+                          </div>
+                          <div>
+                            <span className={styles.metricNum}>
+                              {c.avg_priority_score.toFixed(1)}
+                            </span>
+                            <span className={styles.metricLabel}>
+                              priority
+                            </span>
+                          </div>
+                          <div>
+                            <span className={styles.metricNum}>
+                              {c.attempts}
+                            </span>
+                            <span className={styles.metricLabel}>
+                              attempts
+                            </span>
+                          </div>
+                        </div>
+                        <div className={styles.coverageRow}>
+                          <span className={styles.coverageLabel}>
+                            {c.attempted_topic_count}/{c.total_topic_count} topics
+                          </span>
+                          <div className={styles.coverageTrack}>
+                            <div
+                              className={styles.coverageFill}
+                              style={{ width: `${coverage}%` }}
+                            />
+                          </div>
+                        </div>
+                        <span className={styles.deepDive}>
+                          Open deep-dive →
+                        </span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className={styles.tableEmpty}>
+                Practise a few topics to see chapter rollups here.
+              </p>
+            )}
+          </section>
+
+          {/* ----- Weakest / strongest topics shortcuts ----- */}
+          <div className={styles.twoCol}>
+            <section className={styles.card}>
+              <header className={styles.cardHead}>
+                <h2 className={styles.cardTitle}>Top 5 weakest topics</h2>
+                <span className={styles.cardSub}>Get more questions next</span>
               </header>
               <ul className={styles.miniList}>
                 {overview.weakest_topics.map((t) => (
                   <li key={t.topic_id}>
-                    <strong>{t.topic_name}</strong>
-                    <span>{t.subject_name} · {t.chapter_name}</span>
-                    <em>priority {t.priority_score.toFixed(2)}</em>
+                    <Link to={`/analytics/topic/${t.topic_id}`}>
+                      <strong>{t.topic_name}</strong>
+                      <span>
+                        {t.subject_name} · {t.chapter_name}
+                      </span>
+                      <em>priority {t.priority_score.toFixed(2)}</em>
+                    </Link>
                   </li>
                 ))}
               </ul>
@@ -166,15 +338,19 @@ const Analytics = () => {
 
             <section className={styles.card}>
               <header className={styles.cardHead}>
-                <h2 className={styles.cardTitle}>Strongest topics</h2>
-                <span className={styles.cardSub}>Reliable signal — recycled less</span>
+                <h2 className={styles.cardTitle}>Top 5 strongest topics</h2>
+                <span className={styles.cardSub}>Reliably right</span>
               </header>
               <ul className={styles.miniList}>
                 {overview.strongest_topics.map((t) => (
                   <li key={t.topic_id}>
-                    <strong>{t.topic_name}</strong>
-                    <span>{t.subject_name} · {t.chapter_name}</span>
-                    <em>{t.accuracy_pct.toFixed(0)}% accuracy</em>
+                    <Link to={`/analytics/topic/${t.topic_id}`}>
+                      <strong>{t.topic_name}</strong>
+                      <span>
+                        {t.subject_name} · {t.chapter_name}
+                      </span>
+                      <em>{t.accuracy_pct.toFixed(0)}% accuracy</em>
+                    </Link>
                   </li>
                 ))}
               </ul>
@@ -185,86 +361,5 @@ const Analytics = () => {
     </ExamShell>
   );
 };
-
-const Stat = ({ label, value }) => (
-  <div className={styles.stat}>
-    <span className={styles.statLabel}>{label}</span>
-    <span className={styles.statValue}>{value}</span>
-  </div>
-);
-
-const BarTable = ({ rows }) => {
-  if (!rows.length) {
-    return <p className={styles.tableEmpty}>No data yet.</p>;
-  }
-  const maxV = rows.reduce((m, r) => Math.max(m, r.value), 1);
-  return (
-    <ul className={styles.barTable}>
-      {rows.map((r) => {
-        const w = Math.min(100, (r.value / maxV) * 100);
-        return (
-          <li key={r.label}>
-            <div className={styles.barRow}>
-              <span className={styles.barLabel}>{r.label}</span>
-              <span className={styles.barMeta}>{r.meta}</span>
-              <span className={styles.barValue}>{r.value.toFixed(1)}{r.suffix || ''}</span>
-            </div>
-            <div className={styles.barTrack}>
-              <div className={styles.barFill} style={{ width: `${w}%` }} />
-            </div>
-          </li>
-        );
-      })}
-    </ul>
-  );
-};
-
-const Sparkline = ({ points }) => {
-  if (!points || points.length === 0) {
-    return <p className={styles.tableEmpty}>No completed tests yet.</p>;
-  }
-  if (points.length === 1) {
-    return <p className={styles.tableEmpty}>Take one more test to see a trend.</p>;
-  }
-  const w = 600;
-  const h = 120;
-  const pad = 8;
-  const max = Math.max(...points, 100);
-  const min = Math.min(...points, 0);
-  const span = max - min || 1;
-  const stepX = (w - pad * 2) / (points.length - 1);
-  const path = points.map((p, i) => {
-    const x = pad + i * stepX;
-    const y = pad + (h - pad * 2) * (1 - (p - min) / span);
-    return `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`;
-  }).join(' ');
-  return (
-    <svg className={styles.sparkline} viewBox={`0 0 ${w} ${h}`} role="img" aria-label="Accuracy trend">
-      <defs>
-        <linearGradient id="spark" x1="0" x2="1">
-          <stop offset="0" stopColor="var(--color-brand-grad-from)" />
-          <stop offset="1" stopColor="var(--color-brand-grad-to)" />
-        </linearGradient>
-      </defs>
-      <path d={path} fill="none" stroke="url(#spark)" strokeWidth="3" strokeLinecap="round" />
-      {points.map((p, i) => {
-        const x = pad + i * stepX;
-        const y = pad + (h - pad * 2) * (1 - (p - min) / span);
-        return <circle key={i} cx={x} cy={y} r="3" fill="var(--color-accent)" />;
-      })}
-    </svg>
-  );
-};
-
-function prettyType(t) {
-  switch (t) {
-    case 'single_correct': return 'Single correct';
-    case 'multi_correct': return 'Multiple correct';
-    case 'integer': return 'Integer';
-    case 'matching': return 'Matching';
-    case 'passage': return 'Passage';
-    default: return t;
-  }
-}
 
 export default Analytics;
