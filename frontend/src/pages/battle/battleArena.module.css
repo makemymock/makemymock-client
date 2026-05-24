@@ -13,9 +13,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: clamp(16px, 4vw, 56px);
+  padding: clamp(12px, 3vw, 56px);
   position: relative;
-  overflow: hidden;
+  overflow-x: hidden;
 }
 
 /* ============================================================
@@ -25,8 +25,8 @@
 .centeredCard {
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 24px;
-  padding: clamp(28px, 5vw, 56px);
+  border-radius: 20px;
+  padding: clamp(20px, 5vw, 56px);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -36,12 +36,13 @@
   width: 100%;
   backdrop-filter: blur(8px);
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+  overflow-wrap: anywhere;
 }
 
 .cardTitle {
   margin: 0;
   font-family: 'Inter', system-ui, sans-serif;
-  font-size: clamp(24px, 3vw, 32px);
+  font-size: clamp(20px, 3vw, 32px);
   font-weight: 800;
 }
 
@@ -185,7 +186,7 @@
 
 .countdown {
   font-family: 'Inter', system-ui, sans-serif;
-  font-size: clamp(96px, 14vw, 160px);
+  font-size: clamp(72px, 18vw, 160px);
   font-weight: 800;
   background: linear-gradient(135deg, #6fd9bd, #f7c66b);
   background-clip: text;
@@ -210,72 +211,106 @@
   max-width: 880px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 14px;
+  min-width: 0;
 }
 
 .arenaHeader {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  gap: 16px;
-  align-items: center;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: stretch;
+}
+
+@media (min-width: 540px) {
+  .arenaHeader { gap: 16px; }
 }
 
 .scoreCard {
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 14px;
-  padding: 12px 16px;
+  padding: 10px 12px;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   min-width: 0;
+}
+
+@media (min-width: 540px) {
+  .scoreCard { padding: 12px 16px; }
 }
 
 .scoreCard:first-child .scoreName { color: #6fd9bd; }
 .scoreCard:last-child .scoreName  { color: #f7c66b; }
 
 .scoreName {
-  font-size: 11px;
-  letter-spacing: 2px;
+  font-size: 10px;
+  letter-spacing: 1.5px;
   text-transform: uppercase;
   font-weight: 700;
   margin-bottom: 4px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 14ch;
+  max-width: 100%;
+}
+
+@media (min-width: 540px) {
+  .scoreName {
+    font-size: 11px;
+    letter-spacing: 2px;
+    max-width: 14ch;
+  }
 }
 
 .scoreValue {
   font-family: 'Inter', system-ui, sans-serif;
-  font-size: clamp(22px, 3vw, 30px);
+  font-size: clamp(20px, 5vw, 30px);
   font-weight: 800;
+  line-height: 1;
 }
 
 .questionMeta {
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 4px;
 }
 
 .questionPos {
   margin: 0;
-  font-size: 12px;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  color: rgba(246, 248, 236, 0.65);
-  font-weight: 600;
-}
-
-.difficultyTag {
-  margin: 4px 0 0 0;
-  display: inline-block;
   font-size: 10px;
   letter-spacing: 1.5px;
   text-transform: uppercase;
-  padding: 4px 10px;
+  color: rgba(246, 248, 236, 0.65);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+@media (min-width: 540px) {
+  .questionPos { font-size: 12px; letter-spacing: 2px; }
+}
+
+.difficultyTag {
+  margin: 0;
+  display: inline-block;
+  font-size: 9px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 3px 8px;
   border-radius: 999px;
   background: rgba(247, 198, 107, 0.15);
   color: #f7c66b;
   font-weight: 600;
+}
+
+@media (min-width: 540px) {
+  .difficultyTag { font-size: 10px; letter-spacing: 1.5px; padding: 4px 10px; }
 }
 
 /* ----- Timer ----- */
@@ -321,18 +356,21 @@
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 20px;
-  padding: clamp(20px, 3vw, 32px);
+  padding: clamp(16px, 3vw, 32px);
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .questionPrompt {
   margin: 0;
-  font-size: clamp(17px, 1.8vw, 22px);
+  font-size: clamp(15px, 1.8vw, 22px);
   font-weight: 500;
   line-height: 1.5;
   color: #f6f8ec;
+  overflow-x: auto;
 }
 
 .questionImage {
@@ -355,17 +393,23 @@
 .option {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   background: rgba(255, 255, 255, 0.04);
   color: #f6f8ec;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 14px;
-  padding: 14px 16px;
+  padding: 12px 14px;
   font-family: inherit;
-  font-size: 15px;
+  font-size: 14px;
   text-align: left;
   cursor: pointer;
   transition: transform 0.12s ease, background 0.15s ease, border-color 0.15s ease;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 540px) {
+  .option { padding: 14px 16px; font-size: 15px; gap: 14px; }
 }
 
 .option:hover:not(:disabled) {
@@ -393,7 +437,9 @@
 
 .optionText {
   flex: 1;
+  min-width: 0;
   line-height: 1.4;
+  overflow-x: auto;
 }
 
 .optionPicked {
@@ -501,22 +547,27 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 18px;
-  padding: clamp(24px, 4vw, 48px);
+  gap: 16px;
+  padding: clamp(20px, 4vw, 48px);
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 28px;
+  border-radius: 24px;
 }
 
 .completeHeadline {
   margin: 0;
   font-family: 'Inter', system-ui, sans-serif;
-  font-size: clamp(48px, 8vw, 96px);
+  font-size: clamp(32px, 9vw, 96px);
   font-weight: 900;
-  letter-spacing: 4px;
+  letter-spacing: 2px;
   line-height: 1;
   text-align: center;
   animation: headlinePop 0.6s ease-out;
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 540px) {
+  .completeHeadline { letter-spacing: 4px; }
 }
 
 .headlineWin {
@@ -543,35 +594,52 @@
 
 .completeScores {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  gap: 16px;
-  align-items: center;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: stretch;
   width: 100%;
   margin-top: 12px;
+}
+
+@media (min-width: 540px) {
+  .completeScores { gap: 16px; }
 }
 
 .completeScoreCard {
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 18px;
-  padding: 18px;
+  border-radius: 16px;
+  padding: 14px 12px;
   text-align: center;
+  min-width: 0;
+}
+
+@media (min-width: 540px) {
+  .completeScoreCard { padding: 18px; border-radius: 18px; }
 }
 
 .completeScoreLabel {
   margin: 0;
-  font-size: 11px;
-  letter-spacing: 2px;
+  font-size: 10px;
+  letter-spacing: 1.5px;
   text-transform: uppercase;
   color: rgba(246, 248, 236, 0.7);
   font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (min-width: 540px) {
+  .completeScoreLabel { font-size: 11px; letter-spacing: 2px; }
 }
 
 .completeScoreValue {
-  margin: 8px 0 4px 0;
+  margin: 6px 0 4px 0;
   font-family: 'Inter', system-ui, sans-serif;
-  font-size: clamp(36px, 5vw, 52px);
+  font-size: clamp(28px, 6vw, 52px);
   font-weight: 800;
+  line-height: 1;
   background: linear-gradient(135deg, #6fd9bd, #f7c66b);
   background-clip: text;
   -webkit-background-clip: text;
@@ -580,16 +648,25 @@
 
 .completeScoreSub {
   margin: 0;
-  font-size: 12px;
+  font-size: 11px;
   color: rgba(246, 248, 236, 0.55);
 }
 
+@media (min-width: 540px) {
+  .completeScoreSub { font-size: 12px; }
+}
+
 .completeVs {
+  align-self: center;
   font-family: 'Inter', system-ui, sans-serif;
   font-weight: 800;
-  font-size: 18px;
+  font-size: 14px;
   color: rgba(246, 248, 236, 0.5);
   letter-spacing: 2px;
+}
+
+@media (min-width: 540px) {
+  .completeVs { font-size: 18px; }
 }
 
 .completeActions {

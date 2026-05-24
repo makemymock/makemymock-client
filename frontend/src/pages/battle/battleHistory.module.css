@@ -9,7 +9,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 18px clamp(16px, 4vw, 56px);
+  gap: 8px;
+  padding: 14px clamp(12px, 4vw, 56px);
   background: rgba(255, 255, 255, 0.04);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
@@ -19,10 +20,15 @@
   color: inherit;
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 999px;
-  padding: 8px 18px;
+  padding: 7px 14px;
   font-family: inherit;
-  font-size: 13px;
+  font-size: 12px;
   cursor: pointer;
+  white-space: nowrap;
+}
+
+@media (min-width: 540px) {
+  .back { padding: 8px 18px; font-size: 13px; }
 }
 
 .back:hover {
@@ -31,9 +37,19 @@
 
 .title {
   margin: 0;
-  font-size: clamp(14px, 1.5vw, 16px);
-  letter-spacing: 4px;
+  font-size: clamp(11px, 1.5vw, 16px);
+  letter-spacing: 2px;
   font-weight: 700;
+  text-align: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (min-width: 540px) {
+  .title { letter-spacing: 4px; }
 }
 
 .playAgain {
@@ -41,12 +57,17 @@
   color: #07101a;
   border: none;
   border-radius: 999px;
-  padding: 8px 22px;
+  padding: 7px 16px;
   font-family: inherit;
   font-weight: 700;
-  font-size: 13px;
+  font-size: 12px;
   letter-spacing: 1px;
   cursor: pointer;
+  white-space: nowrap;
+}
+
+@media (min-width: 540px) {
+  .playAgain { padding: 8px 22px; font-size: 13px; }
 }
 
 .main {
@@ -122,13 +143,21 @@
 
 .row {
   display: grid;
-  grid-template-columns: 80px 1fr auto;
+  grid-template-columns: 60px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 14px;
-  padding: 14px 16px;
+  gap: 10px;
+  padding: 12px 14px;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.04);
   border-left: 4px solid transparent;
+}
+
+@media (min-width: 540px) {
+  .row {
+    grid-template-columns: 80px minmax(0, 1fr) auto;
+    gap: 14px;
+    padding: 14px 16px;
+  }
 }
 
 .rowWin  { border-left-color: #6fd9bd; }
@@ -138,8 +167,12 @@
 .rowResult {
   font-family: 'Inter', system-ui, sans-serif;
   font-weight: 800;
-  font-size: 12px;
-  letter-spacing: 2px;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+}
+
+@media (min-width: 540px) {
+  .rowResult { font-size: 12px; letter-spacing: 2px; }
 }
 
 .rowWin .rowResult  { color: #6fd9bd; }
@@ -167,10 +200,15 @@
 .rowScore {
   display: inline-flex;
   align-items: baseline;
-  gap: 6px;
+  gap: 4px;
   font-family: 'Inter', system-ui, sans-serif;
   font-weight: 800;
-  font-size: 18px;
+  font-size: 15px;
+  white-space: nowrap;
+}
+
+@media (min-width: 540px) {
+  .rowScore { gap: 6px; font-size: 18px; }
 }
 
 .rowDash {

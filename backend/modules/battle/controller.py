@@ -170,28 +170,32 @@ async def battle_ws(
     db: DBDep,
     token: str = Query(..., description="JWT access token"),
 ):
+    # Accept first so we can send a JSON `error` message back on auth /
+    # duplicate-slot failures. Pre-accept close gives the browser an opaque
+    # HTTP 403 with no payload, which becomes a useless "Lost connection"
+    # error on the client.
+    await websocket.accept()
+
     user = await _authenticate(token, db)
     if user is None:
-        await websocket.close(code=WS_CLOSE_UNAUTHORIZED)
+        logger.info("Battle WS: auth failed (token invalid or user missing)")
+        await _reject(websocket, WS_CLOSE_UNAUTHORIZED,
+                      "Your session has expired. Please log in again.")
         return
     if not user.get("is_verified", False):
-        await websocket.close(code=WS_CLOSE_UNAUTHORIZED)
+        logger.info("Battle WS: user %s is not verified", user.get("_id"))
+        await _reject(websocket, WS_CLOSE_UNAUTHORIZED,
+                      "Please verify your email before joining a battle.")
         return
 
     user_id = str(user["_id"])
     if not await manager.claim_slot(user_id):
-        await websocket.accept()
-        try:
-            await websocket.send_json({
-                "type": "error",
-                "message": "You're already in a battle or queue on another tab.",
-            })
-        finally:
-            await websocket.close(code=WS_CLOSE_DUPLICATE)
+        logger.info("Battle WS: duplicate slot for user %s", user_id)
+        await _reject(websocket, WS_CLOSE_DUPLICATE,
+                      "You're already in a battle or queue on another tab.")
         return
 
     try:
-        await websocket.accept()
         await websocket.send_json({"type": "queued"})
         battle = await manager.enqueue(
             user, websocket,
@@ -230,20 +234,40 @@ async def _authenticate(token: str, db) -> Optional[dict]:
 
     Returns None on any failure — the caller handles the close code.
     Mirrors `core.dependencies.get_current_user` but adapted for the WS
-    code path (no FastAPI Depends, no HTTP exception).
+    code path (no FastAPI Depends, no HTTP exception). Each failure mode
+    is logged so production issues are diagnosable from server logs.
     """
     try:
         payload = decode_token(token, token_type="access")
-    except InvalidToken:
+    except InvalidToken as exc:
+        logger.info("Battle WS auth: token decode failed (%s)", exc)
         return None
     sub = payload.get("sub")
     if not sub:
+        logger.info("Battle WS auth: token missing 'sub' claim")
         return None
     try:
         oid = ObjectId(sub)
     except Exception:
+        logger.info("Battle WS auth: malformed user id %s in token", sub)
         return None
     user = await db["users"].find_one({"_id": oid}, {"hashed_password": 0})
-    if user is None or not user.get("is_active", True):
+    if user is None:
+        logger.info("Battle WS auth: user %s not found in DB", sub)
+        return None
+    if not user.get("is_active", True):
+        logger.info("Battle WS auth: user %s is inactive", sub)
         return None
     return user
+
+
+async def _reject(websocket: WebSocket, code: int, message: str) -> None:
+    """Send a final `error` message on the open WS, then close with `code`."""
+    try:
+        await websocket.send_json({"type": "error", "message": message})
+    except Exception:
+        pass
+    try:
+        await websocket.close(code=code)
+    except Exception:
+        pass

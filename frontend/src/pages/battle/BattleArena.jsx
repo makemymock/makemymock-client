@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { battleService } from '../../services/battleService';
+import { authService } from '../../services/authService';
+import MarkdownText from '../../components/common/MarkdownText/MarkdownText';
 import styles from './battleArena.module.css';
 
 // Phases drive which sub-view is rendered.
@@ -39,53 +41,91 @@ const BattleArena = () => {
 
   // ---------- WebSocket lifecycle ----------
   useEffect(() => {
-    const ws = battleService.openSocket();
-    wsRef.current = ws;
+    let cancelled = false;
+    let ws = null;
 
-    ws.onmessage = (ev) => {
-      let msg;
+    (async () => {
+      // Pre-flight: ping /auth/me through axios. If the access token is
+      // expired, the response interceptor in axiosInstance refreshes it
+      // and writes the new pair to tokenStorage — so the WebSocket URL
+      // we build next picks up the FRESH token instead of the stale one.
+      // The WS handshake itself doesn't go through axios, so without this
+      // step expired tokens silently fail with HTTP 403 on the upgrade
+      // request.
       try {
-        msg = JSON.parse(ev.data);
+        await authService.me();
       } catch {
+        if (!cancelled) {
+          setErrorMessage('Your session has expired. Please log in again.');
+          setPhase(PHASE.ERROR);
+        }
         return;
       }
-      handleServerMessage(msg);
-    };
-    ws.onerror = () => {
-      setPhase(PHASE.ERROR);
-      setErrorMessage('Lost connection to the server.');
-    };
-    ws.onclose = (ev) => {
-      // If we already reached COMPLETE / TIMEOUT, ignore the close.
-      setPhase((current) => {
-        if (
-          current === PHASE.COMPLETE ||
-          current === PHASE.TIMEOUT ||
-          current === PHASE.ERROR
-        ) {
-          return current;
+      if (cancelled) return;
+
+      ws = battleService.openSocket();
+      wsRef.current = ws;
+
+      ws.onmessage = (ev) => {
+        let msg;
+        try {
+          msg = JSON.parse(ev.data);
+        } catch {
+          return;
         }
-        // 4401 = unauthorized, 4409 = duplicate
-        if (ev.code === 4401) {
-          setErrorMessage('You need to be logged in to play.');
-        } else if (ev.code === 4409) {
+        handleServerMessage(msg);
+      };
+      ws.onerror = () => {
+        // Don't overwrite an already-set, more specific error.
+        setPhase((current) => {
+          if (
+            current === PHASE.COMPLETE ||
+            current === PHASE.TIMEOUT ||
+            current === PHASE.ERROR
+          ) {
+            return current;
+          }
           setErrorMessage(
-            "You're already in a battle on another tab. Close it and try again."
+            "Couldn't reach the battle server. Check your connection and try again."
           );
-        } else if (current === PHASE.CONNECTING || current === PHASE.QUEUED) {
-          // Closed before match was made.
-          setErrorMessage('Disconnected before a match was found.');
-        } else {
-          setErrorMessage('The connection dropped mid-battle.');
-        }
-        return PHASE.ERROR;
-      });
-    };
+          return PHASE.ERROR;
+        });
+      };
+      ws.onclose = (ev) => {
+        setPhase((current) => {
+          if (
+            current === PHASE.COMPLETE ||
+            current === PHASE.TIMEOUT ||
+            current === PHASE.ERROR
+          ) {
+            return current;
+          }
+          // Custom close codes from the server; the matching `error` JSON
+          // message usually arrives first via onmessage and sets the
+          // friendlier text — we only fall back here if it didn't.
+          if (ev.code === 4401) {
+            setErrorMessage('Your session has expired. Please log in again.');
+          } else if (ev.code === 4409) {
+            setErrorMessage(
+              "You're already in a battle on another tab. Close it and try again."
+            );
+          } else if (current === PHASE.CONNECTING || current === PHASE.QUEUED) {
+            setErrorMessage('Disconnected before a match was found.');
+          } else {
+            setErrorMessage('The connection dropped mid-battle.');
+          }
+          return PHASE.ERROR;
+        });
+      };
+    })();
 
     return () => {
-      try {
-        ws.close();
-      } catch { /* noop */ }
+      cancelled = true;
+      if (ws) {
+        try {
+          ws.close();
+        } catch { /* noop */ }
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -333,7 +373,9 @@ const QuestionView = ({
       </div>
 
       <main className={styles.questionBody}>
-        <p className={styles.questionPrompt}>{question?.question_text}</p>
+        <div className={styles.questionPrompt}>
+          <MarkdownText text={question?.question_text} />
+        </div>
         {question?.question_image ? (
           <img
             className={styles.questionImage}
@@ -364,7 +406,9 @@ const QuestionView = ({
                 ].join(' ')}
               >
                 <span className={styles.optionKey}>{opt.key}</span>
-                <span className={styles.optionText}>{opt.text}</span>
+                <span className={styles.optionText}>
+                  <MarkdownText text={opt.text} inline />
+                </span>
               </button>
             );
           })}

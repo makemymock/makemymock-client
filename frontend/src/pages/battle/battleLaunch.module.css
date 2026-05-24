@@ -13,7 +13,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 18px clamp(16px, 4vw, 56px);
+  gap: 8px;
+  padding: 14px clamp(12px, 4vw, 56px);
   background: rgba(255, 255, 255, 0.04);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
@@ -28,12 +29,17 @@
   color: inherit;
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 999px;
-  padding: 8px 18px;
+  padding: 7px 14px;
   font-family: inherit;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
   cursor: pointer;
+  white-space: nowrap;
   transition: background 0.18s ease;
+}
+
+@media (min-width: 540px) {
+  .back { padding: 8px 18px; font-size: 13px; }
 }
 
 .back:hover {
@@ -42,23 +48,35 @@
 
 .brand {
   margin: 0;
-  font-size: clamp(14px, 1.4vw, 16px);
-  letter-spacing: 4px;
+  font-size: clamp(11px, 1.4vw, 16px);
+  letter-spacing: 2px;
   font-weight: 700;
   text-align: center;
   flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (min-width: 540px) {
+  .brand { letter-spacing: 4px; }
 }
 
 .spacer {
-  width: 96px;
+  width: 64px;
+}
+
+@media (min-width: 540px) {
+  .spacer { width: 96px; }
 }
 
 .main {
   flex: 1;
   display: grid;
   grid-template-columns: 1fr;
-  gap: clamp(28px, 4vw, 48px);
-  padding: clamp(28px, 5vw, 80px) clamp(20px, 6vw, 80px);
+  gap: clamp(20px, 4vw, 48px);
+  padding: clamp(20px, 5vw, 80px) clamp(16px, 6vw, 80px);
   max-width: 1200px;
   margin: 0 auto;
   width: 100%;
@@ -89,9 +107,9 @@
 .title {
   margin: 0;
   font-family: 'Inter', system-ui, sans-serif;
-  font-size: clamp(36px, 5.5vw, 64px);
+  font-size: clamp(30px, 6vw, 64px);
   font-weight: 800;
-  line-height: 1.05;
+  line-height: 1.1;
 }
 
 .titleAccent {
@@ -110,14 +128,14 @@
 }
 
 .playButton {
-  margin-top: 18px;
-  align-self: flex-start;
+  margin-top: 14px;
+  align-self: stretch;
   position: relative;
   display: inline-flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  padding: 26px 56px;
+  padding: 22px clamp(28px, 8vw, 56px);
   border: none;
   border-radius: 999px;
   background: linear-gradient(135deg, #0d9678 0%, #1ebd97 50%, #f7c66b 100%);
@@ -129,6 +147,13 @@
   box-shadow: 0 16px 40px rgba(13, 150, 120, 0.5);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
   animation: pulseGlow 2.2s ease-in-out infinite;
+}
+
+@media (min-width: 540px) {
+  .playButton {
+    align-self: flex-start;
+    padding: 26px 56px;
+  }
 }
 
 .playButton:hover {
@@ -174,8 +199,12 @@
 
 .perks {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+@media (min-width: 540px) {
+  .perks { grid-template-columns: 1fr 1fr; gap: 14px; }
 }
 
 .perk {
