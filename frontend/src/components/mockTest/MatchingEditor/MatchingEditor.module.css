@@ -59,8 +59,22 @@
   color: var(--color-text-primary);
 }
 
-.select {
+/* ---------------------------------------------------------------------------
+ * LatexSelect — custom dropdown that supports LaTeX in options.
+ * Native <select>/<option> can't render rich content; this is the workaround.
+ * --------------------------------------------------------------------------- */
+
+.lselect {
+  position: relative;
   width: 100%;
+}
+
+.lselectTrigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   font: inherit;
   font-size: 14px;
   padding: 10px 12px;
@@ -68,11 +82,152 @@
   border: 1px solid var(--color-border-strong);
   border-radius: 10px;
   color: var(--color-text-primary);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.select:focus-visible {
-  outline: 2px solid var(--color-focus);
+.lselectTrigger:hover {
+  border-color: var(--color-focus, #6fd9bd);
+}
+
+.lselectTrigger:focus-visible {
+  outline: 2px solid var(--color-focus, #6fd9bd);
   outline-offset: 2px;
+}
+
+.lselectTriggerOpen {
+  border-color: var(--color-focus, #6fd9bd);
+  box-shadow: 0 0 0 2px rgba(111, 217, 189, 0.18);
+}
+
+.lselectValue {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.lselectValueKey {
+  flex: 0 0 auto;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-text-primary);
+}
+
+.lselectValueText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Compact KaTeX inside the truncated trigger so it stays on one line. */
+.lselectValueText :global(.katex) {
+  font-size: 0.95em;
+}
+
+.lselectPlaceholder {
+  color: var(--color-text-muted);
+}
+
+.lselectChevron {
+  flex: 0 0 auto;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  transition: transform 0.15s ease;
+}
+
+.lselectTriggerOpen .lselectChevron {
+  transform: rotate(180deg);
+}
+
+.lselectMenu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  background: var(--color-panel-bg, #1a2231);
+  border: 1px solid var(--color-border-strong, rgba(255, 255, 255, 0.18));
+  border-radius: 12px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  max-height: 280px;
+  overflow-y: auto;
+  z-index: 50;
+}
+
+.lselectClear {
+  margin-bottom: 4px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--color-panel-border, rgba(255, 255, 255, 0.08));
+}
+
+.lselectClearBtn,
+.lselectItem {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font: inherit;
+  font-size: 14px;
+  padding: 9px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--color-text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.lselectClearBtn {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.lselectClearBtn:hover,
+.lselectItem:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.lselectItemActive {
+  background: rgba(111, 217, 189, 0.16);
+  color: var(--color-text-primary);
+}
+
+.lselectItemKey {
+  flex: 0 0 auto;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.lselectItemActive .lselectItemKey {
+  background: rgba(111, 217, 189, 0.3);
+}
+
+.lselectItemText {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+/* Allow KaTeX to wrap inside option rows instead of forcing horizontal scroll. */
+.lselectItemText :global(.katex-display) {
+  margin: 4px 0;
 }
 
 .readOnlyVal {
