@@ -1,0 +1,202 @@
+.page {
+  min-height: 100vh;
+  background: radial-gradient(1100px 600px at 80% -10%, rgba(13, 150, 120, 0.18), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, rgba(134, 94, 51, 0.18), transparent 60%),
+    #0b1320;
+  color: #f6f8ec;
+  font-family: 'Poppins', system-ui, sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px clamp(16px, 4vw, 56px);
+  background: rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.back,
+.spacer {
+  flex: 0 0 auto;
+}
+
+.back {
+  background: transparent;
+  color: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  padding: 8px 18px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.18s ease;
+}
+
+.back:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.brand {
+  margin: 0;
+  font-size: clamp(14px, 1.4vw, 16px);
+  letter-spacing: 4px;
+  font-weight: 700;
+  text-align: center;
+  flex: 1 1 auto;
+}
+
+.spacer {
+  width: 96px;
+}
+
+.main {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: clamp(28px, 4vw, 48px);
+  padding: clamp(28px, 5vw, 80px) clamp(20px, 6vw, 80px);
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+  align-items: center;
+}
+
+@media (min-width: 960px) {
+  .main {
+    grid-template-columns: 1.2fr 1fr;
+  }
+}
+
+.hero {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.eyebrow {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 4px;
+  font-size: 12px;
+  color: #6fd9bd;
+  font-weight: 600;
+}
+
+.title {
+  margin: 0;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: clamp(36px, 5.5vw, 64px);
+  font-weight: 800;
+  line-height: 1.05;
+}
+
+.titleAccent {
+  background: linear-gradient(135deg, #6fd9bd 0%, #f7c66b 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+.lede {
+  margin: 0;
+  font-size: clamp(15px, 1.4vw, 18px);
+  color: rgba(246, 248, 236, 0.8);
+  line-height: 1.55;
+  max-width: 540px;
+}
+
+.playButton {
+  margin-top: 18px;
+  align-self: flex-start;
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 26px 56px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #0d9678 0%, #1ebd97 50%, #f7c66b 100%);
+  color: #07101a;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-weight: 800;
+  letter-spacing: 2px;
+  cursor: pointer;
+  box-shadow: 0 16px 40px rgba(13, 150, 120, 0.5);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  animation: pulseGlow 2.2s ease-in-out infinite;
+}
+
+.playButton:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 22px 50px rgba(13, 150, 120, 0.6);
+}
+
+.playButton:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+.playLabel {
+  font-size: clamp(26px, 3vw, 36px);
+}
+
+.playSub {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 16px 40px rgba(13, 150, 120, 0.5); }
+  50%      { box-shadow: 0 16px 60px rgba(247, 198, 107, 0.55); }
+}
+
+.secondaryButton {
+  align-self: flex-start;
+  background: transparent;
+  color: rgba(246, 248, 236, 0.7);
+  border: none;
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 8px 0;
+}
+
+.secondaryButton:hover {
+  color: #f7c66b;
+}
+
+.perks {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.perk {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 18px;
+  backdrop-filter: blur(6px);
+}
+
+.perk h3 {
+  margin: 0 0 6px 0;
+  font-size: 14px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #6fd9bd;
+}
+
+.perk p {
+  margin: 0;
+  font-size: 14px;
+  color: rgba(246, 248, 236, 0.75);
+  line-height: 1.5;
+}

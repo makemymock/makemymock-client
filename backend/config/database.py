@@ -116,6 +116,15 @@ async def _ensure_indexes() -> None:
         [("subject", ASCENDING), ("chapter", ASCENDING), ("topic", ASCENDING)],
     )
 
+    # ---------- 1-vs-1 battles ----------
+    # History lookups go by either player's user_id, sorted newest first.
+    await mongo.db["battles"].create_index(
+        [("player_a.user_id", ASCENDING), ("completed_at", -1)],
+    )
+    await mongo.db["battles"].create_index(
+        [("player_b.user_id", ASCENDING), ("completed_at", -1)],
+    )
+
 
 def get_database() -> AsyncIOMotorDatabase:
     if mongo.db is None:

@@ -113,6 +113,17 @@ const Dashboard = () => {
             <p className={styles.tip}>
               You're signed in. Tests, analytics and personalized practice will appear here soon.
             </p>
+
+            <button
+              type="button"
+              className={styles.battleCta}
+              onClick={() => navigate('/battle')}
+            >
+              <span className={styles.battleCtaTitle}>⚔️ 1 vs 1 Battle</span>
+              <span className={styles.battleCtaSub}>
+                Match with another student in real time
+              </span>
+            </button>
           </section>
         ) : null}
       </main>
