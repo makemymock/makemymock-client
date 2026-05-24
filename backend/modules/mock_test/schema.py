@@ -42,7 +42,10 @@ class CatalogResponse(BaseModel):
 
 class CreateMockTestRequest(BaseModel):
     topic_ids: list[int] = Field(..., min_length=1, max_length=200)
-    total_questions: int = Field(..., ge=5, le=100)
+    # ge=1 — the regular Tests UI clamps to 10/20/30/50, but Problem-of-the-Day
+    # legitimately creates a 1-question session (see USING_THE_ENGINE.md §4.1).
+    # 100 stays as a hard upper bound so a runaway client can't ask for huge tests.
+    total_questions: int = Field(..., ge=1, le=100)
     extra_questions: int = Field(0, ge=0, le=20)
 
 

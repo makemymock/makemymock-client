@@ -471,6 +471,142 @@
   color: var(--dash-text-strong);
 }
 
+/* ----- POTD banner ----- */
+
+.potdBanner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg,
+      var(--color-glow-yellow) 0%,
+      var(--color-glow-teal) 100%),
+    var(--dash-card-bg);
+  border: 1px solid var(--dash-card-border);
+  overflow: hidden;
+}
+
+@media (min-width: 640px) {
+  .potdBanner {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 22px;
+  }
+}
+
+.potdBanner::after {
+  content: '';
+  position: absolute;
+  right: -60px;
+  top: -60px;
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  background: radial-gradient(circle at center,
+    var(--dash-accent-yellow) 0%, transparent 60%);
+  opacity: 0.18;
+  pointer-events: none;
+}
+
+.potdLeft {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.potdEmoji {
+  flex: 0 0 auto;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg,
+    var(--dash-accent-yellow-strong), var(--dash-accent-yellow));
+  color: #1a1a1a;
+  font-size: 22px;
+  box-shadow: 0 8px 18px rgba(245, 196, 81, 0.35);
+}
+
+.potdText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.potdEyebrow {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--dash-accent-yellow-strong);
+}
+
+.potdTitle {
+  margin: 0;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: clamp(18px, 2.4vw, 22px);
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  color: var(--dash-text-strong);
+}
+
+.potdSub {
+  margin: 0;
+  font-size: 13px;
+  color: var(--dash-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.potdBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  align-self: stretch;
+  background: var(--dash-text-strong);
+  color: var(--dash-card-bg);
+  border: none;
+  padding: 12px 22px;
+  border-radius: 999px;
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.4px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 0.15s ease, filter 0.15s ease;
+  position: relative;
+  z-index: 1;
+}
+
+@media (min-width: 640px) {
+  .potdBtn { align-self: auto; }
+}
+
+.potdBtn:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+}
+
+.potdBtnArrow {
+  display: inline-block;
+  transition: transform 0.2s ease;
+}
+
+.potdBtn:hover .potdBtnArrow {
+  transform: translateX(3px);
+}
+
 /* ----- Stat row ----- */
 
 .statRow {

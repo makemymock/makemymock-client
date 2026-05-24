@@ -9,6 +9,7 @@ import { parseApiError } from '../../utils/validators';
 import useTheme from '../../hooks/useTheme';
 import Loader from '../../components/common/Loader/Loader';
 import ErrorMessage from '../../components/common/ErrorMessage/ErrorMessage';
+import PotdModal from '../../components/dashboard/PotdModal/PotdModal';
 import styles from './dashboard.module.css';
 
 const TARGET_EXAM_LABEL = {
@@ -121,6 +122,7 @@ const Dashboard = () => {
   const [battles, setBattles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [potdOpen, setPotdOpen] = useState(false);
 
   // Load everything we need in parallel. Each call is independently
   // tolerant of "no data yet" responses (analytics returns zeros, etc.).
@@ -204,6 +206,8 @@ const Dashboard = () => {
             <>
               <HeroCard user={user} profile={profile} />
 
+              <PotdBanner onOpen={() => setPotdOpen(true)} userId={user?.id} />
+
               <section className={styles.statRow}>
                 <StatCard
                   accent="teal"
@@ -247,6 +251,12 @@ const Dashboard = () => {
       </div>
 
       <BottomNav onLogout={handleLogout} />
+
+      <PotdModal
+        open={potdOpen}
+        userId={user?.id}
+        onClose={() => setPotdOpen(false)}
+      />
     </div>
   );
 };
@@ -368,6 +378,45 @@ const TopBar = ({ user, onLogout }) => {
         </div>
       </div>
     </header>
+  );
+};
+
+// ---- Problem of the Day banner ----
+const PotdBanner = ({ onOpen, userId }) => {
+  // Read today's stored POTD entry to reflect "already done" vs. "ready".
+  // The modal owns the source of truth; this is just a hint for the CTA.
+  const todayKey = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }, []);
+  const storageKey = `mmm_potd_${userId || 'anon'}_${todayKey}`;
+  const stored = (() => {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  })();
+  const hasSessionToday = stored?.sessionId != null;
+
+  return (
+    <section className={styles.potdBanner}>
+      <div className={styles.potdLeft}>
+        <span className={styles.potdEmoji} aria-hidden="true">⚡</span>
+        <div className={styles.potdText}>
+          <p className={styles.potdEyebrow}>Daily Challenge</p>
+          <h2 className={styles.potdTitle}>Problem of the Day</h2>
+          <p className={styles.potdSub}>
+            {hasSessionToday
+              ? 'Pick up where you left off — review your challenge.'
+              : 'One question, picked to attack your weakest topic.'}
+          </p>
+        </div>
+      </div>
+      <button type="button" className={styles.potdBtn} onClick={onOpen}>
+        {hasSessionToday ? 'Open challenge' : 'Start now'}
+        <span aria-hidden="true" className={styles.potdBtnArrow}>→</span>
+      </button>
+    </section>
   );
 };
 
