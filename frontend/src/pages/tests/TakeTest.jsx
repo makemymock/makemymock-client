@@ -32,7 +32,11 @@ function isAnswerNonEmpty(a) {
   if (typeof a.selected_option === 'string' && a.selected_option) return true;
   if (Array.isArray(a.selected_options) && a.selected_options.length > 0) return true;
   if (a.integer_answer != null && String(a.integer_answer).trim() !== '') return true;
-  if (a.matching && typeof a.matching === 'object' && Object.values(a.matching).some((v) => v)) return true;
+  if (a.matching && typeof a.matching === 'object') {
+    for (const v of Object.values(a.matching)) {
+      if (Array.isArray(v) ? v.length > 0 : Boolean(v)) return true;
+    }
+  }
   return false;
 }
 

@@ -1,11 +1,19 @@
 """Server-side answer evaluation.
 
-Per question-type rules (see DECISIONS.md §5):
+Set-based question types (multi_correct, matching) flatten their answer
+shape to a pair of sets — `picked` and `correct` — and call
+`policy_jaccard` to turn them into a correctness in [0, 1].
+
+To swap the grading rule later: write another `policy_xxx(picked, correct)
+-> float` function and replace the call sites in `grade_multi_correct` /
+`grade_matching`.
+
+Per question-type rules:
   single_correct  → selected_option ∈ correctOptions          (binary)
-  multi_correct   → Jaccard |U∩C|/|U∪C|                       (partial)
+  multi_correct   → Jaccard on option keys                    (partial)
   integer         → numeric equality vs integerAnswer         (binary)
-  matching        → matches/total                              (partial)
-  passage sub-Q   → graded as single_correct on its own
+  matching        → Jaccard on flat (row, col) cell pairs     (partial)
+  passage sub-Q   → graded as single_correct on its own        (binary)
 """
 
 from __future__ import annotations
@@ -23,15 +31,67 @@ class GradedAnswer:
 
 
 # ---------------------------------------------------------------------------
+# Grading policy
+# ---------------------------------------------------------------------------
 
-def _as_set(values) -> set[str]:
+def policy_jaccard(picked: set, correct: set) -> float:
+    """|picked ∩ correct| / |picked ∪ correct|.
+
+    Symmetric: penalizes both omitted-correct and extra-wrong picks. Empty
+    vs empty is treated as perfect (1.0) — vacuously, nothing was needed
+    and nothing was picked.
+    """
+    union = picked | correct
+    if not union:
+        return 1.0
+    return len(picked & correct) / len(union)
+
+
+# ---------------------------------------------------------------------------
+# Internal normalizers
+# ---------------------------------------------------------------------------
+
+def _as_option_set(values) -> set[str]:
+    """Normalize MCQ-style option lists to upper-cased string set."""
     if values is None:
         return set()
     return {str(v).strip().upper() for v in values if v is not None and str(v).strip() != ""}
 
 
+def _normalize_matching(raw) -> dict[str, set[str]]:
+    """Coerce a stored / submitted mapping to dict[row_str, set[col_str]].
+
+    Accepts the bbd_db storage shape `{ "0": [2, 3], ... }` (int values),
+    the wire shape `{ "0": ["2", "3"], ... }` (string values), and tolerates
+    legacy 1:1 shapes where the value is a single int/str.
+    """
+    if not raw:
+        return {}
+    out: dict[str, set[str]] = {}
+    for k, v in raw.items():
+        key = str(k).strip()
+        if v is None:
+            picks: set[str] = set()
+        elif isinstance(v, (list, tuple, set)):
+            picks = {str(x).strip() for x in v if x is not None and str(x).strip() != ""}
+        else:
+            s = str(v).strip()
+            picks = {s} if s else set()
+        out[key] = picks
+    return out
+
+
+def _flatten_cells(row_map: dict[str, set[str]]) -> set[tuple[str, str]]:
+    """{"0": {"2","3"}, "1": {"1"}} -> {("0","2"), ("0","3"), ("1","1")}."""
+    return {(row, col) for row, cols in row_map.items() for col in cols}
+
+
+# ---------------------------------------------------------------------------
+# Graders — one per question type
+# ---------------------------------------------------------------------------
+
 def grade_single_correct(user_selected: Optional[str], doc: dict) -> GradedAnswer:
-    correct_opts = _as_set(doc.get("correctOptions"))
+    correct_opts = _as_option_set(doc.get("correctOptions"))
     pick = str(user_selected).strip().upper() if user_selected else ""
     is_correct = bool(pick) and pick in correct_opts
     return GradedAnswer(
@@ -42,14 +102,9 @@ def grade_single_correct(user_selected: Optional[str], doc: dict) -> GradedAnswe
 
 
 def grade_multi_correct(user_selected, doc: dict) -> GradedAnswer:
-    """Jaccard-based partial credit."""
-    correct = _as_set(doc.get("correctOptions"))
-    chosen = _as_set(user_selected)
-    if not correct and not chosen:
-        return GradedAnswer(True, 1.0, [], [])
-    union = correct | chosen
-    inter = correct & chosen
-    score = (len(inter) / len(union)) if union else 0.0
+    correct = _as_option_set(doc.get("correctOptions"))
+    chosen  = _as_option_set(user_selected)
+    score = policy_jaccard(chosen, correct)
     return GradedAnswer(
         is_correct=(score >= 1.0 - 1e-9),
         correctness=float(score),
@@ -79,29 +134,34 @@ def grade_integer(user_value: Any, doc: dict) -> GradedAnswer:
 
 
 def grade_matching(user_mapping, doc: dict) -> GradedAnswer:
+    """Matrix-match grading.
+
+    The (row, col) cells of the matrix are flattened to a single set, then
+    handed to `policy_jaccard`. Wrong picks inflate the union and reduce the
+    score symmetrically with missed-correct picks.
+
+    Stored shape (bbd_db):
+        matchingData.leftColumn:  [str, str, ...]              # n items
+        matchingData.rightColumn: [str, str, ...]              # m items
+        matchingData.correctMapping: { "0": [int,...], ... }   # row -> col idxs
+
+    Wire shape (client → server):
+        matching: { "0": ["2", "3"], "1": ["1"], ... }
+    """
     md = doc.get("matchingData") or {}
-    correct_mapping = md.get("correctMapping") or {}
-    if isinstance(correct_mapping, list):
-        # Normalize list-of-pairs → dict.
-        try:
-            correct_mapping = dict(correct_mapping)
-        except Exception:
-            correct_mapping = {}
-    correct = {str(k).strip(): str(v).strip() for k, v in correct_mapping.items()}
-    chosen = (user_mapping or {})
-    chosen = {str(k).strip(): str(v).strip()
-              for k, v in chosen.items() if v is not None}
+    correct_rows = _normalize_matching(md.get("correctMapping"))
+    chosen_rows  = _normalize_matching(user_mapping)
 
-    if not correct:
-        return GradedAnswer(False, None, chosen, correct)
+    score = policy_jaccard(
+        _flatten_cells(chosen_rows),
+        _flatten_cells(correct_rows),
+    )
 
-    matches = sum(1 for k, v in correct.items() if chosen.get(k) == v)
-    score = matches / len(correct)
     return GradedAnswer(
         is_correct=(score >= 1.0 - 1e-9),
         correctness=float(score),
-        user_answer=chosen,
-        correct_answer=correct,
+        user_answer={k: sorted(v) for k, v in chosen_rows.items()},
+        correct_answer={k: sorted(v) for k, v in correct_rows.items()},
     )
 
 

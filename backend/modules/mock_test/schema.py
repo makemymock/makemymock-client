@@ -52,12 +52,6 @@ class QuestionPayloadOption(BaseModel):
     text: str
 
 
-class MatchingColumn(BaseModel):
-    # Images embedded inline via markdown in `text` — no separate field.
-    key: str
-    text: str
-
-
 class QuestionPayload(BaseModel):
     """A test-taking-safe question payload — answers are stripped.
 
@@ -88,9 +82,11 @@ class QuestionPayload(BaseModel):
     # Single/multi-correct
     options: list[QuestionPayloadOption] = Field(default_factory=list)
 
-    # Matching
-    left_column: list[MatchingColumn] = Field(default_factory=list)
-    right_column: list[MatchingColumn] = Field(default_factory=list)
+    # Matching — bare LaTeX strings; the client renders them with row/column
+    # headers `P1..Pn` / `Q1..Qm` derived from their list indices, and the
+    # answer wire format uses those same indices as string keys.
+    left_column: list[str] = Field(default_factory=list)
+    right_column: list[str] = Field(default_factory=list)
 
 
 class CreateMockTestResponse(BaseModel):
@@ -124,7 +120,7 @@ class AnswerInput(BaseModel):
       - single_correct      → selected_option (str, single key)
       - multi_correct       → selected_options (list[str])
       - integer             → integer_answer (number or numeric string)
-      - matching            → matching (dict[left_key, right_key])
+      - matching            → matching (dict[left_idx_str, list[right_idx_str]])
       - passage sub-Q       → selected_option (treated as single_correct)
     """
 
@@ -132,7 +128,7 @@ class AnswerInput(BaseModel):
     selected_option: Optional[str] = None
     selected_options: Optional[list[str]] = None
     integer_answer: Optional[Any] = None
-    matching: Optional[dict[str, str]] = None
+    matching: Optional[dict[str, list[str]]] = None
 
 
 class SubmitMockTestRequest(BaseModel):
@@ -155,8 +151,8 @@ class PerQuestionResult(BaseModel):
     # Images for question/passage/solution are embedded inline as markdown.
     question_text: Optional[str] = None
     options: list[QuestionPayloadOption] = Field(default_factory=list)
-    left_column: list[MatchingColumn] = Field(default_factory=list)
-    right_column: list[MatchingColumn] = Field(default_factory=list)
+    left_column: list[str] = Field(default_factory=list)
+    right_column: list[str] = Field(default_factory=list)
     passage_text: Optional[str] = None
     passage_sub_index: Optional[int] = None
     passage_sub_total: Optional[int] = None

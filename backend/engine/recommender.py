@@ -9,7 +9,7 @@ actual answer-evaluation (the caller pre-evaluates each answer and passes
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Iterable
 
 from engine.models import (
@@ -49,7 +49,7 @@ def create_mock_test(
     lead-id order; an int seeds the per-pool shuffle. In production, pass
     `int(time.time())` or a session-derived hash.
     """
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     # Pre-fetch all attempts for the selected topics.
     all_attempts = repo.get_attempts_for_topics(user_id, topic_ids)
@@ -162,7 +162,7 @@ def submit_test(
       - `AnswerEvaluation(question_id, is_correct)`
       - the question's difficulty (so we can compute score_contribution)
     """
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     new_attempts: list[Attempt] = []
     correct = 0

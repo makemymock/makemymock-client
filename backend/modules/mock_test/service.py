@@ -60,7 +60,6 @@ from modules.mock_test.schema import (
     DifficultyBreakdown,
     HistoryItem,
     HistoryResponse,
-    MatchingColumn,
     PerQuestionResult,
     PriorityTrendPoint,
     QuestionPayload,
@@ -142,24 +141,18 @@ def _cumulative_by_day(attempts: list[dict]):
     return out
 
 
-def _matching_cols(doc: dict) -> tuple[list[MatchingColumn], list[MatchingColumn]]:
-    md = doc.get("matchingData") or {}
-    left_raw = md.get("leftColumn") or []
-    right_raw = md.get("rightColumn") or []
+def _matching_cols(doc: dict) -> tuple[list[str], list[str]]:
+    """Return (leftColumn, rightColumn) as plain LaTeX-bearing strings.
 
-    def _normalize(items, default_prefix):
-        out = []
-        for i, item in enumerate(items):
-            if isinstance(item, dict):
-                key = str(item.get("key") or item.get("id") or f"{default_prefix}{i+1}")
-                text = str(item.get("text") or item.get("value") or "")
-                out.append(MatchingColumn(key=key, text=text))
-            else:
-                out.append(MatchingColumn(
-                    key=f"{default_prefix}{i+1}", text=str(item),
-                ))
-        return out
-    return _normalize(left_raw, "L"), _normalize(right_raw, "R")
+    bbd_db stores both columns as `[String]` and uses 0-based integer
+    indices into them everywhere (correctMapping keys + values). We pass
+    the strings through unchanged so the client can render `P1..Pn` /
+    `Q1..Qm` row & column headers from their list positions.
+    """
+    md = doc.get("matchingData") or {}
+    left = [str(x) for x in (md.get("leftColumn") or [])]
+    right = [str(x) for x in (md.get("rightColumn") or [])]
+    return left, right
 
 
 class MockTestService:
@@ -314,7 +307,7 @@ class MockTestService:
                 is_correct=bool(ad.get("is_correct", False)),
                 difficulty=str(ad.get("difficulty", "medium")),
                 score_contribution=int(ad.get("score_contribution", 0)),
-                attempted_at=ad.get("attempted_at") or datetime.utcnow(),
+                attempted_at=ad.get("attempted_at") or datetime.now(timezone.utc),
                 correctness=ad.get("correctness"),
             ))
 
@@ -832,7 +825,17 @@ class MockTestService:
             else:
                 qtype = (doc.get("questionType") or "single_correct").lower()
                 if qtype == "matching":
-                    correct_answer = (doc.get("matchingData") or {}).get("correctMapping")
+                    # Normalize int values -> sorted string lists so the
+                    # wire shape matches what `grade_matching` records for
+                    # `user_answer`, and what the client matrix-grid expects.
+                    raw_cm = (doc.get("matchingData") or {}).get("correctMapping") or {}
+                    correct_answer = {
+                        str(k): sorted(
+                            str(x) for x in (vs if isinstance(vs, (list, tuple, set)) else [vs])
+                            if x is not None and str(x).strip() != ""
+                        )
+                        for k, vs in raw_cm.items()
+                    }
                 elif qtype == "integer":
                     correct_answer = doc.get("integerAnswer")
                 else:
@@ -1048,12 +1051,12 @@ class MockTestService:
                 is_correct=bool(a.get("is_correct", False)),
                 difficulty=str(a.get("difficulty", "medium")),
                 score_contribution=int(a.get("score_contribution", 0)),
-                attempted_at=a.get("attempted_at") or datetime.utcnow(),
+                attempted_at=a.get("attempted_at") or datetime.now(timezone.utc),
                 correctness=a.get("correctness"),
             ))
         topic_chapter_map = await self.repo.topic_chapter_map(topic_ids)
         scores = priority_scores_for_topics(
-            topic_ids, engine_attempts, datetime.utcnow(),
+            topic_ids, engine_attempts, datetime.now(timezone.utc),
             topic_chapters=topic_chapter_map or None,
         )
 
@@ -1399,7 +1402,7 @@ class MockTestService:
 
         recent = sorted(
             topic_attempts,
-            key=lambda a: a.get("attempted_at") or datetime.utcnow(),
+            key=lambda a: a.get("attempted_at") or datetime.now(timezone.utc),
             reverse=True,
         )[:25]
         recent_rows = []
@@ -1411,7 +1414,7 @@ class MockTestService:
             recent_rows.append(RecentAttempt(
                 session_id=int(a.get("session_id", 0)),
                 question_id=int(a.get("question_id", 0)),
-                attempted_at=a.get("attempted_at") or datetime.utcnow(),
+                attempted_at=a.get("attempted_at") or datetime.now(timezone.utc),
                 is_correct=bool(a.get("is_correct", False)),
                 correctness=eff,
                 difficulty=str(a.get("difficulty", "medium")),
