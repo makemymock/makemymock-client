@@ -21,6 +21,10 @@
 
   --color-panel-bg: rgba(15, 15, 23, 0.56);
   --color-panel-bg-soft: rgba(10, 10, 16, 0.58);
+  /* Always-opaque variant — opt in for structural surfaces (mock-test
+     navbar, question card, palette, action bars) where translucent
+     panels let scrolling content bleed through. */
+  --surface-opaque: #14141d;
   --color-panel-border: rgba(255, 255, 255, 0.12);
   --color-border-strong: rgba(255, 255, 255, 0.24);
   --color-chip-bg: rgba(255, 255, 255, 0.07);
@@ -94,6 +98,8 @@
 
   --color-panel-bg: rgba(255, 255, 255, 0.68);
   --color-panel-bg-soft: rgba(255, 255, 255, 0.62);
+  /* See dark-theme note above — opt-in opaque surface for mock-test. */
+  --surface-opaque: #ffffff;
   --color-panel-border: rgba(71, 85, 105, 0.18);
   --color-border-strong: rgba(71, 85, 105, 0.34);
   --color-chip-bg: rgba(255, 255, 255, 0.72);
