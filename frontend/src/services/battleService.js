@@ -1,12 +1,10 @@
 import api from './axiosInstance';
 import { tokenStorage } from '../utils/token';
-
-const httpBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+import { WS_BASE_URL } from '../config';
 
 function buildWsUrl() {
   const token = tokenStorage.getAccessToken();
-  const wsBase = httpBase.replace(/^http/, 'ws');
-  return `${wsBase}/battle/ws?token=${encodeURIComponent(token || '')}`;
+  return `${WS_BASE_URL}/battle/ws?token=${encodeURIComponent(token || '')}`;
 }
 
 export const battleService = {
