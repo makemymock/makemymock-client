@@ -177,8 +177,8 @@
 }
 
 .option:hover {
-  background: rgba(255, 255, 255, 0.04);
   border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 15%, transparent);
 }
 
 .optionStatic { cursor: default; }

@@ -78,6 +78,10 @@
 .tag.diff_medium { background: rgba(245, 158, 11, 0.16); border-color: rgba(245, 158, 11, 0.4); color: #fcd34d; }
 .tag.diff_hard   { background: rgba(239, 68, 68, 0.16);  border-color: rgba(239, 68, 68, 0.4);  color: #fca5a5; }
 
+:global([data-theme='light']) .tag.diff_easy   { color: #15803d; }
+:global([data-theme='light']) .tag.diff_medium { color: #b45309; }
+:global([data-theme='light']) .tag.diff_hard   { color: #b91c1c; }
+
 /* ----- Passage block (when this is a passage sub-Q) ----- */
 
 .passage {

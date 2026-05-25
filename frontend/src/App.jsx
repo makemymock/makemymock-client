@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import AppRoutes from './routes/AppRoutes';
 import DashboardFab from './components/common/DashboardFab/DashboardFab';
+import ThemeToggleFab from './components/common/ThemeToggleFab/ThemeToggleFab';
 import './App.css';
 
 function App() {
@@ -9,6 +10,7 @@ function App() {
     <BrowserRouter>
       <AppRoutes />
       <DashboardFab />
+      <ThemeToggleFab />
     </BrowserRouter>
   );
 }
