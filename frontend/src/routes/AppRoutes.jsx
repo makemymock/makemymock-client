@@ -11,6 +11,9 @@ import Analytics from '../pages/analytics/Analytics';
 import ChapterAnalytics from '../pages/analytics/ChapterAnalytics';
 import TopicAnalytics from '../pages/analytics/TopicAnalytics';
 import History from '../pages/history/History';
+import BattleLaunch from '../pages/battle/BattleLaunch';
+import BattleArena from '../pages/battle/BattleArena';
+import BattleHistory from '../pages/battle/BattleHistory';
 import ProtectedRoute from './ProtectedRoute';
 import { tokenStorage } from '../utils/token';
 
@@ -111,6 +114,31 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute>
             <History />
+          </ProtectedRoute>
+        }
+      />
+      {/* 1-vs-1 Battle Arena */}
+      <Route
+        path="/battle"
+        element={
+          <ProtectedRoute>
+            <BattleLaunch />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/battle/play"
+        element={
+          <ProtectedRoute>
+            <BattleArena />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/battle/history"
+        element={
+          <ProtectedRoute>
+            <BattleHistory />
           </ProtectedRoute>
         }
       />

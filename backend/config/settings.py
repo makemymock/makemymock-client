@@ -29,13 +29,21 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
-    # ---- SMTP ----
+    # ---- SMTP (fallback for local dev) ----
     SMTP_HOST: str
     SMTP_PORT: int = 587
     SMTP_EMAIL: str
     SMTP_PASSWORD: str
     SMTP_FROM_NAME: str = "MakeMyMock"
     SMTP_USE_TLS: bool = True
+
+    # ---- Brevo HTTPS email API (recommended for cloud deploys) ----
+    # When BREVO_API_KEY is set we route email through Brevo's REST API on
+    # port 443. Most cloud hosts (Railway, Render, Heroku, Vercel) block
+    # or throttle outbound port 587, so SMTP to Gmail fails with a
+    # connect timeout. Brevo is reachable from any host. Leave blank to
+    # keep using the SMTP path.
+    BREVO_API_KEY: str = ""
 
     # ---- OTP ----
     OTP_EXPIRY_MINUTES: int = 5
