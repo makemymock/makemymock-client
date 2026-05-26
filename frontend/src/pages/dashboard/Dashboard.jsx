@@ -193,7 +193,7 @@ const Dashboard = () => {
 
   return (
     <div className={styles.shell}>
-      <SideNav onLogout={handleLogout} useThemeHook={useTheme} />
+      <SideNav onLogout={handleLogout} />
 
       <div className={styles.contentArea}>
         <TopBar user={user} onLogout={handleLogout} />
@@ -265,21 +265,11 @@ const Dashboard = () => {
 // Sub-components
 // ============================================================================
 
-const SideNav = ({ onLogout, useThemeHook }) => {
-  const { theme } = useThemeHook();
-  const logoSrc = theme === 'dark'
-    ? '/logo_dark-removebg-preview.png'
-    : '/logo_light-removebg-preview.png';
+const SideNav = ({ onLogout }) => {
+  // Sidebar logo removed — the top-bar brand already covers the wordmark
+  // and a second logo in this narrow rail was crowding the nav items.
   return (
   <nav className={styles.sideNav} aria-label="Primary">
-    <NavLink
-      to="/dashboard"
-      end
-      className={styles.sideNavLogo}
-      aria-label="Make My Mock — Dashboard"
-    >
-      <img src={logoSrc} alt="Make My Mock" className={styles.sideNavLogoImg} />
-    </NavLink>
     <ul className={styles.sideNavList}>
       {NAV_ITEMS.map(({ to, label, Icon, end }) => (
         <li key={to}>

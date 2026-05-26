@@ -2,7 +2,7 @@
   min-height: 100vh;
   background: #0a121e;
   color: #f6f8ec;
-  font-family: 'Poppins', system-ui, sans-serif;
+  font-family: var(--font-secondary);
 }
 
 .header {
@@ -104,7 +104,7 @@
 
 .statValue {
   margin: 6px 0 0 0;
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: var(--font-secondary);
   font-size: 28px;
   font-weight: 800;
   background: linear-gradient(135deg, #6fd9bd, #f7c66b);
@@ -165,7 +165,7 @@
 .rowDraw { border-left-color: #a39bff; }
 
 .rowResult {
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: var(--font-secondary);
   font-weight: 800;
   font-size: 11px;
   letter-spacing: 1.5px;
@@ -201,7 +201,7 @@
   display: inline-flex;
   align-items: baseline;
   gap: 4px;
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: var(--font-secondary);
   font-weight: 800;
   font-size: 15px;
   white-space: nowrap;

@@ -99,7 +99,7 @@
   flex-wrap: wrap;
   justify-content: center;
   gap: 8px;
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: var(--font-secondary);
   font-weight: 700;
   font-size: 12px;
   letter-spacing: 1.4px;

@@ -1,4 +1,6 @@
 import { useNavigate } from 'react-router-dom';
+import ThemeToggle from '../../components/common/ThemeToggle/ThemeToggle';
+import useTheme from '../../hooks/useTheme';
 import styles from './battleLaunch.module.css';
 
 const PERKS = [
@@ -10,19 +12,14 @@ const PERKS = [
 
 const BattleLaunch = () => {
   const navigate = useNavigate();
+  const { theme, toggleTheme } = useTheme();
 
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <button
-          type="button"
-          className={styles.back}
-          onClick={() => navigate('/dashboard')}
-        >
-          ← Dashboard
-        </button>
-        <h1 className={styles.brand}>1 vs 1 — BATTLE ARENA</h1>
         <div aria-hidden="true" className={styles.spacer} />
+        <h1 className={styles.brand}>1 vs 1 — BATTLE ARENA</h1>
+        <ThemeToggle theme={theme} onToggle={toggleTheme} />
       </header>
 
       <main className={styles.main}>

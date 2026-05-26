@@ -214,7 +214,7 @@
   background: var(--color-chip-bg);
   border: 1.5px solid var(--color-chip-border);
   color: var(--color-text-primary);
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: var(--font-secondary);
   font-weight: 800;
   font-size: 12px;
   flex-shrink: 0;

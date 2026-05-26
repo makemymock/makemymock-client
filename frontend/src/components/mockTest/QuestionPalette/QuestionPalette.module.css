@@ -85,7 +85,7 @@
   background: var(--tile-bg);
   color: var(--tile-fg);
   font: inherit;
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: var(--font-secondary);
   font-weight: 700;
   font-size: 12px;
   cursor: pointer;

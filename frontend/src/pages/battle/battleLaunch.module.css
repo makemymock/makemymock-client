@@ -4,7 +4,7 @@
     radial-gradient(900px 500px at -10% 110%, rgba(134, 94, 51, 0.18), transparent 60%),
     #0b1320;
   color: #f6f8ec;
-  font-family: 'Poppins', system-ui, sans-serif;
+  font-family: var(--font-secondary);
   display: flex;
   flex-direction: column;
 }
@@ -106,7 +106,7 @@
 
 .title {
   margin: 0;
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: var(--font-secondary);
   font-size: clamp(30px, 6vw, 64px);
   font-weight: 800;
   line-height: 1.1;
@@ -140,7 +140,7 @@
   border-radius: 999px;
   background: linear-gradient(135deg, #0d9678 0%, #1ebd97 50%, #f7c66b 100%);
   color: #07101a;
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: var(--font-secondary);
   font-weight: 800;
   letter-spacing: 2px;
   cursor: pointer;

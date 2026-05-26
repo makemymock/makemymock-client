@@ -9,7 +9,7 @@
     radial-gradient(700px 400px at -10% 110%, rgba(247, 198, 107, 0.16), transparent 60%),
     #0a121e;
   color: #f6f8ec;
-  font-family: 'Poppins', system-ui, sans-serif;
+  font-family: var(--font-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -41,7 +41,7 @@
 
 .cardTitle {
   margin: 0;
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: var(--font-secondary);
   font-size: clamp(20px, 3vw, 32px);
   font-weight: 800;
 }
@@ -185,7 +185,7 @@
  * ============================================================ */
 
 .countdown {
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: var(--font-secondary);
   font-size: clamp(72px, 18vw, 160px);
   font-weight: 800;
   background: linear-gradient(135deg, #6fd9bd, #f7c66b);
@@ -266,7 +266,7 @@
 }
 
 .scoreValue {
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: var(--font-secondary);
   font-size: clamp(20px, 5vw, 30px);
   font-weight: 800;
   line-height: 1;
@@ -430,7 +430,7 @@
   height: 32px;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.12);
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: var(--font-secondary);
   font-weight: 800;
   font-size: 14px;
 }
@@ -512,7 +512,7 @@
 }
 
 .deltaChip {
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: var(--font-secondary);
   font-weight: 800;
   letter-spacing: 1px;
   padding: 10px 18px;
@@ -556,7 +556,7 @@
 
 .completeHeadline {
   margin: 0;
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: var(--font-secondary);
   font-size: clamp(32px, 9vw, 96px);
   font-weight: 900;
   letter-spacing: 2px;
@@ -636,7 +636,7 @@
 
 .completeScoreValue {
   margin: 6px 0 4px 0;
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: var(--font-secondary);
   font-size: clamp(28px, 6vw, 52px);
   font-weight: 800;
   line-height: 1;
@@ -658,7 +658,7 @@
 
 .completeVs {
   align-self: center;
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: var(--font-secondary);
   font-weight: 800;
   font-size: 14px;
   color: rgba(246, 248, 236, 0.5);

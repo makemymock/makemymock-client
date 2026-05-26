@@ -5,8 +5,13 @@
   color: #f8fafc;
   background: #09090f;
 
-  --font-primary: 'Patrick Hand SC', cursive;
-  --font-secondary: 'Jost', 'Avenir Next', 'Aptos', sans-serif;
+  /* Both font tokens resolve to the handwritten brand font so every
+     component picks it up — labels, buttons, stat cards, headings. The
+     readable sans-serif fallback is kept on the question-rendering
+     surface (MarkdownText) and on monospace contexts (code, timer). */
+  --font-primary: 'Patrick Hand SC', 'Patrick Hand', cursive;
+  --font-secondary: 'Patrick Hand SC', 'Patrick Hand', cursive,
+                    'Jost', 'Avenir Next', sans-serif;
 
   --color-bg-page: #09090f;
   --color-text-primary: #f8fafc;
