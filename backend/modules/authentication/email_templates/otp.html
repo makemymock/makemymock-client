@@ -1,46 +1,114 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="x-apple-disable-message-reformatting">
+  <meta name="color-scheme" content="light dark">
+  <meta name="supported-color-schemes" content="light dark">
   <title>{{ app_name }} verification code</title>
 </head>
-<body style="margin:0;padding:0;font-family:Arial,Helvetica,sans-serif;background:#f4f6f8;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:24px 0;">
+<body style="margin:0;padding:0;background:#eef1f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,Helvetica,sans-serif;color:#0f172a;-webkit-font-smoothing:antialiased;">
+
+  <!-- Preheader: shows as the inbox preview snippet, never rendered in the email body. -->
+  <div style="display:none;font-size:1px;color:#eef1f6;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;">
+    Your {{ app_name }} verification code is {{ otp_code }} — expires in {{ expiry_minutes }} minutes.
+  </div>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+         style="background:#eef1f6;padding:32px 16px;">
     <tr>
       <td align="center">
-        <table role="presentation" width="480" cellpadding="0" cellspacing="0"
-               style="background:#ffffff;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.05);overflow:hidden;">
+        <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0"
+               style="max-width:560px;width:100%;background:#ffffff;border-radius:18px;
+                      box-shadow:0 1px 2px rgba(15,23,42,0.04),0 8px 28px rgba(15,23,42,0.08);overflow:hidden;">
+
+          <!-- Hero header -->
           <tr>
-            <td style="padding:24px 32px;background:#0f172a;color:#ffffff;">
-              <h1 style="margin:0;font-size:20px;">{{ app_name }}</h1>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:32px;">
-              <p style="font-size:16px;color:#0f172a;margin:0 0 12px;">
-                Hi <strong>{{ username }}</strong>,
+            <td style="background:#0f172a;background-image:linear-gradient(135deg,#0f172a 0%,#0a7c63 140%);
+                       padding:28px 32px;text-align:center;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto;">
+                <tr>
+                  <td style="background:#0d9678;color:#ffffff;font-weight:800;font-size:14px;
+                             letter-spacing:1.2px;padding:10px 14px;border-radius:10px;">
+                    MM
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:14px 0 4px;color:#ffffff;font-weight:700;font-size:17px;letter-spacing:0.3px;">
+                {{ app_name }}
               </p>
-              <p style="font-size:14px;color:#334155;line-height:1.5;margin:0 0 24px;">
-                Use the verification code below to complete your sign-up. This code
-                expires in <strong>{{ expiry_minutes }} minutes</strong>.
-              </p>
-              <div style="text-align:center;margin:24px 0;">
-                <span style="display:inline-block;font-size:32px;letter-spacing:8px;
-                             font-weight:700;color:#0f172a;background:#f1f5f9;
-                             padding:16px 24px;border-radius:8px;">
-                  {{ otp_code }}
-                </span>
-              </div>
-              <p style="font-size:12px;color:#64748b;margin:24px 0 0;">
-                If you didn't request this, you can safely ignore this email.
+              <p style="margin:0;color:#94a3b8;font-size:11px;text-transform:uppercase;letter-spacing:1.6px;">
+                Mock&nbsp;·&nbsp;Analyse&nbsp;·&nbsp;Succeed
               </p>
             </td>
           </tr>
+
+          <!-- Body -->
           <tr>
-            <td style="padding:16px 32px;background:#f8fafc;color:#94a3b8;font-size:12px;text-align:center;">
-              &copy; {{ app_name }}
+            <td style="padding:36px 32px 24px;">
+              <p style="margin:0 0 6px;color:#0d9678;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;">
+                Email verification
+              </p>
+              <h1 style="margin:0 0 14px;color:#0f172a;font-size:24px;font-weight:700;line-height:1.3;">
+                Confirm it's really you
+              </h1>
+              <p style="margin:0 0 24px;color:#475569;font-size:15px;line-height:1.65;">
+                Hi <strong style="color:#0f172a;">{{ username }}</strong>, welcome to {{ app_name }}.
+                Use the one-time code below to finish setting up your account. The code is valid for the next
+                <strong style="color:#0f172a;">{{ expiry_minutes }} minutes</strong>.
+              </p>
+
+              <!-- OTP code chip — echoes the dark-pill selector used inside the app. -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px;">
+                <tr>
+                  <td align="center">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center">
+                      <tr>
+                        <td style="background:#0f172a;border:1px solid #1e293b;border-radius:16px;
+                                   padding:22px 30px;text-align:center;">
+                          <p style="margin:0 0 10px;color:#94a3b8;font-size:10px;font-weight:700;
+                                    text-transform:uppercase;letter-spacing:2.2px;">
+                            Verification code
+                          </p>
+                          <p style="margin:0;color:#ffffff;font-size:38px;font-weight:800;
+                                    letter-spacing:14px;font-family:'SF Mono','Menlo','Consolas','Courier New',monospace;">
+                            {{ otp_code }}
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Helper note -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:12px;padding:14px 18px;">
+                    <p style="margin:0;color:#475569;font-size:13px;line-height:1.6;">
+                      <strong style="color:#0f172a;">Heads up:</strong>
+                      never share this code with anyone. {{ app_name }} support will never ask you to
+                      read it out. If you didn't request this, you can safely ignore the email.
+                    </p>
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding:16px 32px 24px;border-top:1px solid #e2e8f0;background:#f8fafc;">
+              <p style="margin:0 0 4px;color:#475569;font-size:12px;text-align:center;">
+                Sent by <strong style="color:#0f172a;">{{ app_name }}</strong> · Personalised mock tests, analytics &amp; 1-vs-1 battles.
+              </p>
+              <p style="margin:0;color:#94a3b8;font-size:11px;text-align:center;">
+                &copy; {{ app_name }} · All rights reserved
+              </p>
+            </td>
+          </tr>
+
         </table>
       </td>
     </tr>
