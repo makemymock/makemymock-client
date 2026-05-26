@@ -250,6 +250,25 @@ class AnalyticsTopicsResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Activity heatmap — daily problem-solving intensity, last ~6 months.
+# The frontend buckets these into 1×7 (week), 4×7 (month), or weekly-rolled
+# 4×7 (six months) grids depending on the selected range.
+# ---------------------------------------------------------------------------
+
+class HeatmapDay(BaseModel):
+    date: str           # "YYYY-MM-DD" — anchored to UTC midnight
+    count: int          # attempts on that day (0 when none)
+
+
+class ActivityHeatmapResponse(BaseModel):
+    days: list[HeatmapDay]      # contiguous, oldest → newest
+    range_days: int             # how many days the payload spans (always 182 today)
+    max_count: int              # largest single-day count in the window
+    total: int                  # sum of all counts in the window
+    timezone: str = "UTC"       # what `date` keys are anchored to
+
+
+# ---------------------------------------------------------------------------
 # Chapter analytics
 # ---------------------------------------------------------------------------
 

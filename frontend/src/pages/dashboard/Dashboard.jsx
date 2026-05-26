@@ -8,6 +8,7 @@ import { tokenStorage } from '../../utils/token';
 import { parseApiError } from '../../utils/validators';
 import Loader from '../../components/common/Loader/Loader';
 import ErrorMessage from '../../components/common/ErrorMessage/ErrorMessage';
+import Heatmap from '../../components/common/Heatmap/Heatmap';
 import PotdModal from '../../components/dashboard/PotdModal/PotdModal';
 import styles from './dashboard.module.css';
 
@@ -73,6 +74,7 @@ const Dashboard = () => {
   const [history, setHistory] = useState([]);
   const [overview, setOverview] = useState(null);
   const [battles, setBattles] = useState([]);
+  const [heatmap, setHeatmap] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [potdOpen, setPotdOpen] = useState(false);
@@ -84,7 +86,7 @@ const Dashboard = () => {
 
     (async () => {
       try {
-        const [me, myProfile, hist, ov, battleData] = await Promise.all([
+        const [me, myProfile, hist, ov, battleData, hm] = await Promise.all([
           authService.me(),
           profileService.getMyProfile().catch((err) => {
             if (err?.response?.status === 404) return null;
@@ -93,6 +95,7 @@ const Dashboard = () => {
           mockTestService.getHistory().catch(() => ({ items: [] })),
           mockTestService.getOverview().catch(() => null),
           battleService.fetchHistory().catch(() => ({ items: [] })),
+          mockTestService.getActivityHeatmap().catch(() => null),
         ]);
         if (cancelled) return;
 
@@ -107,6 +110,7 @@ const Dashboard = () => {
         setHistory(hist.items || []);
         setOverview(ov);
         setBattles(battleData.items || []);
+        setHeatmap(hm);
       } catch (err) {
         if (!cancelled) setError(parseApiError(err, 'Could not load your dashboard.'));
       } finally {
@@ -150,32 +154,45 @@ const Dashboard = () => {
 
           <PotdBanner onOpen={() => setPotdOpen(true)} userId={user?.id} />
 
-          <section className={styles.statRow}>
-                <StatCard
-                  accent="teal"
-                  label="Mocks this week"
-                  sub="Mock tests"
-                  value={stats.mocksThisWeek}
-                  rightTop={`${stats.mocksTotal} total`}
-                  Icon={IconTest}
-                />
-                <StatCard
-                  accent="gold"
-                  label="Battles this month"
-                  sub="1v1 Quiz Challenge"
-                  value={stats.battlesThisMonth}
-                  rightTop={`${stats.battleWins}W · ${stats.battleLosses}L · ${stats.battleDraws}D`}
-                  Icon={IconSwords}
-                />
-                <StatCard
-                  accent="brown"
-                  label="Overall accuracy"
-                  sub={overview ? `${overview.total_questions} questions attempted` : '—'}
-                  value={overview ? `${(overview.overall_accuracy_pct || 0).toFixed(0)}%` : '—'}
-                  rightTop={overview ? `${overview.total_tests} tests` : ''}
-                  Icon={IconChart}
-                />
-              </section>
+          {/* Stat cards + activity heatmap (side-by-side on laptop).
+              At ≥ 1080px the three stat cards stack vertically on the
+              left while the heatmap card sits compactly on the right. */}
+          <section className={styles.heroRow}>
+            <section className={styles.statRow}>
+              <StatCard
+                accent="teal"
+                label="Mocks this week"
+                sub="Mock tests"
+                value={stats.mocksThisWeek}
+                rightTop={`${stats.mocksTotal} total`}
+                Icon={IconTest}
+              />
+              <StatCard
+                accent="gold"
+                label="Battles this month"
+                sub="1v1 Quiz Challenge"
+                value={stats.battlesThisMonth}
+                rightTop={`${stats.battleWins}W · ${stats.battleLosses}L · ${stats.battleDraws}D`}
+                Icon={IconSwords}
+              />
+              <StatCard
+                accent="brown"
+                label="Overall accuracy"
+                sub={overview ? `${overview.total_questions} questions attempted` : '—'}
+                value={overview ? `${(overview.overall_accuracy_pct || 0).toFixed(0)}%` : '—'}
+                rightTop={overview ? `${overview.total_tests} tests` : ''}
+                Icon={IconChart}
+              />
+            </section>
+
+            <section className={styles.heatmapRow}>
+              <Heatmap
+                days={heatmap?.days || []}
+                maxCount={heatmap?.max_count || 0}
+                defaultRange="month"
+              />
+            </section>
+          </section>
 
           <section className={styles.grid}>
             <PerformanceCard overview={overview} pendingCount={stats.pending.length} />

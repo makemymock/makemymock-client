@@ -7,6 +7,7 @@ from fastapi import APIRouter, status
 
 from core.dependencies import CurrentVerifiedUser, DBDep
 from modules.mock_test.schema import (
+    ActivityHeatmapResponse,
     AnalyticsChaptersResponse,
     AnalyticsOverviewResponse,
     AnalyticsTopicsResponse,
@@ -158,3 +159,17 @@ async def analytics_topic_detail(
     db: DBDep,
 ) -> TopicDetailResponse:
     return await MockTestService(db).get_topic_detail(user["_id"], topic_id)
+
+
+@router.get(
+    "/analytics/activity-heatmap",
+    response_model=ActivityHeatmapResponse,
+    summary=(
+        "Dense daily-attempt counts over the last 6 months — used by the "
+        "dashboard / analytics heatmap to show practice intensity"
+    ),
+)
+async def analytics_activity_heatmap(
+    user: CurrentVerifiedUser, db: DBDep,
+) -> ActivityHeatmapResponse:
+    return await MockTestService(db).get_activity_heatmap(user["_id"])

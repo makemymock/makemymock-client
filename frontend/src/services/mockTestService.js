@@ -62,4 +62,9 @@ export const mockTestService = {
     const { data } = await api.get(`/mock-test/analytics/topic/${topicId}`);
     return data;
   },
+
+  async getActivityHeatmap() {
+    const { data } = await api.get('/mock-test/analytics/activity-heatmap');
+    return data;
+  },
 };

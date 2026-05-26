@@ -7,6 +7,7 @@ import StatCard from '../../components/common/StatCard/StatCard';
 import LineChart from '../../components/common/LineChart/LineChart';
 import BarChart from '../../components/common/BarChart/BarChart';
 import DonutChart from '../../components/common/DonutChart/DonutChart';
+import Heatmap from '../../components/common/Heatmap/Heatmap';
 import { mockTestService } from '../../services/mockTestService';
 import { parseApiError } from '../../utils/validators';
 import styles from './analytics.module.css';
@@ -32,6 +33,7 @@ const Analytics = () => {
   const [overview, setOverview] = useState(null);
   const [chapters, setChapters] = useState(null);
   const [topics, setTopics] = useState(null);
+  const [heatmap, setHeatmap] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -39,15 +41,17 @@ const Analytics = () => {
     let cancelled = false;
     (async () => {
       try {
-        const [ov, ch, tp] = await Promise.all([
+        const [ov, ch, tp, hm] = await Promise.all([
           mockTestService.getOverview(),
           mockTestService.getChapterAnalytics(),
           mockTestService.getTopicAnalytics(),
+          mockTestService.getActivityHeatmap().catch(() => null),
         ]);
         if (cancelled) return;
         setOverview(ov);
         setChapters(ch);
         setTopics(tp);
+        setHeatmap(hm);
       } catch (err) {
         if (!cancelled) setError(parseApiError(err, 'Could not load analytics.'));
       } finally {
@@ -131,40 +135,53 @@ const Analytics = () => {
         </section>
       ) : (
         <>
-          {/* ----- Headline stats ----- */}
-          <section className={styles.overviewGrid}>
-            <StatCard label="Tests submitted" value={overview.total_tests} />
-            <StatCard
-              label="Questions attempted"
-              value={overview.total_questions}
-            />
-            <StatCard
-              label="Overall accuracy"
-              value={`${overview.overall_accuracy_pct.toFixed(1)}%`}
-              tone={
-                overview.overall_accuracy_pct >= 70
-                  ? 'good'
-                  : overview.overall_accuracy_pct >= 50
-                  ? 'warn'
-                  : 'bad'
-              }
-            />
-            <StatCard
-              label="Total score"
-              value={overview.total_score.toFixed(1)}
-            />
-            <StatCard
-              label="Topics mastered"
-              value={masteredCount}
-              sub="3+ attempts · 75%+ accuracy"
-              tone="good"
-            />
-            <StatCard
-              label="Topics needing work"
-              value={needsWorkCount}
-              sub="Below 50% accuracy"
-              tone={needsWorkCount > 0 ? 'bad' : undefined}
-            />
+          {/* ----- Headline stats + activity heatmap (side-by-side on laptop) -----
+              On phones/tablets the inner sections stack normally. On laptop
+              (≥ 1080px) the stat grid sits on the left in a 3×2 layout
+              and the heatmap card sits on the right at a compact size. */}
+          <section className={styles.heroRow}>
+            <section className={`${styles.overviewGrid} ${styles.overviewGridInHero}`}>
+              <StatCard label="Tests submitted" value={overview.total_tests} />
+              <StatCard
+                label="Questions attempted"
+                value={overview.total_questions}
+              />
+              <StatCard
+                label="Overall accuracy"
+                value={`${overview.overall_accuracy_pct.toFixed(1)}%`}
+                tone={
+                  overview.overall_accuracy_pct >= 70
+                    ? 'good'
+                    : overview.overall_accuracy_pct >= 50
+                    ? 'warn'
+                    : 'bad'
+                }
+              />
+              <StatCard
+                label="Total score"
+                value={overview.total_score.toFixed(1)}
+              />
+              <StatCard
+                label="Topics mastered"
+                value={masteredCount}
+                sub="3+ attempts · 75%+ accuracy"
+                tone="good"
+              />
+              <StatCard
+                label="Topics needing work"
+                value={needsWorkCount}
+                sub="Below 50% accuracy"
+                tone={needsWorkCount > 0 ? 'bad' : undefined}
+              />
+            </section>
+
+            <section className={styles.heatmapSection}>
+              <Heatmap
+                days={heatmap?.days || []}
+                maxCount={heatmap?.max_count || 0}
+                defaultRange="month"
+              />
+            </section>
           </section>
 
           {/* ----- Trend charts ----- */}

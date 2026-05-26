@@ -11,7 +11,7 @@ import logging
 import time
 import uuid
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from bson import ObjectId
@@ -46,6 +46,7 @@ from modules.mock_test.model import (
 from modules.mock_test.repository import MockTestRepository
 from modules.mock_test.schema import (
     AccuracyTrendPoint,
+    ActivityHeatmapResponse,
     AnalyticsChaptersResponse,
     AnalyticsOverviewResponse,
     AnalyticsTopicsResponse,
@@ -60,6 +61,7 @@ from modules.mock_test.schema import (
     CreateMockTestResponse,
     CumulativePoint,
     DifficultyBreakdown,
+    HeatmapDay,
     HistoryItem,
     HistoryResponse,
     MatchingColumn,
@@ -80,6 +82,13 @@ from modules.mock_test.schema import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+# India Standard Time (UTC+5:30, no DST). MakeMyMock's audience is
+# Indian students — day-bucketed analytics (heatmap, daily trends)
+# must line up with what students see on their wall clock, not with
+# UTC. A problem solved at 01:00 IST belongs to that calendar day.
+IST = timezone(timedelta(hours=5, minutes=30))
 
 
 # Display order rule (frontend & backend agree):
@@ -149,19 +158,24 @@ def _bucket_by_key(
 
 
 def _cumulative_by_day(attempts: list[dict]):
-    """Return [(day, delta, cumulative)] ordered by day."""
+    """Return [(day, delta, cumulative)] ordered by day.
+
+    Days are bucketed by IST midnight (see the `IST` constant at the
+    top of this module) so the chapter / topic trend charts show one
+    point per *Indian calendar day*, matching what students see.
+    """
     from modules.mock_test.schema import CumulativePoint  # local import avoids cycles
     if not attempts:
         return []
     by_day: dict[datetime, int] = defaultdict(int)
     for a in attempts:
         at = a.get("attempted_at")
-        if at is None:
+        if not isinstance(at, datetime):
             continue
-        if isinstance(at, datetime):
-            day = at.replace(hour=0, minute=0, second=0, microsecond=0)
-        else:
-            continue
+        if at.tzinfo is None:
+            at = at.replace(tzinfo=timezone.utc)
+        at_ist = at.astimezone(IST)
+        day = at_ist.replace(hour=0, minute=0, second=0, microsecond=0)
         by_day[day] += 1
     out = []
     cumulative = 0
@@ -1081,6 +1095,60 @@ class MockTestService:
         # Default sort: priority desc (weakest first).
         topics.sort(key=lambda t: t.priority_score, reverse=True)
         return AnalyticsTopicsResponse(topics=topics)
+
+    async def get_activity_heatmap(
+        self, user_oid: ObjectId, range_days: int = 182,
+    ) -> ActivityHeatmapResponse:
+        """Dense daily-count series anchored to IST midnight.
+
+        India Standard Time (UTC+5:30, no DST) is the canonical timezone
+        for this product — student-facing dates need to line up with
+        local wall-clock days, so a problem solved at 01:00 IST belongs
+        to that calendar day, not the previous UTC day.
+
+        Always returns `range_days` contiguous buckets (oldest → newest),
+        zero-filling days with no attempts so the frontend can lay out a
+        fixed grid without having to handle gaps.
+        """
+        now_ist = datetime.now(IST)
+        today_ist = now_ist.replace(hour=0, minute=0, second=0, microsecond=0)
+        start_ist = today_ist - timedelta(days=range_days - 1)
+        end_ist_exclusive = today_ist + timedelta(days=1)
+
+        attempts = await self.repo.list_user_attempts(user_oid)
+        counts: dict[str, int] = defaultdict(int)
+        for a in attempts:
+            at = a.get("attempted_at")
+            if not isinstance(at, datetime):
+                continue
+            # Mongo BSON datetimes come back naive; the spec is they're
+            # stored as UTC, so attach that tz before shifting to IST.
+            if at.tzinfo is None:
+                at = at.replace(tzinfo=timezone.utc)
+            at_ist = at.astimezone(IST)
+            if at_ist < start_ist or at_ist >= end_ist_exclusive:
+                continue
+            counts[at_ist.strftime("%Y-%m-%d")] += 1
+
+        days: list[HeatmapDay] = []
+        max_count = 0
+        total = 0
+        for i in range(range_days):
+            d = start_ist + timedelta(days=i)
+            key = d.strftime("%Y-%m-%d")
+            c = int(counts.get(key, 0))
+            days.append(HeatmapDay(date=key, count=c))
+            if c > max_count:
+                max_count = c
+            total += c
+
+        return ActivityHeatmapResponse(
+            days=days,
+            range_days=range_days,
+            max_count=max_count,
+            total=total,
+            timezone="Asia/Kolkata",
+        )
 
     async def _topic_analytics(
         self, user_oid: ObjectId, attempts: list[dict],
