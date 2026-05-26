@@ -32,6 +32,10 @@ const SolverX = () => {
   });
   const [conversations, setConversations] = useState([]);
   const [activeConvId, setActiveConvId] = useState(null);
+  // Two-stage delete confirmation: first click arms a conversation
+  // (icon turns red + label flips to "Confirm"), second click runs the
+  // delete. Clicking anywhere else dismisses the armed state.
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
   // The transcript of (user/assistant) turns currently displayed.
   const [turns, setTurns] = useState([]);
@@ -90,12 +94,20 @@ const SolverX = () => {
     try {
       const data = await solverxService.getConversation(convId);
       setMode(data.mode === 'theory' ? 'theory' : 'solve');
-      // Pair user + assistant messages into "turns".
+      // Pair user + assistant messages into "turns". The user message
+      // carries the (optional) base64 image we stored on the way in —
+      // restoring it here lets the transcript re-render the original
+      // screenshot when a saved conversation is reopened.
       const next = [];
       let pending = null;
       for (const msg of data.messages || []) {
         if (msg.role === 'user') {
-          pending = { question: msg.text, complexity: msg.complexity_mode, assistant: null };
+          pending = {
+            question: msg.text,
+            complexity: msg.complexity_mode,
+            assistant: null,
+            imageDataUrl: msg.image_data_url || null,
+          };
           next.push(pending);
         } else if (pending && msg.role === 'assistant') {
           pending.assistant = msg;
@@ -117,6 +129,41 @@ const SolverX = () => {
     setError('');
     setSidebarOpen(false);
   };
+
+  // Two-stage delete: first click arms the row (sets confirmDeleteId);
+  // second click on the same row commits. Clicking any other delete
+  // button just re-arms to that row; an auto-timeout disarms after 4s.
+  const armOrConfirmDelete = useCallback(async (convId, e) => {
+    e.stopPropagation();
+    if (confirmDeleteId !== convId) {
+      setConfirmDeleteId(convId);
+      return;
+    }
+    setConfirmDeleteId(null);
+    try {
+      await solverxService.deleteConversation(convId);
+      setConversations((prev) => prev.filter((c) => c.id !== convId));
+      // If the user just nuked the conversation they're viewing,
+      // reset back to a blank slate.
+      if (activeConvId === convId) {
+        streamCtrlRef.current?.abort();
+        streamCtrlRef.current = null;
+        setActiveConvId(null);
+        setTurns([]);
+        setStreaming(null);
+      }
+    } catch (err) {
+      setError(parseApiError(err, 'Could not delete that conversation.'));
+    }
+  }, [confirmDeleteId, activeConvId]);
+
+  // Auto-disarm the confirm state after a short window so an
+  // accidentally-armed row doesn't sit there forever.
+  useEffect(() => {
+    if (!confirmDeleteId) return undefined;
+    const t = window.setTimeout(() => setConfirmDeleteId(null), 4000);
+    return () => window.clearTimeout(t);
+  }, [confirmDeleteId]);
 
   // ---- Image attach helpers ----
 
@@ -343,21 +390,47 @@ const SolverX = () => {
             {conversations.length === 0 ? (
               <p className={styles.convEmpty}>No conversations yet.</p>
             ) : (
-              conversations.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  className={`${styles.convItem} ${activeConvId === c.id ? styles.convItemActive : ''}`}
-                  onClick={() => openConversation(c.id)}
-                  title={c.title}
-                >
-                  <span className={styles.convMode}>
-                    {c.mode === 'theory' ? 'THEORY' : 'SOLVE'}
-                  </span>
-                  <span className={styles.convTitle}>{c.title || 'Untitled'}</span>
-                  <span className={styles.convPreview}>{c.last_message_preview}</span>
-                </button>
-              ))
+              conversations.map((c) => {
+                const isArmed = confirmDeleteId === c.id;
+                return (
+                  <div
+                    key={c.id}
+                    className={`${styles.convRow} ${activeConvId === c.id ? styles.convRowActive : ''} ${isArmed ? styles.convRowArmed : ''}`}
+                  >
+                    <button
+                      type="button"
+                      className={styles.convItem}
+                      onClick={() => openConversation(c.id)}
+                      title={c.title}
+                    >
+                      <span className={styles.convMode}>
+                        {c.mode === 'theory' ? 'THEORY' : 'SOLVE'}
+                      </span>
+                      <span className={styles.convTitle}>{c.title || 'Untitled'}</span>
+                      <span className={styles.convPreview}>{c.last_message_preview}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`${styles.convDelete} ${isArmed ? styles.convDeleteArmed : ''}`}
+                      onClick={(e) => armOrConfirmDelete(c.id, e)}
+                      aria-label={isArmed ? 'Confirm delete conversation' : 'Delete conversation'}
+                      title={isArmed ? 'Click again to confirm' : 'Delete conversation'}
+                    >
+                      {isArmed ? (
+                        <span className={styles.convDeleteText}>Confirm</span>
+                      ) : (
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none"
+                             stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+                             strokeLinejoin="round" aria-hidden="true">
+                          <path d="M3 6h18" />
+                          <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                );
+              })
             )}
           </div>
         </div>

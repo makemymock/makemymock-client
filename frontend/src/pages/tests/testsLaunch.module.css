@@ -37,7 +37,7 @@
 }
 
 .summaryLabel {
-  font-size: 13px;
+  font-size: 15px;
   color: var(--color-text-muted);
 }
 
@@ -57,7 +57,7 @@
 }
 
 .sizeLabel {
-  font-size: 13px;
+  font-size: 15px;
   color: var(--color-text-muted);
   letter-spacing: 0.5px;
   text-transform: uppercase;
@@ -76,9 +76,9 @@
   appearance: none;
   font: inherit;
   font-weight: 600;
-  font-size: 14px;
+  font-size: 15px;
   cursor: pointer;
-  padding: 8px 16px;
+  padding: 8px 18px;
   border: none;
   border-radius: 999px;
   background: transparent;
@@ -140,7 +140,7 @@
 }
 
 .subjectCount {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -179,11 +179,11 @@
 .chapterName {
   flex: 1;
   font-weight: 600;
-  font-size: 15px;
+  font-size: 17px;
 }
 
 .chapterCount {
-  font-size: 11px;
+  font-size: 13px;
   color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -226,17 +226,17 @@
 
 .topicName {
   flex: 1;
-  font-size: 14px;
+  font-size: 16px;
   color: var(--color-text-primary);
 }
 
 .topicQs {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--color-text-muted);
   background: var(--color-chip-bg);
   border: 1px solid var(--color-chip-border);
-  padding: 2px 8px;
+  padding: 3px 10px;
   border-radius: 999px;
 }
 
@@ -262,7 +262,7 @@
   border: none;
   color: var(--color-text-muted);
   font: inherit;
-  font-size: 13px;
+  font-size: 15px;
   text-decoration: underline;
   cursor: pointer;
 }
@@ -311,9 +311,9 @@
   appearance: none;
   font: inherit;
   font-weight: 600;
-  font-size: 13px;
+  font-size: 15px;
   cursor: pointer;
-  padding: 7px 16px;
+  padding: 8px 18px;
   border: none;
   border-radius: 999px;
   background: transparent;
@@ -395,11 +395,11 @@
 
 .historyStatus {
   display: inline-block;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 1px;
-  padding: 3px 10px;
+  padding: 4px 12px;
   border-radius: 999px;
 }
 
@@ -415,7 +415,7 @@
 
 .historyMeta {
   margin-top: 4px;
-  font-size: 12.5px;
+  font-size: 14px;
   color: var(--color-text-muted);
 }
 
@@ -425,13 +425,13 @@
 }
 
 .historyScore {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
   color: var(--color-text-primary);
 }
 
 .historyScoreSub {
-  font-size: 11px;
+  font-size: 13px;
   color: var(--color-text-muted);
   margin-top: 2px;
 }
@@ -443,12 +443,12 @@
 .historyAction {
   display: inline-flex;
   align-items: center;
-  padding: 7px 14px;
+  padding: 8px 16px;
   border-radius: 999px;
   background: var(--color-chip-bg);
   border: 1px solid var(--color-chip-border);
   color: var(--color-text-primary);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   text-decoration: none;
   white-space: nowrap;

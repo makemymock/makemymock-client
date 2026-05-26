@@ -331,6 +331,49 @@ class SolverXService:
         )
         return oid, True
 
+    # Cap how much prior chat we replay to the LLM. Six messages = three
+    # turns; enough for "now solve part b" follow-ups without ballooning
+    # context. Diagram blocks (SVG markup) are stripped because their
+    # token weight is enormous and they add nothing for the LLM.
+    _HISTORY_MAX_MESSAGES = 6
+    _HISTORY_TEXT_BUDGET = 2400  # chars per message after which we truncate
+
+    async def _build_history(self, conv_oid: ObjectId) -> list[dict]:
+        """Replay prior turns as chat-completion messages.
+
+        We pull the stored transcript, drop the SVG content of diagram
+        blocks (kept for the UI, not for the LLM), and truncate any
+        single message that grew too long. The first item returned is
+        the oldest kept message; the caller appends the new user turn
+        after the list.
+        """
+        docs = await self.repo.list_messages_for_conversation(conv_oid)
+        if not docs:
+            return []
+        recent = docs[-self._HISTORY_MAX_MESSAGES:]
+        out: list[dict] = []
+        for d in recent:
+            role = d.get("role")
+            if role not in ("user", "assistant"):
+                continue
+            if role == "assistant":
+                blocks = d.get("blocks") or []
+                non_diagram = [b for b in blocks if b.get("type") != "diagram"]
+                text = "\n\n".join(
+                    (b.get("title") + ": " if b.get("title") else "") + (b.get("content") or "")
+                    for b in non_diagram
+                ).strip()
+                if not text:
+                    text = (d.get("text") or "").strip()
+            else:
+                text = (d.get("text") or "").strip()
+            if not text:
+                continue
+            if len(text) > self._HISTORY_TEXT_BUDGET:
+                text = text[: self._HISTORY_TEXT_BUDGET] + " …"
+            out.append({"role": role, "content": text})
+        return out
+
     # ------------------------------------------------------------------
     # Public: streaming solve + theory pipelines
     # ------------------------------------------------------------------
@@ -408,6 +451,8 @@ class SolverXService:
 
         # Persist conversation + user message up front so the UI's
         # history list updates even if the LLM call fails mid-flight.
+        # History from prior turns is fetched BEFORE the new user
+        # message is inserted, so it doesn't echo itself back.
         try:
             conv_oid, created = await self._ensure_conversation(
                 conversation_id=conversation_id,
@@ -415,12 +460,16 @@ class SolverXService:
                 mode=mode,
                 first_question=question_text,
             )
+            history_messages: list[dict] = (
+                [] if created else await self._build_history(conv_oid)
+            )
             await self.repo.create_message(
                 new_message_doc(
                     conversation_id=conv_oid,
                     role="user",
                     text=question_text,
                     complexity_mode=complexity_mode,
+                    image_data_url=image_data_url,
                 )
             )
             await self.repo.touch_conversation(
@@ -443,6 +492,7 @@ class SolverXService:
                 plan_raw = await chat_json(
                     [
                         {"role": "system", "content": plan_system},
+                        *history_messages,
                         {
                             "role": "user",
                             "content": self._user_content(
@@ -474,8 +524,14 @@ class SolverXService:
             # Kick off the Visual Reasoning + Refactor pipeline now so it
             # runs alongside the solve stream — by the time the steps
             # finish streaming, the diagram is usually ready.
+            #
+            # Trigger ONLY on the planner's `visual_needed` flag. An
+            # attached image is NOT a trigger — the student can paste a
+            # screenshot just to OCR the problem; they don't always want
+            # us to redraw their own figure. The plan prompt is strict
+            # about when visual_needed should be true.
             diagram_task: Optional[asyncio.Task] = None
-            if topic_payload["visual_needed"] or image_data_url:
+            if topic_payload["visual_needed"]:
                 diagram_task = asyncio.create_task(
                     _generate_diagram(
                         question_text=question_text,
@@ -521,13 +577,20 @@ class SolverXService:
                 raw_stream = chat_stream(
                     [
                         {"role": "system", "content": solve_sys},
+                        *history_messages,
                         {
                             "role": "user",
                             "content": self._user_content(solve_user, image_data_url),
                         },
                     ],
-                    temperature=0.6,
-                    max_tokens=4000,
+                    # Low temperature so the model actually follows the
+                    # required block template. Higher values let Llama
+                    # 4 Scout drift into "just give the final answer"
+                    # mode and skip the teaching blocks.
+                    temperature=0.35,
+                    # Roomy budget so a deep solution (8-10 step blocks
+                    # + a worked example) can finish without truncation.
+                    max_tokens=6000,
                 )
                 progress_announced = False
                 async for block in _stream_blocks_from_llm(raw_stream):
@@ -654,8 +717,12 @@ class SolverXService:
                     "topic": m.get("topic"),
                     "insights": m.get("insights", []),
                     "complexity_mode": m.get("complexity_mode"),
+                    "image_data_url": m.get("image_data_url"),
                     "created_at": m["created_at"],
                 }
                 for m in messages
             ],
         }
+
+    async def delete_conversation(self, conv_id: str, user_oid: ObjectId) -> bool:
+        return await self.repo.delete_conversation(conv_id, user_oid)

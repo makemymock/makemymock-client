@@ -37,6 +37,7 @@ def new_message_doc(
     topic: dict | None = None,
     insights: list[dict] | None = None,
     complexity_mode: str | None = None,
+    image_data_url: str | None = None,
 ) -> dict[str, Any]:
     return {
         "conversation_id": conversation_id,
@@ -46,5 +47,9 @@ def new_message_doc(
         "topic": topic,
         "insights": insights or [],
         "complexity_mode": complexity_mode,
+        # Base64 data URL (e.g. "data:image/png;base64,iVBORw…").
+        # Stored on user messages so the transcript can render the
+        # original screenshot when a saved conversation is reopened.
+        "image_data_url": image_data_url,
         "created_at": now_utc(),
     }

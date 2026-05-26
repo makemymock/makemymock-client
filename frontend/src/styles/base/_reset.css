@@ -18,3 +18,52 @@ a {
 #root {
   min-height: 100svh;
 }
+
+/* ===========================================================================
+ * Global scrollbar styling — applies to the page (html/body) and every
+ * overflow container that doesn't override it.
+ *
+ *   * Track is transparent so the scrollbar blends with the surrounding
+ *     element's background — no white/gray "browser default" strip.
+ *   * Thumb uses the theme panel-border colour, so it reads on both the
+ *     near-black dark page and the cream light page.
+ *   * `border: 2px solid transparent + background-clip: padding-box` is
+ *     the standard trick to inset the thumb a couple of pixels from the
+ *     track edge — gives the scrollbar a thin, refined look without
+ *     making the clickable area uncomfortably small.
+ * =========================================================================== */
+
+html {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-panel-border) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-panel-border);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-strong);
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: var(--color-accent);
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}

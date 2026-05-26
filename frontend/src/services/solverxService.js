@@ -124,4 +124,8 @@ export const solverxService = {
     const { data } = await api.get(`/solverx/conversations/${id}`);
     return data;
   },
+
+  async deleteConversation(id) {
+    await api.delete(`/solverx/conversations/${id}`);
+  },
 };

@@ -7,7 +7,7 @@ non-streaming list + detail endpoints power the chat history sidebar.
 from __future__ import annotations
 
 from bson import ObjectId
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Response, status
 from fastapi.responses import StreamingResponse
 
 from core.dependencies import CurrentVerifiedUser, DBDep
@@ -112,3 +112,30 @@ async def get_conversation(
             status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found."
         )
     return ConversationDetail(**data)
+
+
+@router.delete(
+    "/conversations/{conversation_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+    summary="Delete a SolverX conversation and all its messages",
+)
+async def delete_conversation(
+    conversation_id: str,
+    db: DBDep,
+    current_user: CurrentVerifiedUser,
+):
+    try:
+        ObjectId(conversation_id)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found."
+        ) from exc
+
+    service = SolverXService(db)
+    ok = await service.delete_conversation(conversation_id, current_user["_id"])
+    if not ok:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found."
+        )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -129,7 +129,7 @@
 
 .eyebrow {
   margin: 0;
-  font-size: 12px;
+  font-size: 14px;
   text-transform: uppercase;
   letter-spacing: 2px;
   color: var(--color-accent);
@@ -148,7 +148,9 @@
   margin: 0;
   max-width: 760px;
   color: var(--color-text-muted);
-  font-size: 14px;
+  /* Patrick Hand SC reads about a size smaller than a sans-serif at the
+     same px — so secondary body copy needs ~17px to feel comfortable. */
+  font-size: 17px;
   line-height: 1.55;
 }
 

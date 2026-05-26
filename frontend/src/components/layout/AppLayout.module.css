@@ -81,7 +81,7 @@
   display: none;
   font-weight: 500;
   color: var(--dash-text-muted);
-  font-size: 11px;
+  font-size: 13px;
   letter-spacing: 0.5px;
   white-space: nowrap;
   padding-left: 12px;
@@ -168,7 +168,7 @@
 
 .userName {
   font-weight: 600;
-  font-size: 13px;
+  font-size: 15px;
   max-width: 16ch;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -177,7 +177,7 @@
 }
 
 .userEmail {
-  font-size: 11px;
+  font-size: 13px;
   color: var(--dash-text-muted);
   max-width: 22ch;
   overflow: hidden;
@@ -206,10 +206,10 @@
   background: transparent;
   border: none;
   text-align: left;
-  padding: 9px 10px;
+  padding: 10px 12px;
   border-radius: 8px;
   font-family: inherit;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 500;
   cursor: pointer;
   color: var(--dash-logout-color);
@@ -270,7 +270,7 @@
   color: var(--dash-sidebar-text);
   cursor: pointer;
   font-family: inherit;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.3px;
   text-decoration: none;
@@ -333,7 +333,7 @@
   gap: 2px;
   text-decoration: none;
   color: var(--dash-sidebar-text);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.2px;
   padding: 6px 2px;

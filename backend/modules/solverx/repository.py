@@ -55,6 +55,23 @@ class SolverXRepository:
         )
         return [doc async for doc in cursor]
 
+    async def delete_conversation(
+        self, conv_id: str | ObjectId, user_oid: ObjectId,
+    ) -> bool:
+        """Remove the conversation document and every message it owns.
+
+        Returns True iff the conversation existed and belonged to the
+        caller. We delete the conversation first (the ownership check)
+        and only cascade to messages after that succeeds, so an attacker
+        cannot clear someone else's transcripts by guessing an id.
+        """
+        oid = conv_id if isinstance(conv_id, ObjectId) else ObjectId(conv_id)
+        result = await self.conv.delete_one({"_id": oid, "user_id": user_oid})
+        if result.deleted_count == 0:
+            return False
+        await self.msg.delete_many({"conversation_id": oid})
+        return True
+
     # ---- messages ----
 
     async def create_message(self, doc: dict[str, Any]) -> ObjectId:

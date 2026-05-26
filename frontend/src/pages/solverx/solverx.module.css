@@ -7,9 +7,12 @@
   display: flex;
   flex-direction: row;
   height: calc(100vh - var(--topbar-h));
+  /* Background glows use the theme glow tokens so the soft halo
+     reads on both the dark page (#09090f) and the cream light page
+     (#f6f7fb) without bleeding harsh teal/brown washes. */
   background:
-    radial-gradient(1100px 600px at 80% -10%, rgba(13, 150, 120, 0.16), transparent 60%),
-    radial-gradient(900px 500px at -10% 110%, rgba(134, 94, 51, 0.16), transparent 60%),
+    radial-gradient(1100px 600px at 80% -10%, var(--color-glow-teal), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, var(--color-glow-cyan), transparent 60%),
     var(--color-bg-page);
   color: var(--color-text-primary);
   overflow: hidden;
@@ -64,7 +67,7 @@
   width: 0;
   min-width: 0;
   height: 100%;
-  background: rgba(0, 0, 0, 0.22);
+  background: var(--color-panel-bg-soft);
   border-right: 1px solid var(--color-panel-border);
   overflow: hidden;
   transition: flex-basis 0.22s cubic-bezier(0.4, 0, 0.2, 1),
@@ -130,7 +133,7 @@
 
 .sidebarEyebrow {
   display: inline-block;
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 1.4px;
@@ -139,7 +142,7 @@
 
 .sidebarHead {
   margin: 2px 0 0;
-  font-size: 18px;
+  font-size: 22px;
   font-weight: 700;
   color: var(--color-text-primary);
 }
@@ -148,15 +151,24 @@
   background: rgba(20, 184, 166, 0.15);
   border: 1px solid rgba(20, 184, 166, 0.4);
   color: var(--color-text-primary);
-  padding: 9px 12px;
+  padding: 10px 14px;
   border-radius: 10px;
   cursor: pointer;
   font-weight: 600;
-  font-size: 13px;
+  font-size: 15px;
+}
+
+:root[data-theme='light'] .newChatBtn {
+  background: rgba(13, 150, 120, 0.10);
+  border-color: rgba(13, 150, 120, 0.45);
 }
 
 .newChatBtn:hover {
   background: rgba(20, 184, 166, 0.22);
+}
+
+:root[data-theme='light'] .newChatBtn:hover {
+  background: rgba(13, 150, 120, 0.18);
 }
 
 .convList {
@@ -165,21 +177,61 @@
   gap: 6px;
   overflow-y: auto;
   flex: 1;
-  padding-right: 4px;
+  padding-right: 6px;
+  /* Inherits the global scrollbar styles from styles/base/_reset.css —
+     transparent track + theme-aware inset thumb. The list lives inside
+     `--color-panel-bg-soft`, so the transparent track shows that panel
+     colour and the bar reads as part of the sidebar rather than a
+     foreign scroll strip. */
 }
 
 .convEmpty {
   margin: 0;
   padding: 24px 8px;
   text-align: center;
-  font-size: 13px;
+  font-size: 15px;
   color: var(--color-text-muted);
 }
 
-.convItem {
-  background: rgba(255, 255, 255, 0.03);
+/* The conversation row wraps the click-target button and a small
+   delete button. Two siblings (not nested buttons) so both stay
+   keyboard-accessible. The row owns the hover/active border so it
+   wraps both buttons cleanly. */
+.convRow {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  background: transparent;
   border: 1px solid transparent;
   border-radius: 10px;
+  overflow: hidden;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.convRow:hover {
+  background: var(--color-chip-bg);
+}
+
+.convRowActive {
+  background: rgba(20, 184, 166, 0.12);
+  border-color: rgba(20, 184, 166, 0.4);
+}
+
+:root[data-theme='light'] .convRowActive {
+  background: rgba(13, 150, 120, 0.10);
+  border-color: rgba(13, 150, 120, 0.45);
+}
+
+.convRowArmed {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.45);
+}
+
+.convItem {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
   padding: 8px 10px;
   text-align: left;
   cursor: pointer;
@@ -188,27 +240,68 @@
   flex-direction: column;
   gap: 2px;
   font: inherit;
-  width: 100%;
 }
 
-.convItem:hover {
-  background: rgba(255, 255, 255, 0.07);
+.convItem:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+  border-radius: 8px;
 }
 
-.convItemActive {
-  background: rgba(20, 184, 166, 0.12);
-  border-color: rgba(20, 184, 166, 0.4);
+/* Tiny trash button — visible at low opacity by default, fully opaque
+   on row hover, and tinted red when armed for confirmation. */
+.convDelete {
+  flex: 0 0 auto;
+  align-self: stretch;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  min-width: 38px;
+  background: transparent;
+  border: none;
+  border-left: 1px solid transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  opacity: 0.4;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  transition: opacity 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+
+.convRow:hover .convDelete,
+.convRow:focus-within .convDelete {
+  opacity: 1;
+}
+
+.convDelete:hover {
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.16);
+}
+
+.convDeleteArmed,
+.convDeleteArmed:hover {
+  opacity: 1;
+  color: #fff;
+  background: rgba(239, 68, 68, 0.55);
+  border-left-color: rgba(239, 68, 68, 0.6);
+}
+
+.convDeleteText {
+  text-transform: uppercase;
 }
 
 .convMode {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 1.5px;
   color: var(--color-accent);
 }
 
 .convTitle {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
@@ -216,7 +309,7 @@
 }
 
 .convPreview {
-  font-size: 11px;
+  font-size: 13px;
   color: var(--color-text-muted);
   white-space: nowrap;
   overflow: hidden;
@@ -243,12 +336,14 @@
   gap: 12px;
   padding: 10px 18px;
   border-bottom: 1px solid var(--color-panel-border);
-  background: rgba(0, 0, 0, 0.18);
+  background: var(--color-panel-bg);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   min-height: 48px;
 }
 
 .toolbarTitle {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   letter-spacing: 2px;
   text-transform: uppercase;
@@ -284,7 +379,7 @@
 .emptySub {
   margin: 0;
   max-width: 560px;
-  font-size: 15px;
+  font-size: 17px;
   color: var(--color-text-muted);
 }
 
@@ -292,11 +387,11 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: 2px;
   text-transform: uppercase;
-  padding: 5px 12px;
+  padding: 6px 14px;
   border-radius: 999px;
   background: linear-gradient(90deg,
     rgba(20, 184, 166, 0.18), rgba(245, 196, 81, 0.18));
@@ -316,12 +411,12 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.3px;
-  padding: 6px 12px;
+  padding: 7px 14px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--color-chip-bg);
   border: 1px solid var(--color-panel-border);
   color: var(--color-text-primary);
 }
@@ -351,9 +446,14 @@
   position: relative;
 }
 
+:root[data-theme='light'] .userBubble {
+  background: rgba(13, 150, 120, 0.10);
+  border-color: rgba(13, 150, 120, 0.40);
+}
+
 .userBubble p {
   margin: 0;
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1.55;
   white-space: pre-wrap;
 }
@@ -361,7 +461,7 @@
 .userTag {
   display: inline-block;
   margin-bottom: 4px;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 1.5px;
@@ -379,11 +479,11 @@
   align-items: center;
   gap: 10px;
   align-self: flex-start;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--color-chip-bg);
   border: 1px solid var(--color-panel-border);
   border-radius: 999px;
-  padding: 6px 14px;
-  font-size: 13px;
+  padding: 7px 16px;
+  font-size: 15px;
   color: var(--color-text-muted);
 }
 
@@ -411,13 +511,13 @@
 }
 
 .topicPill {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 1px;
-  padding: 4px 10px;
+  padding: 5px 12px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--color-chip-bg);
   color: var(--color-text-muted);
 }
 
@@ -440,16 +540,16 @@
 
 .insightHead {
   margin: 0 0 2px;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 700;
   color: #fcd34d;
 }
 
 .insightDetail {
   margin: 0;
-  font-size: 12.5px;
+  font-size: 14px;
   color: var(--color-text-muted);
-  line-height: 1.5;
+  line-height: 1.55;
 }
 
 .blocks {
@@ -465,15 +565,17 @@
   background: rgba(239, 68, 68, 0.14);
   border: 1px solid rgba(239, 68, 68, 0.4);
   color: #fca5a5;
-  padding: 10px 14px;
+  padding: 11px 16px;
   border-radius: 10px;
-  font-size: 13px;
+  font-size: 15px;
 }
 
 .composer {
   border-top: 1px solid var(--color-panel-border);
   padding: 14px clamp(18px, 4vw, 56px) 18px;
-  background: rgba(0, 0, 0, 0.18);
+  background: var(--color-panel-bg);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -482,14 +584,14 @@
 .input {
   width: 100%;
   resize: vertical;
-  min-height: 64px;
+  min-height: 68px;
   max-height: 240px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--dash-input-bg);
   border: 1px solid var(--color-panel-border);
   border-radius: 14px;
-  padding: 12px 14px;
+  padding: 14px 16px;
   font: inherit;
-  font-size: 14px;
+  font-size: 16px;
   color: var(--color-text-primary);
   outline: none;
   line-height: 1.55;
@@ -527,15 +629,15 @@
 .attachBtn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  background: rgba(255, 255, 255, 0.05);
+  gap: 7px;
+  background: var(--color-chip-bg);
   border: 1px solid var(--color-panel-border);
   color: var(--color-text-primary);
-  padding: 6px 12px;
+  padding: 7px 14px;
   border-radius: 999px;
   cursor: pointer;
   font: inherit;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
@@ -572,13 +674,13 @@
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  padding: 9px 12px;
+  padding: 10px 14px;
   background: transparent;
   border: none;
   border-radius: 8px;
   color: var(--color-text-primary);
   font: inherit;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 500;
   cursor: pointer;
   text-align: left;
@@ -603,15 +705,15 @@
 .pickerBtn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  background: rgba(255, 255, 255, 0.05);
+  gap: 7px;
+  background: var(--color-chip-bg);
   border: 1px solid var(--color-panel-border);
   color: var(--color-text-primary);
-  padding: 6px 10px 6px 9px;
+  padding: 7px 12px 7px 11px;
   border-radius: 999px;
   cursor: pointer;
   font: inherit;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
@@ -620,6 +722,12 @@
 .pickerBtnOn {
   background: rgba(20, 184, 166, 0.12);
   border-color: rgba(20, 184, 166, 0.4);
+}
+
+:root[data-theme='light'] .pickerBtn:hover:not(:disabled),
+:root[data-theme='light'] .pickerBtnOn {
+  background: rgba(13, 150, 120, 0.10);
+  border-color: rgba(13, 150, 120, 0.45);
 }
 
 .pickerBtn:disabled {
@@ -683,18 +791,27 @@
   background: rgba(20, 184, 166, 0.10);
 }
 
+:root[data-theme='light'] .pickerItem:hover {
+  background: rgba(13, 150, 120, 0.10);
+}
+
 .pickerItemActive {
   background: rgba(20, 184, 166, 0.18);
   border-color: rgba(20, 184, 166, 0.4);
 }
 
+:root[data-theme='light'] .pickerItemActive {
+  background: rgba(13, 150, 120, 0.14);
+  border-color: rgba(13, 150, 120, 0.45);
+}
+
 .pickerItemLabel {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 700;
 }
 
 .pickerItemSub {
-  font-size: 11px;
+  font-size: 13px;
   color: var(--color-text-muted);
   letter-spacing: 0.3px;
 }
@@ -727,7 +844,7 @@
 
 .attachedName {
   margin: 0;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--color-text-primary);
   white-space: nowrap;
@@ -737,7 +854,7 @@
 
 .attachedSize {
   margin: 2px 0 0;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--color-text-muted);
 }
 
@@ -777,10 +894,10 @@
   background: linear-gradient(90deg, var(--color-brand-grad-from), var(--color-brand-grad-to));
   color: var(--color-brand-contrast);
   border: none;
-  padding: 10px 22px;
+  padding: 11px 24px;
   border-radius: 999px;
   font-weight: 700;
-  font-size: 13px;
+  font-size: 15px;
   cursor: pointer;
 }
 
@@ -793,11 +910,11 @@
   background: rgba(239, 68, 68, 0.18);
   border: 1px solid rgba(239, 68, 68, 0.4);
   color: #fca5a5;
-  padding: 10px 18px;
+  padding: 11px 20px;
   border-radius: 999px;
   cursor: pointer;
   font-weight: 700;
-  font-size: 13px;
+  font-size: 15px;
 }
 
 /* ===========================================================================
@@ -815,15 +932,23 @@
   height: 36px;
   flex: 0 0 auto;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--color-chip-bg);
   border: 1px solid var(--color-panel-border);
   color: var(--color-text-primary);
   cursor: pointer;
   padding: 0;
-  transition: background 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
-.menuBtn:hover { background: rgba(255, 255, 255, 0.10); }
+.menuBtn:hover {
+  background: rgba(20, 184, 166, 0.12);
+  border-color: rgba(20, 184, 166, 0.4);
+}
+
+:root[data-theme='light'] .menuBtn:hover {
+  background: rgba(13, 150, 120, 0.10);
+  border-color: rgba(13, 150, 120, 0.45);
+}
 
 /* ===========================================================================
  * MOBILE TIGHTENING — phones (≤ 600px) get tighter padding, smaller tabs,
@@ -837,7 +962,7 @@
     min-height: 44px;
   }
   .toolbarTitle {
-    font-size: 11px;
+    font-size: 13px;
     letter-spacing: 1.5px;
   }
 
@@ -852,7 +977,7 @@
     max-width: 88%;
   }
   .userBubble p {
-    font-size: 14px;
+    font-size: 15px;
   }
 
   /* Composer — keep the attach button compact, and let the action row
@@ -861,8 +986,9 @@
     padding: 10px 14px 14px;
   }
   .input {
-    min-height: 56px;
-    font-size: 14px;
+    min-height: 60px;
+    font-size: 15px;
+    padding: 12px 14px;
   }
   .composerActions {
     gap: 8px;
@@ -876,20 +1002,20 @@
     display: none;
   }
   .attachBtn {
-    width: 36px;
-    height: 36px;
+    width: 38px;
+    height: 38px;
     padding: 0;
     justify-content: center;
   }
   /* Picker pills stay legible — only the chevron + short label survive. */
   .pickerBtn {
-    padding: 6px 9px 6px 8px;
-    font-size: 11.5px;
+    padding: 7px 11px 7px 10px;
+    font-size: 13px;
   }
   .sendBtn,
   .stopBtn {
-    padding: 9px 18px;
-    font-size: 13px;
+    padding: 10px 20px;
+    font-size: 14px;
   }
 
   /* Empty state — tighter headings on small viewports. */
@@ -897,14 +1023,14 @@
     padding: 24px 8px;
   }
   .emptyTitle {
-    font-size: 22px;
+    font-size: 24px;
   }
   .emptySub {
-    font-size: 13px;
+    font-size: 15px;
   }
   .emptyChip {
-    font-size: 11px;
-    padding: 5px 10px;
+    font-size: 13px;
+    padding: 6px 12px;
   }
 
   /* Attached image preview chip stays usable down to 320px. */

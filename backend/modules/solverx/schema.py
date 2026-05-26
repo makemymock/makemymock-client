@@ -88,6 +88,9 @@ class StoredMessage(BaseModel):
     topic: Optional[TopicInfo] = None
     insights: list[PersonalisedInsight] = Field(default_factory=list)
     complexity_mode: Optional[ComplexityMode] = None
+    # Base64 data URL of the attached image, when this turn carried one.
+    # Returned so reopened conversations can re-render the screenshot.
+    image_data_url: Optional[str] = None
     created_at: datetime
 
 
