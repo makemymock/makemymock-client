@@ -117,7 +117,7 @@ const TopicAnalytics = () => {
 
   if (loading) {
     return (
-      <ExamShell title="Loading topic analytics…">
+      <ExamShell chromeless title="Loading topic analytics…">
         <Loader />
       </ExamShell>
     );
@@ -125,7 +125,7 @@ const TopicAnalytics = () => {
 
   if (error) {
     return (
-      <ExamShell title="Topic analytics">
+      <ExamShell chromeless title="Topic analytics">
         <ErrorMessage message={error} />
         <p className={styles.backRow}>
           <Link to="/analytics">← Back to analytics</Link>
@@ -138,7 +138,7 @@ const TopicAnalytics = () => {
   const noActivity = data.attempts === 0;
 
   return (
-    <ExamShell
+    <ExamShell chromeless
       eyebrow={`${data.subject_name} · ${data.chapter_name}`}
       title={data.topic_name}
       subtitle={

@@ -1,0 +1,138 @@
+.block {
+  background: var(--color-panel-bg);
+  border: 1px solid var(--color-panel-border);
+  border-left: 3px solid var(--color-accent);
+  border-radius: 12px;
+  padding: 14px 18px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  /* Belt-and-braces against very wide content (long inline KaTeX, raw
+     URLs, code) blowing out the column width on mobile. */
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The KaTeX block-math element is a wrapper whose contents can extend
+   well past the viewport on long fractions. Allow horizontal scroll. */
+.body :global(.katex-display) {
+  overflow-x: auto;
+  overflow-y: hidden;
+  margin: 8px 0;
+}
+
+@media (max-width: 600px) {
+  .block {
+    padding: 12px 14px;
+    border-radius: 10px;
+  }
+  .body {
+    font-size: 16px;
+    line-height: 1.6;
+  }
+  .header {
+    gap: 8px;
+  }
+  .tag {
+    font-size: 12px;
+    padding: 3px 10px;
+  }
+  .title {
+    font-size: 16px;
+  }
+}
+
+.accent_teal   { border-left-color: #14b8a6; }
+.accent_green  { border-left-color: #22c55e; }
+.accent_blue   { border-left-color: #3b82f6; }
+.accent_purple { border-left-color: #8b5cf6; }
+.accent_gold   { border-left-color: #f5c451; }
+.accent_red    { border-left-color: #ef4444; }
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.tag {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  background: var(--color-chip-bg);
+  padding: 4px 12px;
+  border-radius: 999px;
+}
+
+.title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  flex: 1;
+  min-width: 0;
+}
+
+.stepIndex {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--color-accent);
+}
+
+.stepBlock {
+  background: rgba(20, 184, 166, 0.06);
+}
+
+:root[data-theme='light'] .stepBlock {
+  background: rgba(13, 150, 120, 0.05);
+}
+
+.body {
+  font-size: 17px;
+  line-height: 1.65;
+  color: var(--color-text-primary);
+}
+
+.diagram {
+  margin: 0;
+  padding: 12px 14px;
+  background: var(--color-panel-bg-soft);
+  border: 1px solid var(--color-panel-border);
+  border-radius: 8px;
+  font-size: 12.5px;
+  overflow-x: auto;
+  color: var(--color-text-secondary);
+}
+
+.diagram code {
+  font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+  white-space: pre;
+}
+
+/* Rendered inline SVG. `color` drives `stroke="currentColor"` /
+   `fill="currentColor"` inside the LLM-generated SVG so the diagram
+   adapts to both light and dark themes. The container caps the height
+   on tall layouts and centres the figure horizontally. */
+.diagramSvg {
+  display: flex;
+  justify-content: center;
+  padding: 10px 14px;
+  background: var(--color-chip-bg);
+  border: 1px solid var(--color-panel-border);
+  border-radius: 10px;
+  color: var(--color-text-primary);
+}
+
+.diagramSvg :global(svg) {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  max-height: 420px;
+}
+
+.diagramSvg :global(text) {
+  font-family: var(--font-secondary);
+}

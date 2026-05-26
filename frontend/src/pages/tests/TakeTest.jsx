@@ -307,14 +307,23 @@ const TakeTest = () => {
             >
               Clear response
             </button>
-            <button
-              type="button"
-              className={`${styles.ctrlBtn} ${styles.ctrlBtnPrimary}`}
-              onClick={goNext}
-              disabled={activeIndex >= orderedQuestions.length - 1}
-            >
-              Save &amp; next →
-            </button>
+            {activeIndex >= orderedQuestions.length - 1 ? (
+              <button
+                type="button"
+                className={`${styles.ctrlBtn} ${styles.ctrlBtnPrimary}`}
+                onClick={() => setSubmitDialogOpen(true)}
+              >
+                Submit test ✓
+              </button>
+            ) : (
+              <button
+                type="button"
+                className={`${styles.ctrlBtn} ${styles.ctrlBtnPrimary}`}
+                onClick={goNext}
+              >
+                Save &amp; next →
+              </button>
+            )}
           </div>
         </div>
 

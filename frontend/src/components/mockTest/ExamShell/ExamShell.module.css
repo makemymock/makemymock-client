@@ -7,6 +7,17 @@
   isolation: isolate;
 }
 
+/* Chromeless mode — nested inside the global AppLayout. We drop the
+   page background and min-height so the surrounding shell shows
+   through; only the intro section + children render. */
+.chromeless {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(14px, 2.2vw, 22px);
+  color: var(--color-text-primary);
+  font-family: var(--font-secondary);
+}
+
 /* A quiet static line-grid backdrop — replaces the radial-glow look while
    keeping a sense of texture, and matches the analytical mood of an exam
    room. The grid uses the existing panel-border colour so it adapts to
@@ -31,16 +42,16 @@
 .header {
   position: sticky;
   top: 0;
-  z-index: 8;
+  z-index: 20;
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: 14px;
-  padding: 12px clamp(16px, 4vw, 40px);
-  background: color-mix(in srgb, var(--color-bg-page) 78%, transparent);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  padding: 14px clamp(16px, 4vw, 40px);
+  /* Fully opaque so scrolling question content cannot bleed through. */
+  background: var(--surface-opaque);
   border-bottom: 1px solid var(--color-panel-border);
+  box-shadow: 0 1px 0 var(--color-panel-border), 0 6px 22px rgba(0, 0, 0, 0.18);
 }
 
 .brand {
@@ -118,7 +129,7 @@
 
 .eyebrow {
   margin: 0;
-  font-size: 12px;
+  font-size: 14px;
   text-transform: uppercase;
   letter-spacing: 2px;
   color: var(--color-accent);
@@ -137,7 +148,9 @@
   margin: 0;
   max-width: 760px;
   color: var(--color-text-muted);
-  font-size: 14px;
+  /* Patrick Hand SC reads about a size smaller than a sans-serif at the
+     same px — so secondary body copy needs ~17px to feel comfortable. */
+  font-size: 17px;
   line-height: 1.55;
 }
 

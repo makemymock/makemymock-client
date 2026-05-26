@@ -11,7 +11,7 @@
 }
 
 .bigStat {
-  background: var(--color-panel-bg);
+  background: var(--surface-opaque);
   border: 1px solid var(--color-panel-border);
   border-radius: 18px;
   padding: 22px;
@@ -55,7 +55,7 @@
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 8px;
-  background: var(--color-panel-bg);
+  background: var(--surface-opaque);
   border: 1px solid var(--color-panel-border);
   border-radius: 18px;
   padding: 14px;
@@ -94,7 +94,7 @@
 }
 
 .reviewerNav {
-  background: var(--color-panel-bg);
+  background: var(--surface-opaque);
   border: 1px solid var(--color-panel-border);
   border-radius: 18px;
   padding: 14px;
@@ -140,7 +140,8 @@
 }
 
 .reviewItem:hover {
-  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--color-border-strong);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 12%, transparent);
 }
 
 .reviewItemActive {
@@ -165,7 +166,8 @@
 
 .reviewIdx {
   font-weight: 700;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--color-chip-bg);
+  border: 1px solid var(--color-chip-border);
   border-radius: 6px;
   padding: 2px 6px;
   text-align: center;
@@ -194,7 +196,7 @@
 
 .solution {
   margin-top: 14px;
-  background: color-mix(in srgb, var(--color-accent) 10%, var(--color-panel-bg));
+  background: color-mix(in srgb, var(--color-accent) 10%, var(--surface-opaque));
   border: 1px solid color-mix(in srgb, var(--color-accent) 35%, var(--color-panel-border));
   border-radius: 18px;
   padding: clamp(16px, 3vw, 24px);
@@ -239,6 +241,14 @@
   background: rgba(239, 68, 68, 0.18);
   border: 1px solid rgba(239, 68, 68, 0.45);
   color: #fca5a5;
+}
+
+:global([data-theme='light']) .verdictOk {
+  color: #15803d;
+}
+
+:global([data-theme='light']) .verdictBad {
+  color: #b91c1c;
 }
 
 .solutionEmpty {

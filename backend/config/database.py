@@ -132,6 +132,16 @@ async def _ensure_indexes() -> None:
         [("player_b.user_id", ASCENDING), ("completed_at", -1)],
     )
 
+    # ---------- SolverX ----------
+    # Conversations are per-user, sorted by recency in the sidebar.
+    await mongo.db["solverx_conversations"].create_index(
+        [("user_id", ASCENDING), ("updated_at", -1)],
+    )
+    # Messages join back to their conversation; in-order read on detail.
+    await mongo.db["solverx_messages"].create_index(
+        [("conversation_id", ASCENDING), ("created_at", ASCENDING)],
+    )
+
 
 def get_database() -> AsyncIOMotorDatabase:
     if mongo.db is None:

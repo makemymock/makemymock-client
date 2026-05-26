@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import Button from '../../components/common/Button/Button';
 import Loader from '../../components/common/Loader/Loader';
 import ErrorMessage from '../../components/common/ErrorMessage/ErrorMessage';
@@ -10,12 +10,25 @@ import styles from './testsLaunch.module.css';
 
 const TEST_SIZES = [10, 20, 30, 50];
 
+function formatDate(iso) {
+  if (!iso) return '—';
+  try {
+    return new Date(iso).toLocaleString(undefined, {
+      year: 'numeric', month: 'short', day: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    });
+  } catch {
+    return iso;
+  }
+}
+
 function flattenChapterTopicIds(chapter) {
   return chapter.topics.map((t) => t.id);
 }
 
 const TestsLaunch = () => {
   const navigate = useNavigate();
+  const [tab, setTab] = useState('launch'); // 'launch' | 'history'
   const [catalog, setCatalog] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -107,7 +120,42 @@ const TestsLaunch = () => {
   };
 
   return (
-    <ExamShell title="Launch a personalised mock test" subtitle="Pick the topics you want to drill. The recommender picks how many questions per topic, the right difficulty mix, and the rotation between fresh and recyclable items.">
+    <ExamShell
+      chromeless
+      title={tab === 'history' ? 'Your test history' : 'Launch a personalised mock test'}
+      subtitle={
+        tab === 'history'
+          ? 'Every test you start lives here — resume an in-progress one or open a finished test’s analytics.'
+          : 'Pick the topics you want to drill. The recommender picks how many questions per topic, the right difficulty mix, and the rotation between fresh and recyclable items.'
+      }
+    >
+      {/* Tab strip — launch vs. history. History is embedded here per
+          product brief; the /history route still works for deep links. */}
+      <div role="tablist" aria-label="Tests view" className={styles.tabStrip}>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'launch'}
+          className={`${styles.tabBtn} ${tab === 'launch' ? styles.tabBtnOn : ''}`}
+          onClick={() => setTab('launch')}
+        >
+          Launch a test
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'history'}
+          className={`${styles.tabBtn} ${tab === 'history' ? styles.tabBtnOn : ''}`}
+          onClick={() => setTab('history')}
+        >
+          Past tests
+        </button>
+      </div>
+
+      {tab === 'history' ? <TestHistoryPanel /> : null}
+
+      {tab === 'launch' ? (
+      <>
       {loading ? <Loader /> : null}
       {error ? <ErrorMessage message={error} /> : null}
 
@@ -223,7 +271,105 @@ const TestsLaunch = () => {
           </div>
         </>
       )}
+      </>
+      ) : null}
     </ExamShell>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// History panel — embedded below the tab strip. Mirrors the layout of the
+// standalone /history page (kept for deep-link compatibility) but lives
+// inline so students can flip between launching and reviewing in one place.
+// ---------------------------------------------------------------------------
+
+const TestHistoryPanel = () => {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await mockTestService.getHistory();
+        if (!cancelled) setItems(data.items || []);
+      } catch (err) {
+        if (!cancelled) setError(parseApiError(err, 'Could not load history.'));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  if (loading) return <Loader />;
+  if (error) return <ErrorMessage message={error} />;
+
+  if (items.length === 0) {
+    return (
+      <section className={styles.historyEmpty}>
+        <h3>No tests yet</h3>
+        <p>Launch your first test from the <strong>Launch a test</strong> tab — it'll show up here.</p>
+      </section>
+    );
+  }
+
+  return (
+    <ul className={styles.historyList}>
+      {items.map((it) => {
+        const completed = it.status === 'completed';
+        return (
+          <li key={it.session_id} className={styles.historyItem}>
+            <div className={styles.historyMain}>
+              <div className={styles.historyHead}>
+                <span className={styles.historyId}>#{it.session_id}</span>
+                <span
+                  className={`${styles.historyStatus} ${
+                    completed ? styles.historyStatusOk : styles.historyStatusPending
+                  }`}
+                >
+                  {it.status}
+                </span>
+              </div>
+              <div className={styles.historyMeta}>
+                {it.total_questions} questions · started {formatDate(it.created_at)}
+                {completed && it.completed_at ? ` · finished ${formatDate(it.completed_at)}` : ''}
+              </div>
+            </div>
+
+            {completed ? (
+              <div className={styles.historyScoreCol}>
+                <div className={styles.historyScore}>
+                  {it.score != null ? Number(it.score).toFixed(2) : '—'}
+                </div>
+                <div className={styles.historyScoreSub}>
+                  {it.correct ?? 0}✓ · {it.partial ?? 0}~ · {it.incorrect ?? 0}✗
+                </div>
+              </div>
+            ) : null}
+
+            <div className={styles.historyActions}>
+              {completed ? (
+                <Link
+                  to={`/tests/${it.session_id}/result`}
+                  className={styles.historyAction}
+                >
+                  View result
+                </Link>
+              ) : (
+                <Link
+                  to={`/tests/${it.session_id}`}
+                  className={`${styles.historyAction} ${styles.historyActionPrimary}`}
+                >
+                  Resume
+                </Link>
+              )}
+            </div>
+          </li>
+        );
+      })}
+    </ul>
   );
 };
 

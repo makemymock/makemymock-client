@@ -5,13 +5,12 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
-  background: var(--color-panel-bg);
+  background: var(--surface-opaque);
   border: 1px solid var(--color-panel-border);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
   border-radius: 18px;
   padding: 16px 18px;
   margin-bottom: 22px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.2);
 }
 
 @media (min-width: 760px) {
@@ -38,7 +37,7 @@
 }
 
 .summaryLabel {
-  font-size: 13px;
+  font-size: 15px;
   color: var(--color-text-muted);
 }
 
@@ -58,7 +57,7 @@
 }
 
 .sizeLabel {
-  font-size: 13px;
+  font-size: 15px;
   color: var(--color-text-muted);
   letter-spacing: 0.5px;
   text-transform: uppercase;
@@ -77,23 +76,34 @@
   appearance: none;
   font: inherit;
   font-weight: 600;
-  font-size: 14px;
+  font-size: 15px;
   cursor: pointer;
-  padding: 8px 16px;
+  padding: 8px 18px;
   border: none;
   border-radius: 999px;
   background: transparent;
   color: var(--color-text-secondary);
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.sizeChip:hover {
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.sizeChipOn {
+/* Hover/active preview the selected state so the click target shows you
+   exactly what you're about to land in. */
+.sizeChip:hover,
+.sizeChip:active,
+.sizeChip:focus-visible {
   background: linear-gradient(90deg, var(--color-brand-grad-from), var(--color-brand-grad-to));
   color: var(--color-brand-contrast);
+  outline: none;
+}
+
+.sizeChipOn,
+.sizeChipOn:hover,
+.sizeChipOn:active,
+.sizeChipOn:focus-visible {
+  background: linear-gradient(90deg, var(--color-brand-grad-from), var(--color-brand-grad-to));
+  color: var(--color-brand-contrast);
+  box-shadow: 0 2px 10px rgba(13, 150, 120, 0.35);
+  outline: none;
 }
 
 .subjects {
@@ -130,7 +140,7 @@
 }
 
 .subjectCount {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -169,11 +179,11 @@
 .chapterName {
   flex: 1;
   font-weight: 600;
-  font-size: 15px;
+  font-size: 17px;
 }
 
 .chapterCount {
-  font-size: 11px;
+  font-size: 13px;
   color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -198,8 +208,8 @@
 }
 
 .topic:hover {
-  background: rgba(255, 255, 255, 0.08);
   border-color: var(--color-border-strong);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 12%, transparent);
 }
 
 .topicOn {
@@ -216,16 +226,17 @@
 
 .topicName {
   flex: 1;
-  font-size: 14px;
+  font-size: 16px;
   color: var(--color-text-primary);
 }
 
 .topicQs {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--color-text-muted);
-  background: rgba(255, 255, 255, 0.06);
-  padding: 2px 8px;
+  background: var(--color-chip-bg);
+  border: 1px solid var(--color-chip-border);
+  padding: 3px 10px;
   border-radius: 999px;
 }
 
@@ -238,12 +249,11 @@
   gap: 14px;
   align-items: center;
   padding: 14px clamp(14px, 3vw, 22px);
-  background: var(--color-panel-bg);
+  background: var(--surface-opaque);
   border: 1px solid var(--color-panel-border);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
   border-radius: 18px;
   z-index: 5;
+  box-shadow: 0 -4px 18px rgba(0, 0, 0, 0.22);
 }
 
 .linkBtn {
@@ -252,7 +262,7 @@
   border: none;
   color: var(--color-text-muted);
   font: inherit;
-  font-size: 13px;
+  font-size: 15px;
   text-decoration: underline;
   cursor: pointer;
 }
@@ -263,7 +273,7 @@
 }
 
 .emptyState {
-  background: var(--color-panel-bg);
+  background: var(--surface-opaque);
   border: 1px dashed var(--color-panel-border);
   border-radius: 18px;
   padding: 30px;
@@ -277,7 +287,180 @@
 }
 
 .emptyState code {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--color-chip-bg);
+  border: 1px solid var(--color-chip-border);
   padding: 1px 6px;
   border-radius: 6px;
+}
+
+/* ===========================================================================
+ * Tab strip — switches between "Launch a test" and "Past tests"
+ * =========================================================================== */
+
+.tabStrip {
+  display: inline-flex;
+  align-self: flex-start;
+  background: var(--color-chip-bg);
+  border: 1px solid var(--color-chip-border);
+  padding: 4px;
+  border-radius: 999px;
+  gap: 4px;
+}
+
+.tabBtn {
+  appearance: none;
+  font: inherit;
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+  padding: 8px 18px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.tabBtn:hover {
+  color: var(--color-text-primary);
+}
+
+.tabBtnOn,
+.tabBtnOn:hover {
+  background: linear-gradient(90deg, var(--color-brand-grad-from), var(--color-brand-grad-to));
+  color: var(--color-brand-contrast);
+}
+
+/* ===========================================================================
+ * Embedded history list (formerly the /history page)
+ * =========================================================================== */
+
+.historyEmpty {
+  background: var(--color-panel-bg);
+  border: 1px dashed var(--color-panel-border);
+  border-radius: 14px;
+  padding: 28px 24px;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.historyEmpty h3 {
+  margin: 0 0 6px;
+  color: var(--color-text-primary);
+}
+
+.historyList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.historyItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 16px;
+  background: var(--color-panel-bg);
+  border: 1px solid var(--color-panel-border);
+  border-radius: 14px;
+}
+
+@media (max-width: 600px) {
+  .historyItem {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+}
+
+.historyMain {
+  min-width: 0;
+}
+
+.historyHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.historyId {
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--color-text-primary);
+}
+
+.historyStatus {
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 4px 12px;
+  border-radius: 999px;
+}
+
+.historyStatusOk {
+  background: rgba(34, 197, 94, 0.16);
+  color: rgb(134, 239, 172);
+}
+
+.historyStatusPending {
+  background: rgba(245, 158, 11, 0.16);
+  color: rgb(253, 224, 71);
+}
+
+.historyMeta {
+  margin-top: 4px;
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+
+.historyScoreCol {
+  text-align: right;
+  min-width: 96px;
+}
+
+.historyScore {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.historyScoreSub {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+.historyActions {
+  justify-self: end;
+}
+
+.historyAction {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: var(--color-chip-bg);
+  border: 1px solid var(--color-chip-border);
+  color: var(--color-text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.historyAction:hover {
+  background: var(--color-action-primary-bg);
+}
+
+.historyActionPrimary,
+.historyActionPrimary:hover {
+  background: linear-gradient(90deg, var(--color-brand-grad-from), var(--color-brand-grad-to));
+  color: var(--color-brand-contrast);
+  border-color: transparent;
 }

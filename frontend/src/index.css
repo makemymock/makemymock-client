@@ -11,7 +11,11 @@ body,
   padding: 0;
 }
 
+/* Patrick Hand SC ships from the Google Fonts link in index.html. Poppins
+   and Inter remain available as the readable-text fallback for question
+   prompts, options, and the like (see App.css + MarkdownText). */
 body {
-  font-family: 'Poppins', system-ui, sans-serif;
+  font-family: 'Patrick Hand SC', 'Patrick Hand', cursive,
+    'Poppins', system-ui, sans-serif;
   background: #fbfdf4;
 }

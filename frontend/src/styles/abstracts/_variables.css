@@ -5,8 +5,13 @@
   color: #f8fafc;
   background: #09090f;
 
-  --font-primary: 'Patrick Hand SC', cursive;
-  --font-secondary: 'Jost', 'Avenir Next', 'Aptos', sans-serif;
+  /* Both font tokens resolve to the handwritten brand font so every
+     component picks it up — labels, buttons, stat cards, headings. The
+     readable sans-serif fallback is kept on the question-rendering
+     surface (MarkdownText) and on monospace contexts (code, timer). */
+  --font-primary: 'Patrick Hand SC', 'Patrick Hand', cursive;
+  --font-secondary: 'Patrick Hand SC', 'Patrick Hand', cursive,
+                    'Jost', 'Avenir Next', sans-serif;
 
   --color-bg-page: #09090f;
   --color-text-primary: #f8fafc;
@@ -21,6 +26,10 @@
 
   --color-panel-bg: rgba(15, 15, 23, 0.56);
   --color-panel-bg-soft: rgba(10, 10, 16, 0.58);
+  /* Always-opaque variant — opt in for structural surfaces (mock-test
+     navbar, question card, palette, action bars) where translucent
+     panels let scrolling content bleed through. */
+  --surface-opaque: #14141d;
   --color-panel-border: rgba(255, 255, 255, 0.12);
   --color-border-strong: rgba(255, 255, 255, 0.24);
   --color-chip-bg: rgba(255, 255, 255, 0.07);
@@ -94,6 +103,8 @@
 
   --color-panel-bg: rgba(255, 255, 255, 0.68);
   --color-panel-bg-soft: rgba(255, 255, 255, 0.62);
+  /* See dark-theme note above — opt-in opaque surface for mock-test. */
+  --surface-opaque: #ffffff;
   --color-panel-border: rgba(71, 85, 105, 0.18);
   --color-border-strong: rgba(71, 85, 105, 0.34);
   --color-chip-bg: rgba(255, 255, 255, 0.72);

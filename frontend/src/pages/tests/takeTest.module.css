@@ -1,38 +1,52 @@
+/* ============================================================
+ * Take-test page — compact, modern exam-platform layout.
+ * Same design rule as palette / viewer: STATE classes own the
+ * fill, hover only adds a subtle ring + tint, never overrides
+ * meaning-carrying colour.
+ * ============================================================ */
+
 .metaPill {
   display: inline-flex;
   align-items: center;
-  padding: 8px 14px;
+  padding: 6px 12px;
   border-radius: 999px;
   background: var(--color-chip-bg);
   border: 1px solid var(--color-chip-border);
-  font-size: 13px;
-  color: var(--color-text-secondary);
+  font-size: 12px;
   font-weight: 600;
+  color: var(--color-text-secondary);
+  letter-spacing: 0.3px;
 }
 
 .submitBtn {
-  min-height: 44px;
-  font-size: 15px;
-  padding: 8px 22px;
+  min-height: 38px;
+  font-size: 13px;
+  padding: 6px 18px;
   border-radius: 999px;
 }
 
+/* ------------------------------------------------------------
+ * Two-column layout — question on the left, palette on the right.
+ * Palette becomes sticky at the top of its column on desktop.
+ * ------------------------------------------------------------ */
+
 .layout {
   display: grid;
-  gap: 18px;
+  gap: 16px;
   grid-template-columns: 1fr;
 }
 
 @media (min-width: 980px) {
   .layout {
-    grid-template-columns: minmax(0, 1fr) 320px;
+    grid-template-columns: minmax(0, 1fr) 280px;
+    gap: 18px;
   }
 }
 
 .questionColumn {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   min-width: 0;
 }
 
@@ -43,71 +57,115 @@
 @media (min-width: 980px) {
   .paletteColumn {
     position: sticky;
-    top: 92px;
+    top: 88px;
     align-self: flex-start;
   }
 }
+
+/* ------------------------------------------------------------
+ * Bottom control bar — Save & Next, Review, Clear, Prev/Next.
+ * ------------------------------------------------------------ */
 
 .controlsBar {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  background: var(--color-panel-bg);
+  background: var(--surface-opaque);
   border: 1px solid var(--color-panel-border);
-  border-radius: 16px;
-  padding: 10px;
+  border-radius: 14px;
+  padding: 8px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
 }
 
 .ctrlBtn {
   flex: 1;
-  min-width: 130px;
+  min-width: 120px;
   appearance: none;
   font: inherit;
   font-weight: 600;
   font-size: 13px;
-  padding: 10px 14px;
-  border-radius: 10px;
+  padding: 9px 14px;
+  border-radius: 8px;
   background: var(--color-chip-bg);
-  border: 1px solid var(--color-chip-border);
+  border: 1.5px solid var(--color-chip-border);
   color: var(--color-text-primary);
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.1s ease;
 }
 
+/* Hover on plain ctrl button: subtle ring + border accent, NO bg
+ * change — keeps the state buttons (review-on, primary) readable
+ * when hovered. */
 .ctrlBtn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.08);
   border-color: var(--color-border-strong);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
+
+.ctrlBtn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.ctrlBtn:focus-visible {
+  outline: none;
+  border-color: var(--color-focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-focus) 28%, transparent);
 }
 
 .ctrlBtn:disabled {
-  opacity: 0.45;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
+/* "Review later" toggle — purple to match the palette colour. */
 .ctrlBtnOn {
-  background: rgba(124, 58, 237, 0.22);
-  border-color: rgba(124, 58, 237, 0.6);
+  background: color-mix(in srgb, #7c3aed 22%, transparent);
+  border-color: #7c3aed;
   color: #ddd6fe;
 }
 
+.ctrlBtnOn:hover:not(:disabled) {
+  border-color: #a78bfa;
+  box-shadow: 0 0 0 3px color-mix(in srgb, #7c3aed 25%, transparent);
+}
+
+/* "Save & Next" — primary CTA, brand gradient. */
 .ctrlBtnPrimary {
-  background: linear-gradient(90deg, var(--color-brand-grad-from), var(--color-brand-grad-to));
+  background: linear-gradient(90deg,
+    var(--color-brand-grad-from), var(--color-brand-grad-to));
   border-color: transparent;
   color: var(--color-brand-contrast);
 }
 
 .ctrlBtnPrimary:hover:not(:disabled) {
-  filter: brightness(1.05);
-  transform: translateY(-1px);
+  filter: brightness(1.08);
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--color-accent) 35%, transparent);
 }
+
+.ctrlBtnPrimary:active:not(:disabled) {
+  transform: translateY(1px);
+  filter: brightness(0.98);
+}
+
+/* ------------------------------------------------------------
+ * Secondary inline link (Back to test selection on error)
+ * ------------------------------------------------------------ */
 
 .linkBtn {
   margin-top: 12px;
   background: none;
   border: none;
   font: inherit;
-  font-size: 14px;
+  font-size: 13px;
   color: var(--color-text-muted);
   cursor: pointer;
   text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.linkBtn:hover {
+  color: var(--color-text-primary);
 }

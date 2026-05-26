@@ -1,27 +1,157 @@
+/* ============================================================
+ * Branded loader — brand-gradient spinner + tagline cycle.
+ *
+ * Layouts:
+ *   .fullscreen — fixed overlay over the entire viewport
+ *   .cover      — absolute fill of the nearest positioned ancestor
+ *   .inline     — block centered in its parent (default)
+ *
+ * Tokens used (already defined globally):
+ *   --color-bg-page, --color-text-muted, --color-accent,
+ *   --color-brand-grad-from, --color-brand-grad-to
+ * ============================================================ */
+
 .fullscreen {
   position: fixed;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: color-mix(in srgb, var(--color-bg-page) 70%, transparent);
+  background: var(--color-bg-page);
   z-index: 100;
 }
 
-.inline {
-  display: inline-flex;
+.cover {
+  position: absolute;
+  inset: 0;
+  display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  background: color-mix(in srgb, var(--color-bg-page) 75%, transparent);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  z-index: 10;
 }
 
-.spinner {
-  width: 28px;
-  height: 28px;
-  border: 3px solid color-mix(in srgb, var(--color-accent) 20%, transparent);
-  border-top-color: var(--color-accent);
-  border-radius: 50%;
-  animation: spin 0.7s linear infinite;
+.inline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 200px;
+  padding: 36px 16px;
 }
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+/* ------------------------------------------------------------
+ * Spinner — dual-ring construction:
+ *   ::before = faint full track
+ *   ::after  = ~90° brand-gradient arc that rotates
+ * ------------------------------------------------------------ */
+
+.spinner {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  display: inline-block;
+}
+
+.spinner::before,
+.spinner::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+
+/* Static faint track — uses currentColor of the accent for theme parity. */
+.spinner::before {
+  border: 3px solid color-mix(in srgb, var(--color-accent) 16%, transparent);
+}
+
+/* Rotating arc — coloured top + right segments produce a ~90° arc;
+ * the gradient illusion is achieved by stacking two coloured edges
+ * from the brand palette via a CSS variable interpolation. */
+.spinner::after {
+  border: 3px solid transparent;
+  border-top-color: var(--color-brand-grad-to);
+  border-right-color: var(--color-brand-grad-from);
+  animation: spin 0.85s cubic-bezier(0.5, 0.1, 0.5, 0.9) infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ------------------------------------------------------------
+ * Tagline — three words, accent highlight walks left → right
+ * ------------------------------------------------------------ */
+
+.tagline {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  font-family: var(--font-secondary);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.tagline > span {
+  opacity: 0.32;
+  animation: wordCycle 2.4s ease-in-out infinite;
+  transition: color 0.2s ease;
+}
+
+.tagline > span:nth-child(1) { animation-delay: 0s;    }
+.tagline > span:nth-child(2) { animation-delay: 0.4s;  }
+.tagline > span:nth-child(3) { animation-delay: 0.8s;  }
+
+@keyframes wordCycle {
+  0%, 60%, 100% {
+    opacity: 0.32;
+    color: var(--color-text-muted);
+  }
+  20%, 40% {
+    opacity: 1;
+    color: var(--color-accent);
+  }
+}
+
+/* ------------------------------------------------------------
+ * Compact modifier — for tight slots (sidebars, buttons,
+ * inline status pills).
+ * ------------------------------------------------------------ */
+
+.compact .spinner {
+  width: 26px;
+  height: 26px;
+}
+.compact .spinner::before,
+.compact .spinner::after {
+  border-width: 2px;
+}
+.compact .tagline {
+  font-size: 10px;
+  letter-spacing: 1px;
+  gap: 6px;
+}
+.compact .stack { gap: 10px; }
+.compact.inline { min-height: 0; padding: 14px 12px; }
+
+/* ------------------------------------------------------------
+ * a11y — screen-reader-only label
+ * ------------------------------------------------------------ */
 
 .srOnly {
   position: absolute;
@@ -35,8 +165,23 @@
   border: 0;
 }
 
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
+/* ------------------------------------------------------------
+ * Respect prefers-reduced-motion — stop everything from moving
+ * but keep the visual intent.
+ * ------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner::after,
+  .tagline > span {
+    animation: none;
+  }
+  .spinner::after {
+    /* Show a static full arc so users still get the "loading" cue. */
+    border-top-color: var(--color-brand-grad-to);
+    border-right-color: var(--color-brand-grad-from);
+    border-bottom-color: color-mix(in srgb, var(--color-brand-grad-to) 50%, transparent);
+  }
+  .tagline > span {
+    opacity: 0.85;
   }
 }
