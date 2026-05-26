@@ -22,6 +22,11 @@ const MatchingEditor = ({ left, right, value, onChange, readOnly = false, correc
 
   return (
     <div className={styles.wrapper} role="group" aria-label="Matching question">
+      {/* ----------------------------------------------------------------
+       * Desktop layout — two-column table (Item | Match-dropdown).
+       * Hidden on small screens via CSS so the LatexSelect popup doesn't
+       * fight a narrow viewport.
+       * ---------------------------------------------------------------- */}
       <table className={styles.table}>
         <thead>
           <tr>
@@ -73,6 +78,107 @@ const MatchingEditor = ({ left, right, value, onChange, readOnly = false, correc
           })}
         </tbody>
       </table>
+
+      {/* ----------------------------------------------------------------
+       * Mobile layout — three stacked sections so each part has room:
+       *   1. Items   — left column with their keys
+       *   2. Options — right column with their keys
+       *   3. Match   — for each item, a row of tappable chips
+       * ---------------------------------------------------------------- */}
+      <div className={styles.mobile}>
+        <section className={styles.mSection}>
+          <h4 className={styles.mSectionTitle}>Items</h4>
+          <ul className={styles.mList}>
+            {left.map((row) => (
+              <li key={row.key} className={styles.mListItem}>
+                <span className={styles.mListKey}>{row.key}</span>
+                <span className={styles.mListText}>
+                  <MarkdownText text={row.text} inline />
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section className={styles.mSection}>
+          <h4 className={styles.mSectionTitle}>Options</h4>
+          <ul className={styles.mList}>
+            {right.map((opt) => (
+              <li key={opt.key} className={styles.mListItem}>
+                <span className={styles.mListKey}>{opt.key}</span>
+                <span className={styles.mListText}>
+                  <MarkdownText text={opt.text} inline />
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section className={styles.mSection}>
+          <h4 className={styles.mSectionTitle}>Match each item</h4>
+          <ul className={styles.mMatchList}>
+            {left.map((row) => {
+              const chosen = (value || {})[row.key] || '';
+              const expected = readOnly && correctMapping ? correctMapping[row.key] : null;
+              const rowClass = [
+                styles.mMatchRow,
+                readOnly && expected && chosen
+                  ? chosen === expected
+                    ? styles.mMatchRowCorrect
+                    : styles.mMatchRowWrong
+                  : '',
+                readOnly && !chosen ? styles.mMatchRowWrong : '',
+              ]
+                .filter(Boolean)
+                .join(' ');
+              return (
+                <li key={row.key} className={rowClass}>
+                  <span className={styles.mMatchKey}>{row.key}</span>
+                  <div className={styles.mChipGroup} role="radiogroup"
+                       aria-label={`Match for ${row.key}`}>
+                    {right.map((opt) => {
+                      const isOn = chosen === opt.key;
+                      const isCorrect = readOnly && expected === opt.key;
+                      const chipClass = [
+                        styles.mChip,
+                        isOn ? styles.mChipOn : '',
+                        readOnly && isOn && expected && opt.key !== expected
+                          ? styles.mChipWrong
+                          : '',
+                        readOnly && isCorrect ? styles.mChipCorrect : '',
+                      ]
+                        .filter(Boolean)
+                        .join(' ');
+                      return (
+                        <button
+                          key={opt.key}
+                          type="button"
+                          role="radio"
+                          aria-checked={isOn}
+                          className={chipClass}
+                          disabled={readOnly}
+                          // Tap an already-selected chip to clear it,
+                          // otherwise switch to the tapped option.
+                          onClick={readOnly
+                            ? undefined
+                            : () => handleChange(row.key, isOn ? '' : opt.key)}
+                        >
+                          {opt.key}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {readOnly && expected && expected !== chosen ? (
+                    <p className={styles.mMatchHint}>
+                      Correct: <strong>{expected}</strong>
+                    </p>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      </div>
 
       <details className={styles.refColumn}>
         <summary>Reference column</summary>

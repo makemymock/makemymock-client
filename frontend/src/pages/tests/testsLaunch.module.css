@@ -83,17 +83,27 @@
   border-radius: 999px;
   background: transparent;
   color: var(--color-text-secondary);
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.sizeChip:hover {
-  background: var(--color-chip-bg);
-  color: var(--color-text-primary);
-}
-
-.sizeChipOn {
+/* Hover/active preview the selected state so the click target shows you
+   exactly what you're about to land in. */
+.sizeChip:hover,
+.sizeChip:active,
+.sizeChip:focus-visible {
   background: linear-gradient(90deg, var(--color-brand-grad-from), var(--color-brand-grad-to));
   color: var(--color-brand-contrast);
+  outline: none;
+}
+
+.sizeChipOn,
+.sizeChipOn:hover,
+.sizeChipOn:active,
+.sizeChipOn:focus-visible {
+  background: linear-gradient(90deg, var(--color-brand-grad-from), var(--color-brand-grad-to));
+  color: var(--color-brand-contrast);
+  box-shadow: 0 2px 10px rgba(13, 150, 120, 0.35);
+  outline: none;
 }
 
 .subjects {

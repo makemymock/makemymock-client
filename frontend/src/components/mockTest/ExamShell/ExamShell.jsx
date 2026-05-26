@@ -1,12 +1,14 @@
 import { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import ThemeToggle from '../../common/ThemeToggle/ThemeToggle';
 import useTheme from '../../../hooks/useTheme';
 import { authService } from '../../../services/authService';
 import styles from './ExamShell.module.css';
 
+// Theme toggle lives in the global ThemeToggleFab (bottom-left). We
+// don't render one in this header anymore — having both gave us two
+// toggles on every page that uses ExamShell.
 const ExamShell = ({ title, subtitle, eyebrow, sticky, children }) => {
-  const { theme, toggleTheme } = useTheme();
+  const { theme } = useTheme();
   const navigate = useNavigate();
 
   const logoSrc = useMemo(
@@ -34,7 +36,6 @@ const ExamShell = ({ title, subtitle, eyebrow, sticky, children }) => {
         <div className={styles.headerCenter}>{sticky}</div>
 
         <div className={styles.headerActions}>
-          <ThemeToggle theme={theme} onToggle={toggleTheme} />
           <button
             type="button"
             className={styles.signOut}
