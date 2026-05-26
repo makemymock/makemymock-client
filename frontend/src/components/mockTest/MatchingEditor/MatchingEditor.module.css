@@ -18,9 +18,19 @@
   isolation: isolate;
 }
 
-@media (max-width: 520px) {
+/* Below ~640px the side-by-side columns get too cramped to read LaTeX-heavy
+ * items, so we stack Column I above Column II. The connector SVG is hidden
+ * because its endpoints assume side-by-side geometry; in the stacked layout
+ * the row colour on each P-label + the matrix row-header keeps the mapping
+ * visually anchored. */
+@media (max-width: 640px) {
   .refPanel {
-    gap: 36px;
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .lineSvg {
+    display: none;
   }
 }
 

@@ -25,11 +25,20 @@ const IconSpark = (p) => (
     <circle cx="12" cy="12" r="3.5" />
   </svg>
 );
+// Crossed swords — Lucide "swords" glyph. Two blades pointing
+// up-right (from the bottom-left hilt) and up-left (from the
+// bottom-right hilt), crossing in the middle.
 const IconSwords = (p) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
        strokeLinecap="round" strokeLinejoin="round" {...p}>
-    <path d="M14 4l6 6-3 1-1 3-6-6z" /><path d="M10 4L4 10l3 1 1 3 6-6z" />
-    <path d="M4 18l3 3M17 17l3 3" />
+    <polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5" />
+    <line x1="13" y1="19" x2="19" y2="13" />
+    <line x1="16" y1="16" x2="20" y2="20" />
+    <line x1="19" y1="21" x2="21" y2="19" />
+    <polyline points="14.5 6.5 18 3 21 3 21 6 17.5 9.5" />
+    <line x1="5" y1="14" x2="9" y2="18" />
+    <line x1="7" y1="17" x2="4" y2="20" />
+    <line x1="3" y1="19" x2="5" y2="21" />
   </svg>
 );
 const IconChart = (p) => (
@@ -102,6 +111,9 @@ const AppLayout = () => {
 
   return (
     <div className={styles.shell}>
+      {/* Quiet line-grid backdrop, matches the in-test ExamShell look so
+          the page texture stays consistent across all protected routes. */}
+      <div className={styles.gridBg} aria-hidden="true" />
       <SideNav onLogout={handleLogout} />
 
       <div className={styles.contentArea}>

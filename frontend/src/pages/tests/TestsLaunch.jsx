@@ -8,7 +8,11 @@ import { mockTestService } from '../../services/mockTestService';
 import { parseApiError } from '../../utils/validators';
 import styles from './testsLaunch.module.css';
 
-const TEST_SIZES = [10, 20, 30, 50];
+// Backend hard-caps total_questions at 1..100 (see schema.py); the UI
+// validates the same range so a runaway value doesn't bounce off the API.
+const MIN_SIZE = 1;
+const MAX_SIZE = 100;
+const DEFAULT_SIZE = 20;
 
 function formatDate(iso) {
   if (!iso) return '—';
@@ -33,7 +37,31 @@ const TestsLaunch = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedTopics, setSelectedTopics] = useState(() => new Set());
-  const [size, setSize] = useState(20);
+  const [expandedSubjects, setExpandedSubjects] = useState(() => new Set());
+  const [expandedChapters, setExpandedChapters] = useState(() => new Set());
+
+  const toggleSubject = (id) => {
+    setExpandedSubjects((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const toggleChapter = (id) => {
+    setExpandedChapters((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  // Kept as a string so the user can clear the field while typing without
+  // jumping back to a number. Parsed to int at submit / validation time.
+  const [sizeInput, setSizeInput] = useState(String(DEFAULT_SIZE));
+  const sizeNum = parseInt(sizeInput, 10);
+  const sizeValid =
+    Number.isInteger(sizeNum) && sizeNum >= MIN_SIZE && sizeNum <= MAX_SIZE;
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
 
@@ -42,7 +70,12 @@ const TestsLaunch = () => {
     (async () => {
       try {
         const data = await mockTestService.getCatalog();
-        if (!cancelled) setCatalog(data);
+        if (!cancelled) {
+          setCatalog(data);
+          // Subjects expanded by default — chapters stay collapsed so the
+          // initial page is browsable without scrolling through every topic.
+          setExpandedSubjects(new Set(data.subjects.map((s) => s.id)));
+        }
       } catch (err) {
         if (!cancelled) setError(parseApiError(err, 'Could not load the topic catalog.'));
       } finally {
@@ -105,11 +138,15 @@ const TestsLaunch = () => {
       setCreateError('Pick at least one topic to get started.');
       return;
     }
+    if (!sizeValid) {
+      setCreateError(`Enter a number of questions between ${MIN_SIZE} and ${MAX_SIZE}.`);
+      return;
+    }
     setCreating(true);
     try {
       const data = await mockTestService.createTest({
         topic_ids: Array.from(selectedTopics),
-        total_questions: size,
+        total_questions: sizeNum,
       });
       navigate(`/tests/${data.session_id}`, { replace: true });
     } catch (err) {
@@ -170,21 +207,26 @@ const TestsLaunch = () => {
             </div>
 
             <div className={styles.sizeRow}>
-              <span className={styles.sizeLabel}>Questions</span>
-              <div role="radiogroup" aria-label="Total questions" className={styles.sizeChips}>
-                {TEST_SIZES.map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    role="radio"
-                    aria-checked={size === n}
-                    className={`${styles.sizeChip} ${size === n ? styles.sizeChipOn : ''}`}
-                    onClick={() => setSize(n)}
-                  >
-                    {n}
-                  </button>
-                ))}
-              </div>
+              <label className={styles.sizeLabel} htmlFor="totalQuestions">
+                Questions
+              </label>
+              <input
+                id="totalQuestions"
+                type="number"
+                inputMode="numeric"
+                min={MIN_SIZE}
+                max={MAX_SIZE}
+                step={1}
+                value={sizeInput}
+                // Strip anything that isn't a digit so the value stays a clean
+                // positive integer — no leading +, no decimals, no exponent.
+                onChange={(e) => setSizeInput(e.target.value.replace(/\D/g, ''))}
+                aria-invalid={!sizeValid}
+                className={`${styles.sizeInput} ${!sizeValid ? styles.sizeInputBad : ''}`}
+              />
+              <span className={styles.sizeHint}>
+                {MIN_SIZE}–{MAX_SIZE}
+              </span>
             </div>
           </div>
 
@@ -198,20 +240,37 @@ const TestsLaunch = () => {
             </div>
           ) : (
             <div className={styles.subjects}>
-              {catalog.subjects.map((subject) => (
+              {catalog.subjects.map((subject) => {
+                const subjOpen = expandedSubjects.has(subject.id);
+                return (
                 <section key={subject.id} className={styles.subjectCard}>
-                  <header className={styles.subjectHead}>
+                  <button
+                    type="button"
+                    className={styles.subjectHead}
+                    aria-expanded={subjOpen}
+                    onClick={() => toggleSubject(subject.id)}
+                  >
+                    <span className={styles.chevron} aria-hidden="true">
+                      {subjOpen ? '▾' : '▸'}
+                    </span>
                     <h2 className={styles.subjectName}>{subject.name}</h2>
                     <span className={styles.subjectCount}>
                       {subject.chapters.length} chapters
                     </span>
-                  </header>
+                  </button>
+                  {subjOpen ? (
                   <div className={styles.chapters}>
                     {subject.chapters.map((chapter) => {
                       const state = chapterState(chapter);
+                      const chOpen = expandedChapters.has(chapter.id);
                       return (
                         <div key={chapter.id} className={styles.chapter}>
-                          <label className={styles.chapterHead}>
+                          {/* Header has TWO independent click targets: the
+                              checkbox toggles selection of all topics in the
+                              chapter, the rest of the row toggles expansion.
+                              Keeping them as separate siblings avoids the
+                              click-bubbling tangle of a nested checkbox. */}
+                          <div className={styles.chapterHead}>
                             <input
                               type="checkbox"
                               className={styles.chapterCheck}
@@ -222,11 +281,22 @@ const TestsLaunch = () => {
                               }}
                               onChange={() => onChapterToggle(chapter)}
                             />
-                            <span className={styles.chapterName}>{chapter.name}</span>
-                            <span className={styles.chapterCount}>
-                              {chapter.topics.length} topics
-                            </span>
-                          </label>
+                            <button
+                              type="button"
+                              className={styles.chapterToggle}
+                              aria-expanded={chOpen}
+                              onClick={() => toggleChapter(chapter.id)}
+                            >
+                              <span className={styles.chevron} aria-hidden="true">
+                                {chOpen ? '▾' : '▸'}
+                              </span>
+                              <span className={styles.chapterName}>{chapter.name}</span>
+                              <span className={styles.chapterCount}>
+                                {chapter.topics.length} topics
+                              </span>
+                            </button>
+                          </div>
+                          {chOpen ? (
                           <div className={styles.topics}>
                             {chapter.topics.map((topic) => (
                               <label key={topic.id} className={`${styles.topic} ${selectedTopics.has(topic.id) ? styles.topicOn : ''}`}>
@@ -241,12 +311,15 @@ const TestsLaunch = () => {
                               </label>
                             ))}
                           </div>
+                          ) : null}
                         </div>
                       );
                     })}
                   </div>
+                  ) : null}
                 </section>
-              ))}
+                );
+              })}
             </div>
           )}
 
@@ -255,10 +328,10 @@ const TestsLaunch = () => {
               variant="primary"
               fullWidth={false}
               loading={creating}
-              disabled={selectedTopics.size === 0 || creating}
+              disabled={selectedTopics.size === 0 || !sizeValid || creating}
               onClick={onCreate}
             >
-              Generate {size}-question test
+              {sizeValid ? `Generate ${sizeNum}-question test` : 'Generate test'}
             </Button>
             <button
               type="button"
