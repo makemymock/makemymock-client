@@ -126,83 +126,352 @@ def _sse(event: str, payload: dict[str, Any]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Insight pass — reads mock-test analytics, never calls the LLM.
+# Personalisation tool — SOLVE + DEEP only.
+#
+# Pipeline:
+#   1. Aggregate the question catalog into a (subject, chapter) list and
+#      ask Flash-Lite which chapter the question belongs to (or NONE).
+#   2. If a chapter matched, ask Flash-Lite to pick ONE topic from that
+#      chapter's topic list (or NONE).
+#   3. If both matched, look up the student's mock-test history on that
+#      topic via MockTestService:
+#        - has prior attempts → ask Flash to write a personalised insight
+#          quoting accuracy + priority score + mistake-pattern hypotheses.
+#        - no prior attempts   → emit a stock "you haven't practised this
+#          topic yet — solve some mock questions on it after" insight.
+#   4. If chapter or topic doesn't match → return empty (no insights).
+#
+# Theory mode never calls this — student wants the concept explained,
+# not a personalised performance debrief.
 # ---------------------------------------------------------------------------
 
 
-async def _gather_personalisation(
+async def _list_catalog_chapters(
+    db: AsyncIOMotorDatabase,
+) -> list[dict[str, str]]:
+    """Distinct (subject, chapter) pairs from the questions catalog."""
+    pipeline = [
+        {"$match": {"subject": {"$ne": None}, "chapter": {"$ne": None}}},
+        {"$group": {"_id": {"subject": "$subject", "chapter": "$chapter"}}},
+        {"$sort": {"_id.subject": 1, "_id.chapter": 1}},
+    ]
+    out: list[dict[str, str]] = []
+    async for row in db["questions"].aggregate(pipeline):
+        k = row.get("_id") or {}
+        s = (k.get("subject") or "").strip()
+        c = (k.get("chapter") or "").strip()
+        if s and c:
+            out.append({"subject": s, "chapter": c})
+    return out
+
+
+async def _list_catalog_topics_in_chapter(
+    db: AsyncIOMotorDatabase, subject: str, chapter: str,
+) -> list[str]:
+    """Distinct topic names under one (subject, chapter)."""
+    raw = await db["questions"].distinct(
+        "topic", {"subject": subject, "chapter": chapter},
+    )
+    return sorted(t.strip() for t in raw if isinstance(t, str) and t.strip())
+
+
+def _content_with_optional_image(
+    text: str, image_data_url: Optional[str],
+) -> Any:
+    """Multimodal content helper — mirrors `SolverXService._user_content`
+    but lives at module level for the matcher helpers below."""
+    if not image_data_url:
+        return text
+    return [
+        {"type": "text", "text": text},
+        {"type": "image_url", "image_url": {"url": image_data_url}},
+    ]
+
+
+async def _match_chapter_for_question(
+    *,
+    question_text: str,
+    chapters: list[dict[str, str]],
+    image_data_url: Optional[str] = None,
+) -> tuple[Optional[str], Optional[str]]:
+    """Ask Flash-Lite to map a question to one chapter. Returns
+    (subject, chapter) or (None, None) when no clean match.
+
+    The image (when the student attached a screenshot) is forwarded
+    in — otherwise the matcher only sees the fallback typed text
+    ("Solve / explain the attached image.") and has to return null."""
+    if not chapters:
+        return None, None
+    listing = "\n".join(f"- {c['subject']} / {c['chapter']}" for c in chapters)
+    prompt = (
+        "You match a student's question to ONE chapter in our catalog, or "
+        "say it doesn't fit any. The question may be typed text, an "
+        "attached image (screenshot of a problem), or both — use whichever "
+        "is present.\n\n"
+        f"Available chapters (format: subject / chapter):\n{listing}\n\n"
+        f"Question (typed text — may be empty or generic if the real "
+        f"question is in the image):\n{question_text.strip()}\n\n"
+        "Reply with STRICT JSON only — no fences:\n"
+        '{"subject": "<exact subject from the list, or null>", '
+        '"chapter": "<exact chapter from the list, or null>"}\n\n'
+        "If the question doesn't clearly belong to ANY listed chapter, "
+        "set both fields to null."
+    )
+    try:
+        raw = await chat_json(
+            [{
+                "role": "user",
+                "content": _content_with_optional_image(prompt, image_data_url),
+            }],
+            model=settings.GEMINI_MODEL_FLASH_LITE,
+            temperature=0.1,
+            max_tokens=200,
+            response_mime="application/json",
+            disable_thinking=True,
+        )
+    except LLMError as exc:
+        logger.debug("Chapter-match LLM failed: %s", exc)
+        return None, None
+    parsed = _parse_plan_json(raw)
+    subj = parsed.get("subject")
+    chap = parsed.get("chapter")
+    if not isinstance(subj, str) or not isinstance(chap, str):
+        return None, None
+    subj = subj.strip()
+    chap = chap.strip()
+    if not subj or not chap:
+        return None, None
+    # Defensive: ensure the model returned something from the actual list.
+    for c in chapters:
+        if c["subject"].lower() == subj.lower() and c["chapter"].lower() == chap.lower():
+            return c["subject"], c["chapter"]
+    return None, None
+
+
+async def _match_topic_in_chapter(
+    *,
+    question_text: str,
+    chapter: str,
+    topics: list[str],
+    image_data_url: Optional[str] = None,
+) -> Optional[str]:
+    """Ask Flash-Lite to pick the single best-matching topic, or None.
+    Image is forwarded when present so image-only questions still match."""
+    if not topics:
+        return None
+    listing = "\n".join(f"- {t}" for t in topics)
+    prompt = (
+        f"From the topics listed under '{chapter}', pick the ONE that best "
+        "matches the student's question. Pick exactly one — or say none "
+        "if no topic genuinely matches. The question may be typed text, "
+        "an attached image (screenshot), or both.\n\n"
+        f"Topics:\n{listing}\n\n"
+        f"Question (typed text — may be empty / generic):\n"
+        f"{question_text.strip()}\n\n"
+        "Reply with STRICT JSON only — no fences:\n"
+        '{"topic": "<exact topic name from the list, or null>"}'
+    )
+    try:
+        raw = await chat_json(
+            [{
+                "role": "user",
+                "content": _content_with_optional_image(prompt, image_data_url),
+            }],
+            model=settings.GEMINI_MODEL_FLASH_LITE,
+            temperature=0.1,
+            max_tokens=160,
+            response_mime="application/json",
+            disable_thinking=True,
+        )
+    except LLMError as exc:
+        logger.debug("Topic-match LLM failed: %s", exc)
+        return None
+    parsed = _parse_plan_json(raw)
+    t = parsed.get("topic")
+    if not isinstance(t, str) or not t.strip():
+        return None
+    t = t.strip()
+    for cand in topics:
+        if cand.lower() == t.lower():
+            return cand
+    return None
+
+
+async def _llm_personalised_insight(
+    *,
+    question_text: str,
+    topic_name: str,
+    chapter_name: str,
+    accuracy_pct: float,
+    attempts: int,
+    correct: int,
+    priority_score: float,
+) -> tuple[list[dict], str]:
+    """Ask Flash to write a short personalised insight grounded in the
+    student's actual numbers on this topic."""
+    summary = (
+        f"Topic: {topic_name}\n"
+        f"Chapter: {chapter_name}\n"
+        f"Total attempts on this topic: {attempts}\n"
+        f"Correct answers: {correct}\n"
+        f"Accuracy: {accuracy_pct:.1f}%\n"
+        f"Priority score (higher = needs more work): {priority_score:.2f}"
+    )
+    prompt = (
+        "You are an analytics-aware tutor. Given a student's prior mock-test "
+        "performance on a topic and the new question they're trying to solve, "
+        "write a SHORT personalised insight (1 or 2 items max).\n\n"
+        f"PERFORMANCE:\n{summary}\n\n"
+        f"NEW QUESTION (same topic):\n{question_text.strip()}\n\n"
+        "Each insight item must:\n"
+        "  * cite the student's accuracy AND priority score by their actual numbers\n"
+        "  * guess a likely mistake pattern based on the metrics\n"
+        "  * suggest ONE concrete way to improve\n"
+        "If accuracy is very high (>80%), the first item can validate them.\n\n"
+        "Reply with STRICT JSON — no fences:\n"
+        "{\n"
+        '  "items": [\n'
+        '    {"headline": "<short headline, max 7 words>", '
+        '"detail": "<1-2 sentences citing the actual numbers>"}\n'
+        "  ],\n"
+        '  "tutor_note": "<one short sentence for the solver agent describing what to emphasise>"\n'
+        "}"
+    )
+    try:
+        raw = await chat_json(
+            [{"role": "user", "content": prompt}],
+            model=settings.GEMINI_MODEL_FLASH,
+            temperature=0.4,
+            max_tokens=500,
+            response_mime="application/json",
+            disable_thinking=True,
+        )
+    except LLMError as exc:
+        logger.warning("Personalised-insight LLM failed: %s", exc)
+        # Fall back to a templated insight so the student still sees something.
+        return (
+            [{
+                "headline": f"On {topic_name}: {accuracy_pct:.0f}% accuracy",
+                "detail": (
+                    f"Across {attempts} mock-test attempts on {topic_name}, "
+                    f"you're at {accuracy_pct:.0f}% accuracy and a priority "
+                    f"score of {priority_score:.2f}. Extra care on this one."
+                ),
+                "accuracy_pct": float(accuracy_pct),
+            }],
+            f"Student accuracy on {topic_name} is {accuracy_pct:.0f}% "
+            f"({attempts} attempts). Be patient and explicit.",
+        )
+    parsed = _parse_plan_json(raw)
+    items_raw = parsed.get("items") or []
+    items: list[dict] = []
+    for it in items_raw[:2]:
+        if not isinstance(it, dict):
+            continue
+        headline = (it.get("headline") or "").strip()
+        detail = (it.get("detail") or "").strip()
+        if not headline or not detail:
+            continue
+        items.append({"headline": headline, "detail": detail})
+    if not items:
+        items = [{
+            "headline": f"On {topic_name}: {accuracy_pct:.0f}% accuracy",
+            "detail": (
+                f"Across {attempts} attempts you sit at "
+                f"{accuracy_pct:.0f}% accuracy here. Take this one slowly."
+            ),
+        }]
+    note = (parsed.get("tutor_note") or "").strip()
+    return items, note
+
+
+async def _gather_personalisation_for_solve(
     db: AsyncIOMotorDatabase,
     user_oid: ObjectId,
-    topic_info: dict,
+    question_text: str,
+    image_data_url: Optional[str] = None,
 ) -> tuple[list[dict], str]:
+    """Full pipeline: chapter-match → topic-match → student history →
+    LLM insight. Returns ([], "") whenever any stage produces no signal,
+    so callers can simply skip the insight panel in that case.
+
+    `image_data_url` is forwarded to the chapter/topic matchers so
+    screenshot-only questions still classify."""
+    try:
+        chapters = await _list_catalog_chapters(db)
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Catalog chapter listing failed: %s", exc)
+        return [], ""
+    if not chapters:
+        return [], ""
+
+    subject, chapter = await _match_chapter_for_question(
+        question_text=question_text,
+        chapters=chapters,
+        image_data_url=image_data_url,
+    )
+    if not subject or not chapter:
+        # Question is outside the catalog — nothing personalised to add.
+        return [], ""
+
+    try:
+        topics = await _list_catalog_topics_in_chapter(db, subject, chapter)
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Topic listing failed: %s", exc)
+        return [], ""
+
+    topic = await _match_topic_in_chapter(
+        question_text=question_text,
+        chapter=chapter,
+        topics=topics,
+        image_data_url=image_data_url,
+    )
+    if not topic:
+        return [], ""
+
+    # Look up this student's history on the matched topic.
     try:
         from modules.mock_test.service import MockTestService
 
-        overview = await MockTestService(db).get_overview(user_oid)
+        topics_resp = await MockTestService(db).get_topic_analytics(user_oid)
     except Exception as exc:  # noqa: BLE001
-        logger.debug("Personalisation lookup skipped: %s", exc)
+        logger.debug("Topic analytics lookup failed: %s", exc)
         return [], ""
 
-    items: list[dict] = []
-    note_parts: list[str] = []
+    matched_ta = None
+    norm_topic = topic.lower().strip()
+    for t in getattr(topics_resp, "topics", []) or []:
+        if (getattr(t, "topic_name", "") or "").lower().strip() == norm_topic:
+            matched_ta = t
+            break
 
-    accuracy_pct = getattr(overview, "overall_accuracy_pct", None)
-    if accuracy_pct is not None and getattr(overview, "total_tests", 0) > 0:
-        items.append(
-            {
-                "headline": f"Overall accuracy: {accuracy_pct:.0f}%",
-                "detail": (
-                    f"Across {overview.total_tests} mock tests and "
-                    f"{overview.total_questions} questions attempted."
-                ),
-                "accuracy_pct": float(accuracy_pct),
-            }
+    if matched_ta is None:
+        # Topic exists in the catalog but the student hasn't attempted any
+        # questions on it yet — encourage them to practise.
+        items = [{
+            "headline": f"Start practising {topic}",
+            "detail": (
+                f"You haven't attempted any mock-test questions on {topic} "
+                f"({chapter}) yet. After this walkthrough, take a focused "
+                "mock test on this topic — that's where the recommender "
+                "starts tuning to you."
+            ),
+        }]
+        note = (
+            f"Student has no prior practice on {topic}. After solving, "
+            "remind them to take a mock test on this topic."
         )
-        note_parts.append(
-            f"Student overall accuracy is {accuracy_pct:.0f}% "
-            f"over {overview.total_tests} tests."
-        )
+        return items, note
 
-    weakest = list(getattr(overview, "weakest_topics", []) or [])[:3]
-    if weakest:
-        names = ", ".join(
-            getattr(t, "topic_name", "") or "" for t in weakest if t
-        )
-        if names:
-            items.append(
-                {
-                    "headline": "Focus areas to revisit",
-                    "detail": f"Weakest topics recently: {names}.",
-                }
-            )
-            note_parts.append(
-                f"Weakest recent topics: {names}. If your explanation "
-                "touches any of them, lean a little more intuitive."
-            )
-
-    topic_name = (topic_info.get("topic") or "").lower().strip()
-    if topic_name:
-        for t in getattr(overview, "weakest_topics", []) or []:
-            tn = (getattr(t, "topic_name", "") or "").lower().strip()
-            if tn and tn == topic_name:
-                acc = getattr(t, "accuracy_pct", 0.0)
-                items.append(
-                    {
-                        "headline": "Heads up on this topic",
-                        "detail": (
-                            f"Your accuracy on {t.topic_name} is "
-                            f"{acc:.0f}% — extra care here."
-                        ),
-                        "accuracy_pct": float(acc),
-                    }
-                )
-                note_parts.append(
-                    f"Student has weak accuracy ({acc:.0f}%) on this exact "
-                    f"topic ({t.topic_name}). Be especially patient."
-                )
-                break
-
-    return items, " ".join(note_parts)
+    return await _llm_personalised_insight(
+        question_text=question_text,
+        topic_name=getattr(matched_ta, "topic_name", topic),
+        chapter_name=getattr(matched_ta, "chapter_name", chapter),
+        accuracy_pct=float(getattr(matched_ta, "accuracy_pct", 0.0)),
+        attempts=int(getattr(matched_ta, "attempts", 0)),
+        correct=int(getattr(matched_ta, "correct", 0)),
+        priority_score=float(getattr(matched_ta, "priority_score", 0.0)),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -757,15 +1026,27 @@ class SolverXService:
             "status", {"phase": "plan_done", "message": status_script["plan_done"]}
         )
 
-        # ---- INSIGHTS (no LLM) ----
-        yield _sse(
-            "status", {"phase": "insight", "message": status_script["insight"]}
-        )
-        insights, personalisation_note = await _gather_personalisation(
-            self.db, user_oid, topic_payload
-        )
-        if insights:
-            yield _sse("insights", {"items": insights})
+        # ---- INSIGHTS ----
+        # Theory mode skips the personalisation panel entirely — the
+        # student wants to understand the concept, not be told their
+        # accuracy stats. The chapter/topic matcher is solve-deep only.
+        insights: list[dict] = []
+        personalisation_note = ""
+        if not is_theory:
+            yield _sse(
+                "status",
+                {"phase": "insight", "message": status_script["insight"]},
+            )
+            insights, personalisation_note = (
+                await _gather_personalisation_for_solve(
+                    self.db,
+                    user_oid,
+                    question_text,
+                    image_data_url=image_data_url,
+                )
+            )
+            if insights:
+                yield _sse("insights", {"items": insights})
 
         # ---- SOLVE (Pro, streamed) ----
         yield _sse(

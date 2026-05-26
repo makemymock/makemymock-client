@@ -196,11 +196,15 @@
 /* The conversation row wraps the click-target button and a small
    delete button. Two siblings (not nested buttons) so both stay
    keyboard-accessible. The row owns the hover/active border so it
-   wraps both buttons cleanly. */
+   wraps both buttons cleanly.
+   `min-width: 0` is critical — without it, long titles can blow past
+   the available column width and visually overflow under the delete
+   button. */
 .convRow {
   position: relative;
   display: flex;
   align-items: stretch;
+  min-width: 0;
   background: transparent;
   border: 1px solid transparent;
   border-radius: 10px;
@@ -228,11 +232,14 @@
 }
 
 .convItem {
-  flex: 1;
+  flex: 1 1 0;
   min-width: 0;
   background: transparent;
   border: none;
-  padding: 8px 10px;
+  /* Right padding leaves a permanent gutter for the delete button so
+     the ellipsised title/preview NEVER bleeds underneath the trash
+     icon — even before hover when the icon is rendered at 40% opacity. */
+  padding: 8px 44px 8px 10px;
   text-align: left;
   cursor: pointer;
   color: var(--color-text-primary);
@@ -248,22 +255,30 @@
   border-radius: 8px;
 }
 
-/* Tiny trash button — visible at low opacity by default, fully opaque
-   on row hover, and tinted red when armed for confirmation. */
+/* Tiny trash button — positioned absolutely on the right of the row
+   so it cleanly overlays any ellipsised text gutter rather than being
+   pushed by flex layout. A tiny gradient backdrop fades behind it so
+   the trash icon never appears to overlap text. */
 .convDelete {
-  flex: 0 0 auto;
-  align-self: stretch;
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 0 12px;
   min-width: 38px;
-  background: transparent;
+  background: linear-gradient(
+    to left,
+    var(--color-panel-bg-soft) 40%,
+    transparent
+  );
   border: none;
   border-left: 1px solid transparent;
   color: var(--color-text-muted);
   cursor: pointer;
-  opacity: 0.4;
+  opacity: 0.55;
   font: inherit;
   font-size: 13px;
   font-weight: 700;
@@ -278,14 +293,26 @@
 
 .convDelete:hover {
   color: #fca5a5;
-  background: rgba(239, 68, 68, 0.16);
+  background: linear-gradient(
+    to left,
+    rgba(239, 68, 68, 0.22) 40%,
+    rgba(239, 68, 68, 0.05) 80%,
+    transparent
+  );
 }
 
+/* Armed state — "Confirm" label is wider than the icon, so we need a
+   solid backdrop to mask any ellipsised text underneath. */
 .convDeleteArmed,
 .convDeleteArmed:hover {
   opacity: 1;
   color: #fff;
-  background: rgba(239, 68, 68, 0.55);
+  background: linear-gradient(
+    to left,
+    rgba(239, 68, 68, 0.85) 30%,
+    rgba(239, 68, 68, 0.55) 80%,
+    rgba(239, 68, 68, 0.18)
+  );
   border-left-color: rgba(239, 68, 68, 0.6);
 }
 
@@ -325,29 +352,6 @@
   height: 100%;
   min-width: 0;
   min-height: 0;     /* allow nested overflow-auto containers to shrink */
-}
-
-/* Thin top strip — sidebar toggle on the left, quiet brand label.
-   Mode + reasoning depth are no longer here; they moved into the
-   composer (ChatGPT-style pill pickers) so this strip stays clean. */
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 18px;
-  border-bottom: 1px solid var(--color-panel-border);
-  background: var(--color-panel-bg);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  min-height: 48px;
-}
-
-.toolbarTitle {
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  color: var(--color-text-muted);
 }
 
 /* ---------------------------------------------------------------- Transcript */
@@ -584,17 +588,17 @@
 .input {
   width: 100%;
   resize: vertical;
-  min-height: 68px;
-  max-height: 240px;
+  min-height: 50px;
+  max-height: 220px;
   background: var(--dash-input-bg);
   border: 1px solid var(--color-panel-border);
   border-radius: 14px;
-  padding: 14px 16px;
+  padding: 11px 14px;
   font: inherit;
   font-size: 16px;
   color: var(--color-text-primary);
   outline: none;
-  line-height: 1.55;
+  line-height: 1.5;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
@@ -956,16 +960,6 @@
  * =========================================================================== */
 
 @media (max-width: 600px) {
-  /* Toolbar shrinks; only the sidebar toggle + tiny brand chip live here. */
-  .toolbar {
-    padding: 8px 12px;
-    min-height: 44px;
-  }
-  .toolbarTitle {
-    font-size: 13px;
-    letter-spacing: 1.5px;
-  }
-
   /* Transcript breathing room is fine at clamp(18px, …) — but we lower
      the vertical padding so more turns are visible at once. */
   .transcript {
@@ -986,9 +980,9 @@
     padding: 10px 14px 14px;
   }
   .input {
-    min-height: 60px;
+    min-height: 44px;
     font-size: 15px;
-    padding: 12px 14px;
+    padding: 10px 12px;
   }
   .composerActions {
     gap: 8px;
@@ -1046,9 +1040,6 @@
 
 /* Very narrow phones (≤ 380px) — last-mile fixes. */
 @media (max-width: 380px) {
-  .toolbar {
-    padding: 8px 10px;
-  }
   .transcript {
     padding: 12px 10px;
   }

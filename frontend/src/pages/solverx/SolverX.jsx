@@ -512,31 +512,6 @@ const SolverX = () => {
 
       {/* ---------- Main column ---------- */}
       <main className={styles.main}>
-        {/* Thin top strip — only the sidebar toggle lives here now.
-            Mode + complexity moved down into the composer (ChatGPT-style)
-            so the chat surface stays uncluttered. */}
-        <header className={styles.toolbar}>
-          <button
-            type="button"
-            className={styles.menuBtn}
-            onClick={() => setSidebarOpen((v) => !v)}
-            aria-label={sidebarOpen ? 'Hide conversations' : 'Show conversations'}
-            aria-expanded={sidebarOpen}
-            title={sidebarOpen ? 'Hide conversations' : 'Show conversations'}
-          >
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none"
-                 stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"
-                 strokeLinejoin="round" aria-hidden="true">
-              {sidebarOpen ? (
-                <path d="M15 6l-6 6 6 6" />
-              ) : (
-                <path d="M9 6l6 6-6 6" />
-              )}
-            </svg>
-          </button>
-          <span className={styles.toolbarTitle}>SolverX</span>
-        </header>
-
         {/* Transcript */}
         <section ref={transcriptRef} className={styles.transcript}>
           {turns.length === 0 && !streaming ? (
@@ -592,7 +567,7 @@ const SolverX = () => {
             onPaste={onPaste}
             onDrop={onTextareaDrop}
             onDragOver={(e) => e.preventDefault()}
-            rows={3}
+            rows={2}
             disabled={submitting}
           />
 
@@ -619,6 +594,28 @@ const SolverX = () => {
 
           <div className={styles.composerActions}>
             <div className={styles.composerLeft}>
+              {/* Conversations-panel toggle. Used to live in a separate top
+                  strip; moved here so the chat surface keeps every pixel
+                  of vertical space, especially on mobile. */}
+              <button
+                type="button"
+                className={styles.menuBtn}
+                onClick={() => setSidebarOpen((v) => !v)}
+                aria-label={sidebarOpen ? 'Hide conversations' : 'Show conversations'}
+                aria-expanded={sidebarOpen}
+                title={sidebarOpen ? 'Hide conversations' : 'Show conversations'}
+              >
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none"
+                     stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"
+                     strokeLinejoin="round" aria-hidden="true">
+                  {sidebarOpen ? (
+                    <path d="M15 6l-6 6 6 6" />
+                  ) : (
+                    <path d="M9 6l6 6-6 6" />
+                  )}
+                </svg>
+              </button>
+
               <div className={styles.attachWrap} ref={attachWrapRef}>
                 <button
                   type="button"
