@@ -8,20 +8,39 @@ import styles from './solverx.module.css';
 // the composer pill picker (ChatGPT-style), `label`/`sub` populate the
 // expanded menu rows.
 const MODES = [
-  { key: 'solve',  pill: 'Solve',  label: 'Solve a question',   sub: 'Multi-agent reasoning'   },
-  { key: 'theory', pill: 'Theory', label: 'Understand a theory', sub: 'Adaptive tutor explanation' },
+  { key: 'solve',  pill: 'Solve',  label: 'Solve a question',   sub: 'Step-by-step reasoning'   },
+  { key: 'theory', pill: 'Theory', label: 'Understand a theory', sub: 'Tutor-style explanation' },
 ];
 
-// Complexity is a deliberate, premium-feeling toggle — no "easy/hard"
-// vocabulary. The two values are wired into the backend prompts.
-const COMPLEXITY = [
-  { key: 'guided', pill: 'Guided', label: 'Guided Solve',   sub: 'Fast, direct path'      },
-  { key: 'deep',   pill: 'Deep',   label: 'Deep Reasoning', sub: 'Multi-agent, thorough'  },
-];
+// Complexity options are mode-dependent. Solve uses Guided/Deep
+// (problem-solving register); Theory uses Easy/Deep (explanation
+// register). The backend's dispatcher accepts all three values
+// (`guided`, `easy`, `deep`) and routes by (mode, complexity).
+const COMPLEXITY_BY_MODE = {
+  solve: [
+    { key: 'guided', pill: 'Guided', label: 'Guided Solve',   sub: 'Fast single-pass solver' },
+    { key: 'deep',   pill: 'Deep',   label: 'Deep Reasoning', sub: 'Multi-agent, thorough'   },
+  ],
+  theory: [
+    { key: 'easy',   pill: 'Easy',   label: 'Easy explanation', sub: 'Concise, just the idea'  },
+    { key: 'deep',   pill: 'Deep',   label: 'Deep explanation', sub: 'Intuition + derivation + example' },
+  ],
+};
+
+// Default complexity per mode. Solve defaults to Guided (most users
+// just want the answer first); Theory defaults to Deep (theory
+// questions usually deserve a real explanation).
+const DEFAULT_COMPLEXITY = { solve: 'guided', theory: 'deep' };
 
 const SolverX = () => {
   const [mode, setMode] = useState('solve');
-  const [complexity, setComplexity] = useState('guided');
+  const [complexity, setComplexity] = useState(DEFAULT_COMPLEXITY.solve);
+
+  // Options shown by the complexity picker swap with the active mode.
+  const complexityOptions = useMemo(
+    () => COMPLEXITY_BY_MODE[mode] || COMPLEXITY_BY_MODE.solve,
+    [mode],
+  );
 
   // Conversations panel — collapsible on every viewport. Defaults to
   // open on desktop (≥900px) and closed on phones so the chat takes
@@ -86,6 +105,18 @@ const SolverX = () => {
     } catch { /* ignore */ }
   }, []);
 
+  // Mode-aware setter — swaps complexity to the right default for the
+  // new mode (Guided for solve, Deep for theory) AND keeps `deep`
+  // sticky if the user was already in deep on the other mode (they
+  // probably want depth in both registers).
+  const handleModeChange = useCallback((nextMode) => {
+    setMode(nextMode);
+    setComplexity((prev) => {
+      if (prev === 'deep') return 'deep'; // keep deep across modes
+      return DEFAULT_COMPLEXITY[nextMode] || 'guided';
+    });
+  }, []);
+
   // ---- Switch to a stored conversation ----
   const openConversation = useCallback(async (convId) => {
     setError('');
@@ -93,7 +124,19 @@ const SolverX = () => {
     setSidebarOpen(false); // close the mobile drawer
     try {
       const data = await solverxService.getConversation(convId);
-      setMode(data.mode === 'theory' ? 'theory' : 'solve');
+      const nextMode = data.mode === 'theory' ? 'theory' : 'solve';
+      setMode(nextMode);
+      // Align complexity to whatever the last turn of this conversation
+      // used; fall back to that mode's default.
+      const lastComplexity = [...(data.messages || [])]
+        .reverse()
+        .find((m) => m.role === 'user' && m.complexity_mode)?.complexity_mode;
+      const validForMode = (COMPLEXITY_BY_MODE[nextMode] || []).some(
+        (o) => o.key === lastComplexity,
+      );
+      setComplexity(
+        validForMode ? lastComplexity : (DEFAULT_COMPLEXITY[nextMode] || 'guided'),
+      );
       // Pair user + assistant messages into "turns". The user message
       // carries the (optional) base64 image we stored on the way in —
       // restoring it here lets the transcript re-render the original
@@ -296,6 +339,37 @@ const SolverX = () => {
           setStreaming((s) => s && { ...s, insights: data.items || [] });
         } else if (event === 'block') {
           setStreaming((s) => s && { ...s, blocks: [...s.blocks, data] });
+        } else if (event === 'diagram_ready') {
+          // A `diagram_pending` placeholder block has finished baking
+          // on the backend. If `content` is non-null, swap the
+          // placeholder's type to `diagram` and slot the SVG in. If
+          // `content` is null (the diagram agent failed or timed out),
+          // REMOVE the placeholder so the user doesn't see a permanent
+          // "Generating diagram…" spinner.
+          setStreaming((s) => {
+            if (!s) return s;
+            const blocks = s.blocks
+              .filter((b) => {
+                if (
+                  b.type === 'diagram_pending' &&
+                  (b.extra?.n ?? null) === data.n
+                ) {
+                  return !!data.content;
+                }
+                return true;
+              })
+              .map((b) => {
+                if (
+                  b.type === 'diagram_pending' &&
+                  (b.extra?.n ?? null) === data.n &&
+                  data.content
+                ) {
+                  return { ...b, type: 'diagram', content: data.content };
+                }
+                return b;
+              });
+            return { ...s, blocks };
+          });
         } else if (event === 'done') {
           // Commit streaming → permanent turn.
           setStreaming((s) => {
@@ -608,7 +682,7 @@ const SolverX = () => {
                 ariaLabel="SolverX mode"
                 options={MODES}
                 value={mode}
-                onChange={setMode}
+                onChange={handleModeChange}
                 disabled={submitting}
                 icon={(
                   <svg viewBox="0 0 24 24" width="14" height="14" fill="none"
@@ -620,8 +694,8 @@ const SolverX = () => {
               />
 
               <PickerPill
-                ariaLabel="Reasoning depth"
-                options={COMPLEXITY}
+                ariaLabel={mode === 'theory' ? 'Explanation depth' : 'Reasoning depth'}
+                options={complexityOptions}
                 value={complexity}
                 onChange={setComplexity}
                 disabled={submitting}

@@ -74,121 +74,191 @@ const DOUBLE_PIPE_MATH_RE = /\|\|([^|\n$]*\\[a-zA-Z][^|\n$]*)\|\|/g;
 // ---------------------------------------------------------------------------
 // Per-line math-span unifier.
 //
-// The LLM keeps emitting fragmented math on a single line, e.g.
-//   "Integrate both sides: \int $$\frac{1}{y^3} + y$$ dy = \int (e^{4x} +
-//    e^{-x}) dx. This yields …"
-// where the bare `\int`, the trailing `dy`, and the `(e^{4x} + e^{-x}) dx`
-// all leak as plain text because they live outside `$...$`. Per-line
-// unification finds every math anchor (a `$..$` chunk or a bare `\cmd`)
-// on the line, walks the "glue" between them — whitespace, operators,
-// digits, parens, short identifiers like `dx`/`dy` — and if no long
-// English word appears in that glue, merges the whole span into one
-// `$...$` (stripping any nested `$` markers).
+// The LLM emits unreliable `$...$` pairs: it forgets the closing `$`,
+// swaps the opening `$` with the closing one, scatters extra `$$$`
+// near `$$..$$` blocks, and so on. Treating any `$` as authoritative
+// causes worse output than the original (e.g. `\omega$ and $2\omega`
+// gets parsed as the literal phrase ` and ` being math).
 //
-// Spans are bounded by sentence boundaries (`. ` followed by a capital
-// letter) and 4+ letter prose words, so untouched prose stays intact.
+// Strategy: on any line containing a `\command`, we
+//   1) protect `$$..$$` block math (those are usually right),
+//   2) strip ALL remaining single `$` markers (they're unreliable),
+//   3) rebuild math spans purely from `\command` anchors + math-glue
+//      (digits, operators, parens, short 1–3 letter identifiers like
+//      `dx`/`sin`), stopping at known prose words or 4+ letter words,
+//   4) wrap each rebuilt span in `$...$` once,
+//   5) restore the block-math regions.
+//
+// Lines with NO `\command` are left completely alone, so balanced
+// `$x^2+y^2=r^2$` stays untouched.
 // ---------------------------------------------------------------------------
 
-const MATH_REGION_RE = /\${1,2}[^$\n]+?\${1,2}/g;
-const BARE_CMD_RE = /\\[a-zA-Z]+(?:\{[^{}\n]*\})*/g;
-// Glue characters that connect math tokens without being prose.
-const GLUE_CHAR_RE = /[\s+\-=*/^_,()|{}[\]]/;
+// Short prose words we stop math-span extension on. 1–3 letter math
+// identifiers NOT in this set (e.g. `dx`, `dy`, `dt`, `sin`, `cos`,
+// `tan`, `log`, `ln`, `Im`, `Re`) are treated as math.
+const PROSE_SHORT_WORDS = new Set([
+  'a', 'an', 'as', 'at', 'be', 'by', 'do', 'eg', 'go', 'ie', 'if',
+  'in', 'is', 'it', 'no', 'of', 'on', 'or', 'so', 'to', 'up', 'us',
+  'we', 'and', 'all', 'any', 'are', 'but', 'can', 'for', 'get',
+  'had', 'has', 'how', 'its', 'let', 'may', 'new', 'not', 'now',
+  'one', 'our', 'out', 'put', 'see', 'set', 'the', 'two', 'use',
+  'was', 'way', 'who', 'why', 'has', 'have', 'were', 'will', 'with',
+  'this', 'that', 'than', 'then', 'when', 'where', 'over', 'from',
+  'into', 'must', 'find', 'need', 'each', 'just',
+]);
+
+const PROSE_WORD_LEN_CUTOFF = 4; // 4+ letter words are prose unless in set
+const BARE_CMD_TOKEN_RE = /\\[a-zA-Z]+(?:\{[^{}\n]*\})*/g;
+const BLOCK_MATH_RE = /\$\$([^$\n]+?)\$\$/g;
+
+function isMathChar(ch) {
+  // Single-character class: operators, digits, brackets, pipes, braces.
+  // Whitespace is NOT here — caller handles it separately so we can
+  // distinguish whitespace-before-prose vs whitespace-before-math.
+  return /[+\-=*/^_,()|{}[\]0-9]/.test(ch);
+}
+
+function wordAt(text, i, dir /* 'forward' | 'backward' */) {
+  // Returns the letters-only word touching position `i` in the given
+  // direction. `forward` = letters starting AT `i`, `backward` = letters
+  // ending JUST BEFORE `i`. Returns {word, start, end} or null.
+  if (dir === 'forward') {
+    const m = text.slice(i).match(/^[a-zA-Z]+/);
+    if (!m) return null;
+    return { word: m[0], start: i, end: i + m[0].length };
+  }
+  let end = i;
+  let start = i;
+  while (start > 0 && /[a-zA-Z]/.test(text[start - 1])) start--;
+  if (start === end) return null;
+  return { word: text.slice(start, end), start, end };
+}
+
+function shouldStopAtWord(word) {
+  const lower = word.toLowerCase();
+  if (PROSE_SHORT_WORDS.has(lower)) return true;
+  if (word.length >= PROSE_WORD_LEN_CUTOFF) return true;
+  return false;
+}
+
+function extendForward(text, from) {
+  let pos = from;
+  const n = text.length;
+  while (pos < n) {
+    const ch = text[pos];
+    if (ch === '\n') break;
+    if (/\s/.test(ch)) { pos++; continue; }
+    if (isMathChar(ch)) { pos++; continue; }
+    if (ch === '\\') {
+      const m = text.slice(pos).match(/^\\[a-zA-Z]+(?:\{[^{}\n]*\})*/);
+      if (m) { pos += m[0].length; continue; }
+      break;
+    }
+    if (/[a-zA-Z]/.test(ch)) {
+      const w = wordAt(text, pos, 'forward');
+      if (!w) break;
+      if (shouldStopAtWord(w.word)) break;
+      pos = w.end;
+      continue;
+    }
+    // Sentence punctuation, currency, etc.
+    break;
+  }
+  while (pos > from && /\s/.test(text[pos - 1])) pos--;
+  return pos;
+}
+
+function extendBackward(text, from) {
+  let pos = from;
+  while (pos > 0) {
+    const before = text[pos - 1];
+    if (before === '\n') break;
+    if (/\s/.test(before)) { pos--; continue; }
+    if (isMathChar(before)) { pos--; continue; }
+    if (/[a-zA-Z]/.test(before)) {
+      const w = wordAt(text, pos, 'backward');
+      if (!w) break;
+      if (shouldStopAtWord(w.word)) break;
+      pos = w.start;
+      continue;
+    }
+    // Hitting `\` from the wrong direction is rare — bail.
+    break;
+  }
+  while (pos < from && /\s/.test(text[pos])) pos++;
+  return pos;
+}
 
 function unifyBrokenMathLine(line) {
-  // Cheap rejects: code blocks, no backslash at all → no work needed.
+  // Cheap rejects.
   if (line.length === 0 || line.indexOf('\\') === -1) return line;
   if (/^(\s{4,}|```)/.test(line)) return line;
 
-  // 1) Find every `$..$` / `$$..$$` chunk on this line.
-  const mathChunks = [];
+  // 1) Protect `$$..$$` block math (use Unicode null markers as a
+  //    placeholder so the rest of the work can ignore them).
+  const blockChunks = [];
+  let working = line.replace(BLOCK_MATH_RE, (_m, inner) => {
+    const idx = blockChunks.length;
+    blockChunks.push(inner.trim());
+    return ` BM${idx} `;
+  });
+
+  // 2) If the line still has any `\command`, strip ALL remaining `$`
+  //    because their positions are unreliable. (If the line had only
+  //    well-formed math without any backslash command, we already
+  //    bailed at step 0 — that text stays untouched.)
+  if (working.indexOf('\\') === -1) {
+    // The `\command` was inside the block math we already protected —
+    // restore and exit, no further work to do.
+    return working.replace(/ BM(\d+) /g, (_m, idx) => `$$${blockChunks[idx]}$$`);
+  }
+  working = working.replace(/\$/g, '');
+
+  // 3) Find every `\command{args}*` and build a math span around each.
+  const cmds = [];
+  BARE_CMD_TOKEN_RE.lastIndex = 0;
   let mm;
-  MATH_REGION_RE.lastIndex = 0;
-  while ((mm = MATH_REGION_RE.exec(line)) !== null) {
-    mathChunks.push({ start: mm.index, end: MATH_REGION_RE.lastIndex });
+  while ((mm = BARE_CMD_TOKEN_RE.exec(working)) !== null) {
+    cmds.push({ start: mm.index, end: BARE_CMD_TOKEN_RE.lastIndex });
   }
-  const inMath = (i) => mathChunks.some((c) => i >= c.start && i < c.end);
-
-  // 2) Find every bare `\cmd{args}*` that's NOT already inside a math chunk.
-  const bareCmds = [];
-  BARE_CMD_RE.lastIndex = 0;
-  while ((mm = BARE_CMD_RE.exec(line)) !== null) {
-    if (!inMath(mm.index)) {
-      bareCmds.push({ start: mm.index, end: BARE_CMD_RE.lastIndex });
-    }
+  if (cmds.length === 0) {
+    return working.replace(/ BM(\d+) /g, (_m, idx) => `$$${blockChunks[idx]}$$`);
   }
-  if (bareCmds.length === 0) return line;
 
-  // 3) Merge math chunks + bare commands into ordered anchors.
-  const anchors = [
-    ...mathChunks.map((c) => ({ ...c, kind: 'math' })),
-    ...bareCmds.map((c) => ({ ...c, kind: 'cmd' })),
-  ].sort((a, b) => a.start - b.start);
+  // Each command grows into a span via left + right extension. Spans
+  // that touch / overlap get merged.
+  const rawSpans = cmds.map((c) => ({
+    start: extendBackward(working, c.start),
+    end: extendForward(working, c.end),
+  }));
 
-  // 4) Group consecutive anchors whose "glue" is math-friendly. A
-  //    glue chunk fails when it contains a 4+ letter alphabetic word
-  //    (treated as prose). We also bail on sentence terminators.
-  const isGlueFriendly = (g) => {
-    if (g.includes('\n')) return false;
-    // Strip math-glue chars then look at what's left.
-    const residue = g.replace(/[\s+\-=*/^_,()|{}\[\]0-9.]/g, '');
-    if (!residue) return true;
-    return !/[a-zA-Z]{4,}/.test(residue);
-  };
-
+  rawSpans.sort((a, b) => a.start - b.start);
   const spans = [];
-  let cur = { start: anchors[0].start, end: anchors[0].end, hasCmd: anchors[0].kind === 'cmd' };
-  for (let i = 1; i < anchors.length; i++) {
-    const glue = line.slice(cur.end, anchors[i].start);
-    if (isGlueFriendly(glue)) {
-      cur.end = anchors[i].end;
-      if (anchors[i].kind === 'cmd') cur.hasCmd = true;
+  for (const s of rawSpans) {
+    if (spans.length && s.start <= spans[spans.length - 1].end) {
+      spans[spans.length - 1].end = Math.max(
+        spans[spans.length - 1].end,
+        s.end,
+      );
     } else {
-      spans.push(cur);
-      cur = { start: anchors[i].start, end: anchors[i].end, hasCmd: anchors[i].kind === 'cmd' };
+      spans.push({ ...s });
     }
   }
-  spans.push(cur);
 
-  // Only spans that carried at least one bare `\cmd` need fixing —
-  // pure `$..$` spans are already well-formed.
-  const fixSpans = spans.filter((s) => s.hasCmd);
-  if (fixSpans.length === 0) return line;
-
-  // 5) Extend each fixable span forward through trailing math-glue
-  //    (e.g. " dx" or " = 0"). Stops at sentence punctuation or a 4+
-  //    letter prose word.
-  for (const s of fixSpans) {
-    let pos = s.end;
-    while (pos < line.length) {
-      const ch = line[pos];
-      if (ch === '\n') break;
-      if (GLUE_CHAR_RE.test(ch)) { pos++; continue; }
-      if (/[0-9]/.test(ch)) { pos++; continue; }
-      if (/[a-zA-Z]/.test(ch)) {
-        const wm = line.slice(pos).match(/^[a-zA-Z]+/);
-        if (wm[0].length <= 3) { pos += wm[0].length; continue; }
-        break;
-      }
-      // Sentence punctuation or anything else → stop.
-      break;
-    }
-    while (pos > s.end && /\s/.test(line[pos - 1])) pos--;
-    s.end = pos;
-  }
-
-  // 6) Apply right-to-left so earlier indices stay valid.
-  fixSpans.sort((a, b) => b.start - a.start);
-  let result = line;
-  for (const s of fixSpans) {
-    const inner = result.slice(s.start, s.end);
-    const body = inner
-      .replace(/\${1,2}/g, '')      // strip nested math markers
-      .replace(/\s+/g, ' ')         // collapse whitespace
-      .trim();
+  // 4) Wrap each span in `$...$`, right-to-left so earlier indices stay valid.
+  spans.sort((a, b) => b.start - a.start);
+  let result = working;
+  for (const s of spans) {
+    const body = result.slice(s.start, s.end).replace(/\s+/g, ' ').trim();
     if (!body) continue;
     result = result.slice(0, s.start) + '$' + body + '$' + result.slice(s.end);
   }
-  return result;
+
+  // 5) Restore block math.
+  return result.replace(
+    / BM(\d+) /g,
+    (_m, idx) => `$$${blockChunks[idx]}$$`,
+  );
 }
 
 function unifyBrokenMath(s) {

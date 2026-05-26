@@ -4,16 +4,17 @@ import styles from './MessageBlock.module.css';
 
 // Human-readable labels for the bracket block types the backend emits.
 const TYPE_META = {
-  understanding: { label: 'Problem understanding', accent: 'blue' },
-  key_concept:   { label: 'Key concept',           accent: 'teal' },
-  step:          { label: 'Step',                  accent: 'teal' },
-  intuition:     { label: 'Intuition',             accent: 'purple' },
-  warning:       { label: 'Common mistake',        accent: 'red' },
-  diagram:       { label: 'Diagram',               accent: 'gold' },
-  final_answer:  { label: 'Final answer',          accent: 'green' },
-  alternative:   { label: 'Alternative approach',  accent: 'purple' },
-  summary:       { label: 'Revision summary',      accent: 'blue' },
-  insight:       { label: 'Insight',               accent: 'gold' },
+  understanding:    { label: 'Problem understanding', accent: 'blue' },
+  key_concept:      { label: 'Key concept',           accent: 'teal' },
+  step:             { label: 'Step',                  accent: 'teal' },
+  intuition:        { label: 'Intuition',             accent: 'purple' },
+  warning:          { label: 'Common mistake',        accent: 'red' },
+  diagram:          { label: 'Diagram',               accent: 'gold' },
+  diagram_pending:  { label: 'Diagram',               accent: 'gold' },
+  final_answer:     { label: 'Final answer',          accent: 'green' },
+  alternative:      { label: 'Alternative approach',  accent: 'purple' },
+  summary:          { label: 'Revision summary',      accent: 'blue' },
+  insight:          { label: 'Insight',               accent: 'gold' },
 };
 
 // ---------------------------------------------------------------------------
@@ -100,6 +101,12 @@ const MessageBlock = ({ block, index }) => {
   const meta = TYPE_META[block.type] || { label: block.type, accent: 'teal' };
   const isStep = block.type === 'step';
   const isDiagram = block.type === 'diagram';
+  const isDiagramPending = block.type === 'diagram_pending';
+  // Pull the diagram description from the placeholder so we can show
+  // the student what's being drawn while the agents work.
+  const pendingDescription = isDiagramPending
+    ? (block.extra?.description || block.content || '').trim()
+    : '';
 
   const sanitizedSvg = useMemo(
     () => (isDiagram ? sanitizeSvg(extractSvg(block.content) || '') : null),
@@ -120,7 +127,23 @@ const MessageBlock = ({ block, index }) => {
         ) : null}
       </header>
 
-      {isDiagram ? (
+      {isDiagramPending ? (
+        // Placeholder shown while the diagram agents (draft + polish)
+        // run in parallel with the rest of the solve stream. Swapped
+        // out by the parent when a `diagram_ready` SSE event arrives —
+        // at that point this block's `type` flips to `diagram`.
+        <div className={styles.diagramPending}>
+          <span className={styles.diagramSpinner} aria-hidden="true" />
+          <div className={styles.diagramPendingText}>
+            <p className={styles.diagramPendingTitle}>Generating diagram…</p>
+            {pendingDescription ? (
+              <p className={styles.diagramPendingDescription}>
+                {pendingDescription}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      ) : isDiagram ? (
         sanitizedSvg ? (
           <div
             className={styles.diagramSvg}

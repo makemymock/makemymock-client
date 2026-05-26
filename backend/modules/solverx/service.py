@@ -1,21 +1,29 @@
 """SolverX orchestrator.
 
-Two LLM calls per question (plan → solve-streamed), interleaved with
-status messages and a personalised-insight pass that reads the
-student's existing mock-test analytics. The whole flow is exposed as a
-single async-generator that the controller wraps in a Server-Sent
-Events response.
+Routing matrix:
+
+    mode    complexity   →   pipeline
+    ─────────────────────────────────────────────────────
+    solve   guided       →   _simple_pipeline (Flash, no diagrams)
+    solve   deep         →   _deep_pipeline   (Plan → Solve → Diagrams)
+    theory  easy         →   _simple_pipeline (Flash, no diagrams)
+    theory  deep         →   _deep_pipeline   (Plan → Solve → Diagrams)
+
+Deep mode interleaves diagrams: the solver emits placeholder blocks
+inline, the service yields them to the client immediately as
+`diagram_pending` blocks, and kicks off the diagram agents in parallel.
+When each diagram finishes, a `diagram_ready` SSE event is sent with
+the final SVG so the frontend can swap the placeholder.
 
 Wire-protocol emitted to the client:
 
-    event: status      data: {"phase": "...", "message": "..."}
-    event: topic       data: {"subject": "...", "chapter": "...", ...}
-    event: block       data: {"type": "...", "title": "...", "content": "..."}
-    event: insights    data: {"items": [{"headline": "...", "detail": "..."}]}
-    event: done        data: {"conversation_id": "...", "message_id": "..."}
-    event: error       data: {"message": "..."}
-
-The frontend `solverxService.streamSolve` listens for these events.
+    event: status          data: {"phase": "...", "message": "..."}
+    event: topic           data: {"subject": "...", "chapter": "...", ...}
+    event: insights        data: {"items": [{"headline": "...", "detail": "..."}]}
+    event: block           data: {"type": "...", "title": "...", "content": "..."}
+    event: diagram_ready   data: {"n": 1, "content": "<svg>...</svg>"}
+    event: done            data: {"conversation_id": "...", "message_id": "..."}
+    event: error           data: {"message": "..."}
 """
 
 from __future__ import annotations
@@ -29,56 +37,75 @@ from typing import Any, AsyncIterator, Optional
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from config.settings import settings
 from modules.solverx.constants import (
     MODE_SOLVE,
     MODE_THEORY,
-    STATUS_MESSAGES,
+    SIMPLE_COMPLEXITIES,
+    SOLVE_STATUS_MESSAGES,
     THEORY_STATUS_MESSAGES,
 )
 from modules.solverx.llm import LLMError, chat_json, chat_stream
 from modules.solverx.model import new_conversation_doc, new_message_doc
 from modules.solverx.prompts import (
     BLOCK_CLOSE,
-    BLOCK_OPEN,
     DIAGRAM_DRAFT_SYSTEM_PROMPT,
     DIAGRAM_POLISH_SYSTEM_PROMPT,
     PLAN_SYSTEM_PROMPT,
+    SIMPLE_SOLVE_SYSTEM_PROMPT,
+    SIMPLE_THEORY_SYSTEM_PROMPT,
     THEORY_PLAN_SYSTEM_PROMPT,
+    deep_solve_system_prompt,
+    deep_solve_user_message,
+    deep_theory_system_prompt,
+    deep_theory_user_message,
     diagram_draft_user_message,
     diagram_polish_user_message,
     plan_user_message,
-    solve_system_prompt,
-    solve_user_message,
-    theory_system_prompt,
-    theory_user_message,
+    simple_solve_user_message,
+    simple_theory_user_message,
 )
 from modules.solverx.repository import SolverXRepository
 
 logger = logging.getLogger(__name__)
 
 
-# Matches `[[BLOCK type=foo title="Bar"]]`. Title is optional.
+# ---------------------------------------------------------------------------
+# Stream parsing — looks for [[BLOCK type=... title="..." ...]] ... [[END]]
+# and also captures the new diagram_pending attributes (n, description).
+# ---------------------------------------------------------------------------
+
 _BLOCK_HEADER_RE = re.compile(
-    r"\[\[BLOCK\s+type=([A-Za-z_]+)(?:\s+title=\"([^\"]*)\")?\s*\]\]"
+    r"\[\[BLOCK\s+type=(?P<type>[A-Za-z_]+)"
+    r"(?P<attrs>(?:\s+\w+=\"[^\"]*\")*)\s*\]\]"
+)
+_ATTR_RE = re.compile(r"(\w+)=\"([^\"]*)\"")
+
+# Some models still nest a diagram_pending placeholder inside another
+# block's body. When we extract a parent block, scan its content for
+# this pattern and pull each occurrence out into its own block so the
+# user actually sees the diagram instead of raw `[[BLOCK …]]` text.
+# Matches the placeholder header plus an OPTIONAL trailing `[[END]]`
+# (the model is inconsistent about emitting it for an empty body).
+_NESTED_DIAGRAM_RE = re.compile(
+    r"\[\[BLOCK\s+type=diagram_pending"
+    r"(?P<attrs>(?:\s+\w+=\"[^\"]*\")*)\s*\]\]"
+    r"\s*(?:\[\[END\]\]\s*)?",
+    re.DOTALL,
 )
 
 
-# --------------------------------------------------------------------------
-# JSON-extraction tolerance
-# --------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Plan JSON tolerance — Gemini occasionally wraps JSON in ```json fences
+# despite being told not to. Cheaper to strip than retry.
+# ---------------------------------------------------------------------------
+
 
 def _parse_plan_json(raw: str) -> dict[str, Any]:
-    """Strip code fences and pull the first JSON object out of the text.
-
-    Gemma occasionally wraps the JSON in ```json ... ``` fences despite
-    being told not to. Cheaper to tolerate than to retry.
-    """
-    raw = raw.strip()
-    # Strip surrounding ```json ... ``` if present.
+    raw = (raw or "").strip()
     if raw.startswith("```"):
         raw = re.sub(r"^```(?:json)?\s*", "", raw)
         raw = re.sub(r"\s*```$", "", raw)
-    # Find the outermost {...} block.
     start = raw.find("{")
     end = raw.rfind("}")
     if start == -1 or end == -1 or end <= start:
@@ -89,31 +116,30 @@ def _parse_plan_json(raw: str) -> dict[str, Any]:
         return {}
 
 
-# --------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
 # SSE helpers
-# --------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+
 
 def _sse(event: str, payload: dict[str, Any]) -> str:
     return f"event: {event}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
-# --------------------------------------------------------------------------
-# Insight pass — reads existing mock-test analytics, never calls the LLM.
-# --------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Insight pass — reads mock-test analytics, never calls the LLM.
+# ---------------------------------------------------------------------------
+
 
 async def _gather_personalisation(
-    db: AsyncIOMotorDatabase, user_oid: ObjectId, topic_info: dict
+    db: AsyncIOMotorDatabase,
+    user_oid: ObjectId,
+    topic_info: dict,
 ) -> tuple[list[dict], str]:
-    """Return (insights_for_client, personalisation_note_for_prompt).
-
-    The note is folded into the SOLVE-stage system prompt so the model
-    can lean weak/strong without us spending a separate LLM call.
-    """
     try:
-        # Local import to keep mock_test's heavy engine out of cold start.
         from modules.mock_test.service import MockTestService
+
         overview = await MockTestService(db).get_overview(user_oid)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         logger.debug("Personalisation lookup skipped: %s", exc)
         return [], ""
 
@@ -122,14 +148,16 @@ async def _gather_personalisation(
 
     accuracy_pct = getattr(overview, "overall_accuracy_pct", None)
     if accuracy_pct is not None and getattr(overview, "total_tests", 0) > 0:
-        items.append({
-            "headline": f"Overall accuracy: {accuracy_pct:.0f}%",
-            "detail": (
-                f"Across {overview.total_tests} mock tests "
-                f"and {overview.total_questions} questions attempted."
-            ),
-            "accuracy_pct": float(accuracy_pct),
-        })
+        items.append(
+            {
+                "headline": f"Overall accuracy: {accuracy_pct:.0f}%",
+                "detail": (
+                    f"Across {overview.total_tests} mock tests and "
+                    f"{overview.total_questions} questions attempted."
+                ),
+                "accuracy_pct": float(accuracy_pct),
+            }
+        )
         note_parts.append(
             f"Student overall accuracy is {accuracy_pct:.0f}% "
             f"over {overview.total_tests} tests."
@@ -137,51 +165,56 @@ async def _gather_personalisation(
 
     weakest = list(getattr(overview, "weakest_topics", []) or [])[:3]
     if weakest:
-        names = ", ".join(getattr(t, "topic_name", "") or "" for t in weakest if t)
+        names = ", ".join(
+            getattr(t, "topic_name", "") or "" for t in weakest if t
+        )
         if names:
-            items.append({
-                "headline": "Focus areas to revisit",
-                "detail": f"Weakest topics recently: {names}.",
-            })
+            items.append(
+                {
+                    "headline": "Focus areas to revisit",
+                    "detail": f"Weakest topics recently: {names}.",
+                }
+            )
             note_parts.append(
                 f"Weakest recent topics: {names}. If your explanation "
                 "touches any of them, lean a little more intuitive."
             )
 
-    # Topic-specific match: did the student already attempt this topic?
     topic_name = (topic_info.get("topic") or "").lower().strip()
     if topic_name:
-        for t in (getattr(overview, "weakest_topics", []) or []):
+        for t in getattr(overview, "weakest_topics", []) or []:
             tn = (getattr(t, "topic_name", "") or "").lower().strip()
             if tn and tn == topic_name:
                 acc = getattr(t, "accuracy_pct", 0.0)
-                items.append({
-                    "headline": "Heads up on this topic",
-                    "detail": (
-                        f"Your accuracy on {t.topic_name} is "
-                        f"{acc:.0f}% — extra care here."
-                    ),
-                    "accuracy_pct": float(acc),
-                })
+                items.append(
+                    {
+                        "headline": "Heads up on this topic",
+                        "detail": (
+                            f"Your accuracy on {t.topic_name} is "
+                            f"{acc:.0f}% — extra care here."
+                        ),
+                        "accuracy_pct": float(acc),
+                    }
+                )
                 note_parts.append(
-                    f"Student has weak accuracy ({acc:.0f}%) on this exact topic "
-                    f"({t.topic_name}). Be especially patient."
+                    f"Student has weak accuracy ({acc:.0f}%) on this exact "
+                    f"topic ({t.topic_name}). Be especially patient."
                 )
                 break
 
     return items, " ".join(note_parts)
 
 
-# --------------------------------------------------------------------------
-# SVG extraction (defensive — the model sometimes adds preamble or a fence)
-# --------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# SVG extraction (defensive — the model sometimes adds a preamble or fence).
+# ---------------------------------------------------------------------------
 
 _FENCE_RE = re.compile(
     r"^\s*```(?:svg|html|xml)?\s*\n([\s\S]*?)\n```\s*$", re.IGNORECASE
 )
 
 
-def _extract_svg(raw: str) -> str | None:
+def _extract_svg(raw: str) -> Optional[str]:
     if not raw:
         return None
     text = raw.strip()
@@ -193,42 +226,34 @@ def _extract_svg(raw: str) -> str | None:
     end = lo.rfind("</svg>")
     if start == -1 or end == -1 or end < start:
         return None
-    return text[start:end + 6]
+    return text[start : end + 6]
 
 
 async def _generate_diagram(
     *,
-    question_text: str,
+    description: str,
     topic_info: dict,
-    image_data_url: Optional[str],
-    user_content_fn,
-) -> str | None:
+) -> Optional[str]:
     """Two-stage diagram pipeline: draft → polish.
 
-    The draft agent produces a first-pass SVG with the strict style
-    rules + worked example baked into its system prompt. The polish
-    agent reviews that draft against the question and ships a corrected
-    version. Both calls are non-streaming and short (~600 tokens).
-
-    `user_content_fn` is `_user_content` from the service; we pass the
-    multimodal content shape so the agent benefits from any uploaded
-    image (e.g. a screenshot of the original textbook figure).
+    Both stages run on `GEMINI_MODEL_DIAGRAM` (Flash by default). SVG
+    generation is more about following a layout recipe than deep
+    reasoning, so Flash handles it well at a fraction of Pro's cost
+    and latency — keeps Deep solves snappy when a figure is needed.
     """
-    # ---- Draft ----
+    diagram_model = settings.GEMINI_MODEL_DIAGRAM
     try:
         draft_raw = await chat_json(
             [
                 {"role": "system", "content": DIAGRAM_DRAFT_SYSTEM_PROMPT},
                 {
                     "role": "user",
-                    "content": user_content_fn(
-                        diagram_draft_user_message(question_text, topic_info),
-                        image_data_url,
-                    ),
+                    "content": diagram_draft_user_message(description, topic_info),
                 },
             ],
+            model=diagram_model,
             temperature=0.4,
-            max_tokens=1200,
+            max_tokens=1500,
         )
     except LLMError as exc:
         logger.warning("Diagram draft failed: %s", exc)
@@ -238,50 +263,115 @@ async def _generate_diagram(
     if not draft_svg:
         return None
 
-    # ---- Polish ----
     try:
         polish_raw = await chat_json(
             [
                 {"role": "system", "content": DIAGRAM_POLISH_SYSTEM_PROMPT},
                 {
                     "role": "user",
-                    "content": user_content_fn(
-                        diagram_polish_user_message(question_text, draft_svg),
-                        image_data_url,
-                    ),
+                    "content": diagram_polish_user_message(description, draft_svg),
                 },
             ],
+            model=diagram_model,
             temperature=0.2,
-            max_tokens=1400,
+            max_tokens=1600,
         )
     except LLMError as exc:
-        # If polish fails, the draft is still useful — ship that.
-        logger.warning("Diagram polish failed, falling back to draft: %s", exc)
+        logger.warning("Diagram polish failed, returning draft: %s", exc)
         return draft_svg
 
-    polished_svg = _extract_svg(polish_raw)
-    # If polish produced something obviously broken, fall back to the
-    # draft rather than a regression.
-    return polished_svg or draft_svg
+    polished = _extract_svg(polish_raw)
+    return polished or draft_svg
 
 
-# --------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
 # Streaming block parser
-# --------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+
+
+def _build_block_from_match(
+    block_type: str,
+    header_attrs: str,
+    content: str,
+) -> dict[str, Any]:
+    """Convert a regex match's pieces into the canonical block dict."""
+    attrs: dict[str, str] = {}
+    for k, v in _ATTR_RE.findall(header_attrs or ""):
+        attrs[k] = v
+    block: dict[str, Any] = {
+        "type": block_type,
+        "title": attrs.pop("title", ""),
+        "content": content,
+    }
+    if attrs:
+        block["extra"] = attrs
+    return block
+
+
+def _split_out_nested_diagrams(
+    parent_type: str,
+    parent_attrs: str,
+    content: str,
+) -> list[dict[str, Any]]:
+    """If `content` contains nested `[[BLOCK type=diagram_pending …]]`
+    placeholders, split the parent block into alternating
+    (parent-text, diagram, parent-text, …) emissions so the diagram
+    appears at roughly the right spot in the transcript.
+
+    If no nested diagrams are found, returns a single-element list with
+    the parent block as-is.
+    """
+    matches = list(_NESTED_DIAGRAM_RE.finditer(content))
+    if not matches:
+        return [_build_block_from_match(parent_type, parent_attrs, content.strip())]
+
+    out: list[dict[str, Any]] = []
+    parent_title_used = False
+
+    def emit_parent_chunk(text: str) -> None:
+        nonlocal parent_title_used
+        text = text.strip()
+        if not text:
+            return
+        # Only the first parent-chunk carries the original title; the
+        # follow-up chunks (after each diagram) are continuations.
+        chunk_attrs = parent_attrs if not parent_title_used else ""
+        out.append(_build_block_from_match(parent_type, chunk_attrs, text))
+        parent_title_used = True
+
+    cursor = 0
+    for m in matches:
+        emit_parent_chunk(content[cursor : m.start()])
+        out.append(
+            _build_block_from_match(
+                "diagram_pending",
+                m.group("attrs") or "",
+                "",
+            )
+        )
+        cursor = m.end()
+    emit_parent_chunk(content[cursor:])
+
+    return out
+
 
 async def _stream_blocks_from_llm(
     stream: AsyncIterator[str],
-) -> AsyncIterator[dict[str, str]]:
+) -> AsyncIterator[dict[str, Any]]:
     """Consume a streaming LLM response and yield a dict per completed
-    block. Buffer everything between [[BLOCK …]] and [[END]]."""
+    block. Captures arbitrary `key="value"` attrs so `diagram_pending`
+    can carry `n` and `description`.
+
+    Defensive against the model nesting a `diagram_pending` placeholder
+    inside a parent block: `_split_out_nested_diagrams` pulls those out
+    and yields them as standalone blocks at the right position.
+    """
     buf = ""
-    open_match: re.Match | None = None
-    block_start_idx: int = -1
+    open_match: Optional[re.Match] = None
+    block_start_idx = -1
 
     async for delta in stream:
         buf += delta
-        # Look for new opens / closes in a loop in case multiple blocks
-        # arrive in the same chunk.
         while True:
             if open_match is None:
                 m = _BLOCK_HEADER_RE.search(buf)
@@ -293,25 +383,41 @@ async def _stream_blocks_from_llm(
             if close_pos == -1:
                 break
             content = buf[block_start_idx:close_pos].strip("\n").strip()
-            yield {
-                "type": open_match.group(1),
-                "title": open_match.group(2) or "",
-                "content": content,
-            }
-            # Reset for the next block.
-            buf = buf[close_pos + len(BLOCK_CLOSE):]
+
+            for blk in _split_out_nested_diagrams(
+                open_match.group("type"),
+                open_match.group("attrs") or "",
+                content,
+            ):
+                # Don't ship empty fragments (e.g. parent had nothing
+                # but a nested diagram and a trailing newline).
+                if not blk.get("content") and blk["type"] != "diagram_pending":
+                    continue
+                yield blk
+
+            buf = buf[close_pos + len(BLOCK_CLOSE) :]
             open_match = None
             block_start_idx = -1
 
 
-# --------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
 # Service
-# --------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+
 
 class SolverXService:
+    # Cap how much prior chat we replay. Six messages = three turns;
+    # diagrams are stripped (token-heavy, useless to the LLM).
+    _HISTORY_MAX_MESSAGES = 6
+    _HISTORY_TEXT_BUDGET = 2400
+
     def __init__(self, db: AsyncIOMotorDatabase):
         self.db = db
         self.repo = SolverXRepository(db)
+
+    # ------------------------------------------------------------------
+    # Conversation lifecycle helpers
+    # ------------------------------------------------------------------
 
     async def _ensure_conversation(
         self,
@@ -331,26 +437,11 @@ class SolverXService:
         )
         return oid, True
 
-    # Cap how much prior chat we replay to the LLM. Six messages = three
-    # turns; enough for "now solve part b" follow-ups without ballooning
-    # context. Diagram blocks (SVG markup) are stripped because their
-    # token weight is enormous and they add nothing for the LLM.
-    _HISTORY_MAX_MESSAGES = 6
-    _HISTORY_TEXT_BUDGET = 2400  # chars per message after which we truncate
-
     async def _build_history(self, conv_oid: ObjectId) -> list[dict]:
-        """Replay prior turns as chat-completion messages.
-
-        We pull the stored transcript, drop the SVG content of diagram
-        blocks (kept for the UI, not for the LLM), and truncate any
-        single message that grew too long. The first item returned is
-        the oldest kept message; the caller appends the new user turn
-        after the list.
-        """
         docs = await self.repo.list_messages_for_conversation(conv_oid)
         if not docs:
             return []
-        recent = docs[-self._HISTORY_MAX_MESSAGES:]
+        recent = docs[-self._HISTORY_MAX_MESSAGES :]
         out: list[dict] = []
         for d in recent:
             role = d.get("role")
@@ -358,9 +449,13 @@ class SolverXService:
                 continue
             if role == "assistant":
                 blocks = d.get("blocks") or []
-                non_diagram = [b for b in blocks if b.get("type") != "diagram"]
+                non_diagram = [
+                    b for b in blocks
+                    if b.get("type") not in ("diagram", "diagram_pending")
+                ]
                 text = "\n\n".join(
-                    (b.get("title") + ": " if b.get("title") else "") + (b.get("content") or "")
+                    (b.get("title") + ": " if b.get("title") else "")
+                    + (b.get("content") or "")
                     for b in non_diagram
                 ).strip()
                 if not text:
@@ -375,7 +470,20 @@ class SolverXService:
         return out
 
     # ------------------------------------------------------------------
-    # Public: streaming solve + theory pipelines
+    # Multimodal content builder (text + optional image)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _user_content(text: str, image_data_url: Optional[str]) -> Any:
+        if not image_data_url:
+            return text
+        return [
+            {"type": "text", "text": text},
+            {"type": "image_url", "image_url": {"url": image_data_url}},
+        ]
+
+    # ------------------------------------------------------------------
+    # Public entrypoints
     # ------------------------------------------------------------------
 
     async def stream_solve(
@@ -387,7 +495,7 @@ class SolverXService:
         conversation_id: Optional[str],
         image_data_url: Optional[str] = None,
     ) -> AsyncIterator[str]:
-        async for evt in self._run_pipeline(
+        async for evt in self._dispatch(
             user_oid=user_oid,
             question_text=question_text,
             complexity_mode=complexity_mode,
@@ -406,7 +514,7 @@ class SolverXService:
         conversation_id: Optional[str],
         image_data_url: Optional[str] = None,
     ) -> AsyncIterator[str]:
-        async for evt in self._run_pipeline(
+        async for evt in self._dispatch(
             user_oid=user_oid,
             question_text=question_text,
             complexity_mode=complexity_mode,
@@ -417,26 +525,11 @@ class SolverXService:
             yield evt
 
     # ------------------------------------------------------------------
-    # Pipeline (shared between solve + theory; prompts differ)
+    # Dispatcher — routes by (mode, complexity) → simple vs deep path.
+    # Conversation + user-message persistence is shared.
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def _user_content(text: str, image_data_url: Optional[str]) -> Any:
-        """Build the OpenAI-compatible `content` field.
-
-        Plain string when there's no image (cheaper to encode, matches the
-        majority case). When an image is attached we switch to the list-of-
-        parts form — Llama 4 Scout via Groq accepts the same `image_url`
-        shape OpenAI's vision endpoints use.
-        """
-        if not image_data_url:
-            return text
-        return [
-            {"type": "text", "text": text},
-            {"type": "image_url", "image_url": {"url": image_data_url}},
-        ]
-
-    async def _run_pipeline(
+    async def _dispatch(
         self,
         *,
         user_oid: ObjectId,
@@ -444,15 +537,14 @@ class SolverXService:
         complexity_mode: str,
         conversation_id: Optional[str],
         mode: str,
-        image_data_url: Optional[str] = None,
+        image_data_url: Optional[str],
     ) -> AsyncIterator[str]:
         is_theory = mode == MODE_THEORY
-        status_script = THEORY_STATUS_MESSAGES if is_theory else STATUS_MESSAGES
+        is_simple = complexity_mode in SIMPLE_COMPLEXITIES
+        status_script = THEORY_STATUS_MESSAGES if is_theory else SOLVE_STATUS_MESSAGES
 
-        # Persist conversation + user message up front so the UI's
-        # history list updates even if the LLM call fails mid-flight.
-        # History from prior turns is fetched BEFORE the new user
-        # message is inserted, so it doesn't echo itself back.
+        # Persist conversation + user message up front so the history list
+        # updates even if generation fails mid-flight.
         try:
             conv_oid, created = await self._ensure_conversation(
                 conversation_id=conversation_id,
@@ -479,204 +571,413 @@ class SolverXService:
                 "conversation",
                 {"conversation_id": str(conv_oid), "created": created},
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.exception("Failed to persist conversation: %s", exc)
             yield _sse("error", {"message": "Could not start conversation."})
             return
 
         try:
-            # ---- PLAN ----
-            yield _sse("status", {"phase": "plan", "message": status_script["plan_start"]})
-            plan_system = THEORY_PLAN_SYSTEM_PROMPT if is_theory else PLAN_SYSTEM_PROMPT
-            try:
-                plan_raw = await chat_json(
-                    [
-                        {"role": "system", "content": plan_system},
-                        *history_messages,
-                        {
-                            "role": "user",
-                            "content": self._user_content(
-                                plan_user_message(question_text),
-                                image_data_url,
-                            ),
-                        },
-                    ],
-                    temperature=0.2,
-                    max_tokens=600,
-                )
-            except LLMError as exc:
-                logger.warning("Plan stage failed: %s", exc)
-                plan_raw = ""
-
-            plan = _parse_plan_json(plan_raw)
-            topic_payload = {
-                "subject": plan.get("subject"),
-                "chapter": plan.get("chapter"),
-                "topic": plan.get("topic"),
-                "subtopic": plan.get("subtopic"),
-                "difficulty": plan.get("difficulty"),
-                "visual_needed": bool(plan.get("visual_needed", False)),
-            }
-            yield _sse("topic", topic_payload)
-            yield _sse("status", {"phase": "plan_done", "message": status_script["plan_done"]})
-
-            # ---- DIAGRAM (background, parallel with solve) ----
-            # Kick off the Visual Reasoning + Refactor pipeline now so it
-            # runs alongside the solve stream — by the time the steps
-            # finish streaming, the diagram is usually ready.
-            #
-            # Trigger ONLY on the planner's `visual_needed` flag. An
-            # attached image is NOT a trigger — the student can paste a
-            # screenshot just to OCR the problem; they don't always want
-            # us to redraw their own figure. The plan prompt is strict
-            # about when visual_needed should be true.
-            diagram_task: Optional[asyncio.Task] = None
-            if topic_payload["visual_needed"]:
-                diagram_task = asyncio.create_task(
-                    _generate_diagram(
-                        question_text=question_text,
-                        topic_info=topic_payload,
-                        image_data_url=image_data_url,
-                        user_content_fn=self._user_content,
-                    )
-                )
-                yield _sse(
-                    "status",
-                    {"phase": "diagram_draft", "message": status_script["diagram_draft"]},
-                )
-
-            # ---- INSIGHTS (no LLM call) ----
-            yield _sse("status", {"phase": "insight", "message": status_script["insight"]})
-            insights, personalisation_note = await _gather_personalisation(
-                self.db, user_oid, topic_payload,
-            )
-            if insights:
-                yield _sse("insights", {"items": insights})
-
-            # ---- SOLVE (streamed) ----
-            yield _sse("status", {"phase": "solve", "message": status_script["solve_start"]})
-            plan_steps = list(plan.get("plan_steps") or [])
-
-            if is_theory:
-                solve_sys = theory_system_prompt(
-                    plan_steps=plan_steps,
+            if is_simple:
+                async for evt in self._simple_pipeline(
+                    conv_oid=conv_oid,
+                    question_text=question_text,
                     complexity_mode=complexity_mode,
-                    personalisation_note=personalisation_note,
-                )
-                solve_user = theory_user_message(question_text)
+                    is_theory=is_theory,
+                    image_data_url=image_data_url,
+                    history_messages=history_messages,
+                    status_script=status_script,
+                ):
+                    yield evt
             else:
-                solve_sys = solve_system_prompt(
-                    plan_steps=plan_steps,
+                async for evt in self._deep_pipeline(
+                    user_oid=user_oid,
+                    conv_oid=conv_oid,
+                    question_text=question_text,
                     complexity_mode=complexity_mode,
-                    personalisation_note=personalisation_note,
-                )
-                solve_user = solve_user_message(question_text)
-
-            collected_blocks: list[dict[str, str]] = []
-            try:
-                raw_stream = chat_stream(
-                    [
-                        {"role": "system", "content": solve_sys},
-                        *history_messages,
-                        {
-                            "role": "user",
-                            "content": self._user_content(solve_user, image_data_url),
-                        },
-                    ],
-                    # Low temperature so the model actually follows the
-                    # required block template. Higher values let Llama
-                    # 4 Scout drift into "just give the final answer"
-                    # mode and skip the teaching blocks.
-                    temperature=0.35,
-                    # Roomy budget so a deep solution (8-10 step blocks
-                    # + a worked example) can finish without truncation.
-                    max_tokens=6000,
-                )
-                progress_announced = False
-                async for block in _stream_blocks_from_llm(raw_stream):
-                    # The dedicated Visual Reasoning agent owns diagram
-                    # generation now. If the solve model still emits a
-                    # `diagram` block despite being told not to, drop it
-                    # — its quality is markedly lower than the agent's.
-                    if block.get("type") == "diagram":
-                        continue
-                    if not progress_announced and len(collected_blocks) >= 1:
-                        progress_announced = True
-                        yield _sse(
-                            "status",
-                            {
-                                "phase": "solve_progress",
-                                "message": status_script["solve_progress"],
-                            },
-                        )
-                    collected_blocks.append(block)
-                    yield _sse("block", block)
-                    # Tiny breather so the client UI gets to paint between
-                    # bursts that arrive in the same network frame.
-                    await asyncio.sleep(0)
-            except LLMError as exc:
-                logger.warning("Solve stage failed: %s", exc)
-                yield _sse(
-                    "error",
-                    {"message": "The reasoning engine is busy. Please retry in a moment."},
-                )
-                if diagram_task is not None:
-                    diagram_task.cancel()
-                return
-
-            # ---- DIAGRAM (await the background task started after plan) ----
-            if diagram_task is not None:
-                yield _sse(
-                    "status",
-                    {"phase": "diagram_polish", "message": status_script["diagram_polish"]},
-                )
-                try:
-                    svg_markup = await diagram_task
-                except Exception as exc:
-                    logger.warning("Diagram task crashed: %s", exc)
-                    svg_markup = None
-                if svg_markup:
-                    diagram_block = {
-                        "type": "diagram",
-                        "title": "Diagram",
-                        "content": svg_markup,
-                    }
-                    collected_blocks.append(diagram_block)
-                    yield _sse("block", diagram_block)
-
-            # ---- Persist assistant message ----
-            assistant_text = "\n\n".join(b.get("content", "") for b in collected_blocks)
-            msg_oid = await self.repo.create_message(
-                new_message_doc(
-                    conversation_id=conv_oid,
-                    role="assistant",
-                    text=assistant_text,
-                    blocks=collected_blocks,
-                    topic=topic_payload,
-                    insights=insights,
-                    complexity_mode=complexity_mode,
-                )
-            )
-            await self.repo.touch_conversation(
-                conv_oid,
-                last_preview=assistant_text or question_text,
-                increment_messages=1,
-            )
-
-            yield _sse(
-                "done",
-                {
-                    "conversation_id": str(conv_oid),
-                    "message_id": str(msg_oid),
-                    "block_count": len(collected_blocks),
-                },
-            )
-        except Exception as exc:
+                    is_theory=is_theory,
+                    image_data_url=image_data_url,
+                    history_messages=history_messages,
+                    status_script=status_script,
+                ):
+                    yield evt
+        except Exception as exc:  # noqa: BLE001
             logger.exception("SolverX pipeline crashed: %s", exc)
-            yield _sse("error", {"message": "Something went wrong on our side. Please retry."})
+            yield _sse(
+                "error",
+                {"message": "Something went wrong on our side. Please retry."},
+            )
 
     # ------------------------------------------------------------------
-    # Non-streaming list / detail
+    # SIMPLE pipeline — single Flash streaming call. No plan, no diagrams,
+    # no insights pass. Used for Guided Solve and Easy Theory.
+    # ------------------------------------------------------------------
+
+    async def _simple_pipeline(
+        self,
+        *,
+        conv_oid: ObjectId,
+        question_text: str,
+        complexity_mode: str,
+        is_theory: bool,
+        image_data_url: Optional[str],
+        history_messages: list[dict],
+        status_script: dict,
+    ) -> AsyncIterator[str]:
+        sys_prompt = (
+            SIMPLE_THEORY_SYSTEM_PROMPT if is_theory else SIMPLE_SOLVE_SYSTEM_PROMPT
+        )
+        user_msg_fn = (
+            simple_theory_user_message if is_theory else simple_solve_user_message
+        )
+        yield _sse(
+            "status",
+            {"phase": "simple_start", "message": status_script["simple_solve_start"]},
+        )
+
+        collected: list[dict] = []
+        try:
+            raw_stream = chat_stream(
+                [
+                    {"role": "system", "content": sys_prompt},
+                    *history_messages,
+                    {
+                        "role": "user",
+                        "content": self._user_content(
+                            user_msg_fn(question_text), image_data_url
+                        ),
+                    },
+                ],
+                model=settings.GEMINI_MODEL_FLASH,
+                temperature=0.4,
+                max_tokens=3500,
+            )
+            async for block in _stream_blocks_from_llm(raw_stream):
+                # Simple paths must never emit diagrams; if the model
+                # slips one in, drop it.
+                if block.get("type") in ("diagram", "diagram_pending"):
+                    continue
+                collected.append(block)
+                yield _sse("block", block)
+                await asyncio.sleep(0)
+        except LLMError as exc:
+            logger.warning("Simple solve stage failed: %s", exc)
+            yield _sse(
+                "error",
+                {"message": "The reasoning engine is busy. Please retry in a moment."},
+            )
+            return
+
+        assistant_text = "\n\n".join(b.get("content", "") for b in collected)
+        msg_oid = await self.repo.create_message(
+            new_message_doc(
+                conversation_id=conv_oid,
+                role="assistant",
+                text=assistant_text,
+                blocks=collected,
+                topic=None,
+                insights=[],
+                complexity_mode=complexity_mode,
+            )
+        )
+        await self.repo.touch_conversation(
+            conv_oid, last_preview=assistant_text or question_text, increment_messages=1
+        )
+        yield _sse(
+            "done",
+            {
+                "conversation_id": str(conv_oid),
+                "message_id": str(msg_oid),
+                "block_count": len(collected),
+            },
+        )
+
+    # ------------------------------------------------------------------
+    # DEEP pipeline — Plan → Solve (streamed) → Diagrams (parallel, interleaved).
+    # Used for Deep Reasoning and Deep Explanation.
+    # ------------------------------------------------------------------
+
+    async def _deep_pipeline(
+        self,
+        *,
+        user_oid: ObjectId,
+        conv_oid: ObjectId,
+        question_text: str,
+        complexity_mode: str,
+        is_theory: bool,
+        image_data_url: Optional[str],
+        history_messages: list[dict],
+        status_script: dict,
+    ) -> AsyncIterator[str]:
+        # ---- PLAN (Flash-Lite, JSON) ----
+        yield _sse(
+            "status", {"phase": "plan", "message": status_script["plan_start"]}
+        )
+        plan_system = THEORY_PLAN_SYSTEM_PROMPT if is_theory else PLAN_SYSTEM_PROMPT
+        try:
+            plan_raw = await chat_json(
+                [
+                    {"role": "system", "content": plan_system},
+                    *history_messages,
+                    {
+                        "role": "user",
+                        "content": self._user_content(
+                            plan_user_message(question_text), image_data_url
+                        ),
+                    },
+                ],
+                model=settings.GEMINI_MODEL_FLASH_LITE,
+                temperature=0.2,
+                max_tokens=800,
+                response_mime="application/json",
+            )
+        except LLMError as exc:
+            logger.warning("Plan stage failed: %s", exc)
+            plan_raw = ""
+
+        plan = _parse_plan_json(plan_raw)
+        topic_payload = {
+            "subject": plan.get("subject"),
+            "chapter": plan.get("chapter"),
+            "topic": plan.get("topic"),
+            "subtopic": plan.get("subtopic"),
+            "difficulty": plan.get("difficulty"),
+            "visual_needed": any(
+                s.get("needs_diagram")
+                for s in plan.get("plan_steps", [])
+                if isinstance(s, dict)
+            ),
+        }
+        yield _sse("topic", topic_payload)
+        yield _sse(
+            "status", {"phase": "plan_done", "message": status_script["plan_done"]}
+        )
+
+        # ---- INSIGHTS (no LLM) ----
+        yield _sse(
+            "status", {"phase": "insight", "message": status_script["insight"]}
+        )
+        insights, personalisation_note = await _gather_personalisation(
+            self.db, user_oid, topic_payload
+        )
+        if insights:
+            yield _sse("insights", {"items": insights})
+
+        # ---- SOLVE (Pro, streamed) ----
+        yield _sse(
+            "status", {"phase": "solve", "message": status_script["solve_start"]}
+        )
+        plan_steps = list(plan.get("plan_steps") or [])
+        if is_theory:
+            solve_sys = deep_theory_system_prompt(
+                plan_steps=plan_steps,
+                personalisation_note=personalisation_note,
+            )
+            solve_user = deep_theory_user_message(question_text)
+        else:
+            solve_sys = deep_solve_system_prompt(
+                plan_steps=plan_steps,
+                personalisation_note=personalisation_note,
+            )
+            solve_user = deep_solve_user_message(question_text)
+
+        # In-flight diagram tasks, keyed by `n`. Started as the solver
+        # emits placeholders; awaited and emitted as `diagram_ready`
+        # events when ready.
+        diagram_tasks: dict[int, asyncio.Task] = {}
+        # Buffer of completed diagrams keyed by `n` — flushed into the
+        # transcript at `done` time so persisted history contains the
+        # final SVGs (not just the placeholders).
+        completed_diagrams: dict[int, str] = {}
+
+        collected_blocks: list[dict] = []
+        progress_announced = False
+        try:
+            raw_stream = chat_stream(
+                [
+                    {"role": "system", "content": solve_sys},
+                    *history_messages,
+                    {
+                        "role": "user",
+                        "content": self._user_content(solve_user, image_data_url),
+                    },
+                ],
+                model=settings.GEMINI_MODEL_PRO,
+                temperature=0.5,
+                # Generous ceiling. Gemini 2.5 Pro is a thinking model:
+                # a chunk of this budget is spent on internal reasoning
+                # tokens that never reach the user, so the visible
+                # output is smaller than the limit suggests. With 16k
+                # we comfortably fit 5–10 step blocks + diagrams even
+                # when half the budget evaporates into thoughts.
+                max_tokens=16000,
+            )
+            async for block in _stream_blocks_from_llm(raw_stream):
+                btype = block.get("type")
+
+                # Diagram placeholder → fire-and-forget background task,
+                # yield the placeholder to the client immediately.
+                if btype == "diagram_pending":
+                    extra = block.get("extra") or {}
+                    try:
+                        n = int(extra.get("n", "0"))
+                    except (TypeError, ValueError):
+                        n = len(diagram_tasks) + 1
+                    description = extra.get("description", "").strip()
+                    if not description or n in diagram_tasks:
+                        # Bad placeholder — skip silently rather than ship
+                        # a useless loading slot.
+                        continue
+                    block["extra"] = {"n": n, "description": description}
+                    collected_blocks.append(block)
+                    yield _sse("block", block)
+                    diagram_tasks[n] = asyncio.create_task(
+                        _generate_diagram(
+                            description=description,
+                            topic_info=topic_payload,
+                        )
+                    )
+                    continue
+
+                # Drop a bare `diagram` block — only `diagram_pending` is
+                # honoured in the new protocol.
+                if btype == "diagram":
+                    continue
+
+                if not progress_announced and len(collected_blocks) >= 2:
+                    progress_announced = True
+                    yield _sse(
+                        "status",
+                        {
+                            "phase": "solve_progress",
+                            "message": status_script["solve_progress"],
+                        },
+                    )
+
+                collected_blocks.append(block)
+                yield _sse("block", block)
+                await asyncio.sleep(0)
+        except LLMError as exc:
+            logger.warning("Deep solve stage failed: %s", exc)
+            yield _sse(
+                "error",
+                {"message": "The reasoning engine is busy. Please retry in a moment."},
+            )
+            for t in diagram_tasks.values():
+                t.cancel()
+            return
+
+        # ---- Drain diagram tasks. As each completes, emit a
+        #      `diagram_ready` event so the frontend can swap the
+        #      pending placeholder for the real SVG.
+        #
+        # Each task is wrapped in `asyncio.wait_for(..., timeout=90)` —
+        # if the LLM hangs (slow region, quota throttling, network
+        # blip) we don't want the frontend to spin forever. On timeout
+        # OR error, we still emit a `diagram_ready` event with
+        # `content: null` so the frontend can clear the placeholder.
+        if diagram_tasks:
+            yield _sse(
+                "status",
+                {
+                    "phase": "diagram_polish",
+                    "message": status_script["diagram_polish"],
+                },
+            )
+
+            DIAGRAM_TIMEOUT_SECONDS = 90.0
+
+            async def _await_with_timeout(n: int, task: asyncio.Task):
+                try:
+                    svg = await asyncio.wait_for(
+                        asyncio.shield(task),
+                        timeout=DIAGRAM_TIMEOUT_SECONDS,
+                    )
+                    return n, svg
+                except asyncio.TimeoutError:
+                    logger.warning("Diagram n=%s timed out", n)
+                    task.cancel()
+                    return n, None
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("Diagram n=%s failed: %s", n, exc)
+                    return n, None
+
+            wrappers = [
+                asyncio.create_task(_await_with_timeout(n, t))
+                for n, t in diagram_tasks.items()
+            ]
+            remaining = list(wrappers)
+            while remaining:
+                done, _pend = await asyncio.wait(
+                    remaining, return_when=asyncio.FIRST_COMPLETED
+                )
+                for w in done:
+                    remaining.remove(w)
+                    try:
+                        n_done, svg = w.result()
+                    except Exception as exc:  # noqa: BLE001
+                        logger.warning("Diagram wrapper crashed: %s", exc)
+                        continue
+                    if svg:
+                        completed_diagrams[n_done] = svg
+                        yield _sse(
+                            "diagram_ready", {"n": n_done, "content": svg}
+                        )
+                    else:
+                        # Failed or timed out — tell the frontend so it
+                        # clears the spinner instead of hanging.
+                        yield _sse(
+                            "diagram_ready", {"n": n_done, "content": None}
+                        )
+
+        # ---- Persist assistant message ----
+        # Replace any diagram_pending entries in the saved transcript
+        # with the finalised `diagram` blocks so reopened conversations
+        # render the figures immediately (no need to re-run the agent).
+        final_blocks: list[dict] = []
+        for b in collected_blocks:
+            if b.get("type") == "diagram_pending":
+                n = (b.get("extra") or {}).get("n")
+                svg = completed_diagrams.get(n) if n is not None else None
+                if svg:
+                    final_blocks.append(
+                        {
+                            "type": "diagram",
+                            "title": b.get("title") or "Diagram",
+                            "content": svg,
+                            "extra": {"n": n} if n is not None else {},
+                        }
+                    )
+                # Drop the placeholder if no SVG materialised — better
+                # to show nothing than a permanent loading state.
+                continue
+            final_blocks.append(b)
+
+        assistant_text = "\n\n".join(b.get("content", "") for b in final_blocks)
+        msg_oid = await self.repo.create_message(
+            new_message_doc(
+                conversation_id=conv_oid,
+                role="assistant",
+                text=assistant_text,
+                blocks=final_blocks,
+                topic=topic_payload,
+                insights=insights,
+                complexity_mode=complexity_mode,
+            )
+        )
+        await self.repo.touch_conversation(
+            conv_oid, last_preview=assistant_text or question_text, increment_messages=1
+        )
+        yield _sse(
+            "done",
+            {
+                "conversation_id": str(conv_oid),
+                "message_id": str(msg_oid),
+                "block_count": len(final_blocks),
+            },
+        )
+
+    # ------------------------------------------------------------------
+    # Non-streaming list / detail / delete
     # ------------------------------------------------------------------
 
     async def list_conversations(self, user_oid: ObjectId) -> dict:
@@ -696,7 +997,7 @@ class SolverXService:
         return {"items": items}
 
     async def get_conversation_detail(
-        self, conv_id: str, user_oid: ObjectId,
+        self, conv_id: str, user_oid: ObjectId
     ) -> Optional[dict]:
         conv = await self.repo.get_conversation(conv_id, user_oid)
         if conv is None:

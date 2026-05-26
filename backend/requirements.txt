@@ -13,3 +13,4 @@ aiosmtplib==3.0.2
 httpx==0.27.2
 jinja2==3.1.4
 python-multipart
+google-genai>=1.0.0
