@@ -137,6 +137,43 @@
   font-family: var(--font-secondary);
 }
 
+/* -----------------------------------------------------------------------
+ * TikZ figures rendered inside an isolated iframe.
+ *
+ * TikZJax v1 only scans for `<script type="text/tikz">` tags on its own
+ * DOMContentLoaded. It has no MutationObserver and no public process
+ * API — dynamic injection into the main document never triggers a
+ * render. So each figure lives in its own `<iframe srcdoc>`; TikZJax
+ * loads fresh inside the iframe and processes the script tag on the
+ * iframe's own DOMContentLoaded.
+ *
+ * The iframe auto-resizes its height to its content via the onLoad
+ * callback in TikzFigure (reading body.scrollHeight). We set a small
+ * default height while loading so the placeholder doesn't collapse.
+ *
+ * Dark-mode adaptation: the iframe content is rendered with black ink
+ * on a transparent background. A CSS `invert` filter on the iframe in
+ * dark mode flips it to near-white. The hue-rotate compensates so
+ * subtle grey fills don't get colour-shifted.
+ * ----------------------------------------------------------------- */
+
+.tikzFrame {
+  display: block;
+  width: 100%;
+  /* Default height while TikZJax compiles. After onLoad, TikzFigure
+     measures the rendered SVG and resizes the iframe to match — so
+     this is just the placeholder size during the WASM warm-up. */
+  height: 420px;
+  min-height: 120px;
+  border: 0;
+  background: transparent;
+  /* No max-height — let the figure be as tall as it needs to be. */
+}
+
+:root:not([data-theme='light']) .tikzFrame {
+  filter: invert(1) hue-rotate(180deg);
+}
+
 /* Pending diagram — placeholder rendered while the Visual Reasoning
    agents finish drafting + polishing the SVG. Lives in the exact
    position the final figure will occupy, so the transcript layout

@@ -206,27 +206,35 @@ async def _gather_personalisation(
 
 
 # ---------------------------------------------------------------------------
-# SVG extraction (defensive — the model sometimes adds a preamble or fence).
+# TikZ extraction (defensive — the model sometimes adds a preamble or fence).
+# We accept any single `\begin{tikzpicture}...\end{tikzpicture}` block and
+# silently strip surrounding chatter / code fences.
 # ---------------------------------------------------------------------------
 
 _FENCE_RE = re.compile(
-    r"^\s*```(?:svg|html|xml)?\s*\n([\s\S]*?)\n```\s*$", re.IGNORECASE
+    r"^\s*```(?:latex|tex|tikz)?\s*\n([\s\S]*?)\n```\s*$", re.IGNORECASE
+)
+_TIKZ_BLOCK_RE = re.compile(
+    r"\\begin\{tikzpicture\}[\s\S]*?\\end\{tikzpicture\}"
 )
 
 
-def _extract_svg(raw: str) -> Optional[str]:
+def _extract_tikz(raw: str) -> Optional[str]:
+    """Return the first `\\begin{tikzpicture}...\\end{tikzpicture}` block
+    found in `raw`, or None if no valid block is present. Strips a
+    surrounding ```code fence``` if the model added one despite being
+    told not to.
+    """
     if not raw:
         return None
     text = raw.strip()
     m = _FENCE_RE.match(text)
     if m:
         text = m.group(1).strip()
-    lo = text.lower()
-    start = lo.find("<svg")
-    end = lo.rfind("</svg>")
-    if start == -1 or end == -1 or end < start:
+    match = _TIKZ_BLOCK_RE.search(text)
+    if not match:
         return None
-    return text[start : end + 6]
+    return match.group(0)
 
 
 async def _generate_diagram(
@@ -236,10 +244,9 @@ async def _generate_diagram(
 ) -> Optional[str]:
     """Two-stage diagram pipeline: draft → polish.
 
-    Both stages run on `GEMINI_MODEL_DIAGRAM` (Flash by default). SVG
-    generation is more about following a layout recipe than deep
-    reasoning, so Flash handles it well at a fraction of Pro's cost
-    and latency — keeps Deep solves snappy when a figure is needed.
+    Both stages run on `GEMINI_MODEL_DIAGRAM` (Flash by default).
+    Output is a TikZ environment which TikZJax renders to inline SVG
+    in the browser — keeps the server free of LaTeX dependencies.
     """
     diagram_model = settings.GEMINI_MODEL_DIAGRAM
     try:
@@ -253,15 +260,33 @@ async def _generate_diagram(
             ],
             model=diagram_model,
             temperature=0.4,
-            max_tokens=1500,
+            max_tokens=2000,
+            # Disable thinking — TikZ generation is recipe-following.
+            # Empty responses (len=0) appear when thinking eats the
+            # whole budget; turning it off makes the model emit the
+            # TikZ directly.
+            disable_thinking=True,
         )
     except LLMError as exc:
         logger.warning("Diagram draft failed: %s", exc)
         return None
 
-    draft_svg = _extract_svg(draft_raw)
-    if not draft_svg:
+    # ---- DEBUG: log the raw draft response so we can see what Gemini
+    # actually emitted. Lets us tell extraction-failed from upstream-broken
+    # without guessing. Strip back to a logger.debug() once stable.
+    logger.warning(
+        "Diagram DRAFT raw response (len=%d): %r",
+        len(draft_raw or ""),
+        (draft_raw or "")[:800],
+    )
+
+    draft_tikz = _extract_tikz(draft_raw)
+    if not draft_tikz:
+        logger.warning(
+            "Diagram DRAFT extract failed — no \\begin{tikzpicture} found in response"
+        )
         return None
+    logger.warning("Diagram DRAFT extracted ok (len=%d)", len(draft_tikz))
 
     try:
         polish_raw = await chat_json(
@@ -269,19 +294,30 @@ async def _generate_diagram(
                 {"role": "system", "content": DIAGRAM_POLISH_SYSTEM_PROMPT},
                 {
                     "role": "user",
-                    "content": diagram_polish_user_message(description, draft_svg),
+                    "content": diagram_polish_user_message(description, draft_tikz),
                 },
             ],
             model=diagram_model,
             temperature=0.2,
-            max_tokens=1600,
+            max_tokens=2200,
+            disable_thinking=True,
         )
     except LLMError as exc:
         logger.warning("Diagram polish failed, returning draft: %s", exc)
-        return draft_svg
+        return draft_tikz
 
-    polished = _extract_svg(polish_raw)
-    return polished or draft_svg
+    logger.warning(
+        "Diagram POLISH raw response (len=%d): %r",
+        len(polish_raw or ""),
+        (polish_raw or "")[:800],
+    )
+
+    polished = _extract_tikz(polish_raw)
+    if not polished:
+        logger.warning(
+            "Diagram POLISH extract failed — keeping the draft instead"
+        )
+    return polished or draft_tikz
 
 
 # ---------------------------------------------------------------------------
@@ -884,7 +920,11 @@ class SolverXService:
                 },
             )
 
-            DIAGRAM_TIMEOUT_SECONDS = 90.0
+            # 300 s ceiling per diagram. Generous because TikZ rendering
+            # via Gemini Flash + the browser-side TikZJax compile pass
+            # can take longer than SVG — we'd rather wait for a good
+            # figure than time out and ship nothing.
+            DIAGRAM_TIMEOUT_SECONDS = 300.0
 
             async def _await_with_timeout(n: int, task: asyncio.Task):
                 try:
@@ -907,7 +947,7 @@ class SolverXService:
             ]
             remaining = list(wrappers)
             while remaining:
-                done, _pend = await asyncio.wait(
+                done, _ = await asyncio.wait(
                     remaining, return_when=asyncio.FIRST_COMPLETED
                 )
                 for w in done:

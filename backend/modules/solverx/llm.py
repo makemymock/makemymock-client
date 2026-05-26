@@ -157,6 +157,7 @@ def _build_config(
     temperature: float,
     max_tokens: Optional[int],
     response_mime: Optional[str] = None,
+    disable_thinking: bool = False,
 ) -> genai_types.GenerateContentConfig:
     kwargs: dict[str, Any] = {"temperature": temperature}
     if max_tokens:
@@ -165,6 +166,17 @@ def _build_config(
         kwargs["response_mime_type"] = response_mime
     if system_instruction:
         kwargs["system_instruction"] = system_instruction
+    if disable_thinking:
+        # Gemini 2.5/3.x models default to "extended thinking" — invisible
+        # reasoning tokens that count against `max_output_tokens`. For
+        # recipe-following tasks (TikZ / SVG generation) thinking is pure
+        # overhead and frequently consumes the entire budget, leaving the
+        # response empty. Force budget=0 to make the model emit text
+        # directly. `include_thoughts=False` is belt-and-braces.
+        kwargs["thinking_config"] = genai_types.ThinkingConfig(
+            thinking_budget=0,
+            include_thoughts=False,
+        )
     return genai_types.GenerateContentConfig(**kwargs)
 
 
@@ -180,11 +192,13 @@ async def chat_json(
     temperature: float = 0.3,
     max_tokens: Optional[int] = 1500,
     response_mime: Optional[str] = None,
+    disable_thinking: bool = False,
 ) -> str:
     """Non-streaming call. Returns the model's text content.
 
-    `response_mime="application/json"` puts the model in strict-JSON
-    mode — useful for the plan agent.
+    `response_mime="application/json"` puts the model in strict-JSON mode.
+    `disable_thinking=True` turns off Gemini's extended-thinking budget —
+    use it for recipe-following tasks where thinking is wasted overhead.
     """
     try:
         client = _get_client()
@@ -194,12 +208,32 @@ async def chat_json(
             temperature=temperature,
             max_tokens=max_tokens,
             response_mime=response_mime,
+            disable_thinking=disable_thinking,
         )
         res = await client.aio.models.generate_content(
             model=model,
             contents=contents,
             config=cfg,
         )
+        # Surface usage + finish_reason on every chat_json call so we
+        # can spot empty-text / truncation issues without re-adding
+        # debug logs each time.
+        try:
+            candidates = getattr(res, "candidates", None) or []
+            finish = (
+                getattr(candidates[0], "finish_reason", None)
+                if candidates else None
+            )
+            usage = getattr(res, "usage_metadata", None)
+            logger.info(
+                "Vertex AI chat_json (%s) finish_reason=%s usage=%s text_len=%d",
+                model,
+                finish,
+                usage,
+                len(res.text or ""),
+            )
+        except Exception:  # noqa: BLE001
+            pass
         return res.text or ""
     except LLMError:
         raise

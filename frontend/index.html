@@ -10,6 +10,18 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Jost:ital,wght@0,100..900;1,100..900&family=Patrick+Hand+SC&display=swap" rel="stylesheet" />
+
+    <!--
+      NOTE: TikZJax used to be loaded here at the top level, but TikZJax
+      v1 only scans for `<script type="text/tikz">` tags on its own
+      DOMContentLoaded — there's no MutationObserver or public process
+      API, so dynamically-injected React content never gets rendered.
+      We now embed TikZJax inside each per-figure iframe instead (see
+      components/solverx/MessageBlock.jsx → TikzFigure). The iframe has
+      an independent document lifecycle so TikZJax fires correctly
+      every time. Browsers cache the CDN bundle across iframes.
+    -->
+
     <title>Make My Mock</title>
   </head>
   <body>

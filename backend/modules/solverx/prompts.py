@@ -577,80 +577,170 @@ def deep_theory_user_message(question_text: str) -> str:
 # two-stage pipeline as before — draft generates, polish audits.
 # ===========================================================================
 
-_SVG_STYLE_RULES = """
-SVG STYLE RULES (mandatory):
-  * Top-level wrapper EXACTLY:
-      <svg viewBox="0 0 480 320" xmlns="http://www.w3.org/2000/svg">
-        … contents …
-      </svg>
-  * NEVER put LaTeX or markdown inside <text>. SVG renders plain text.
-    Use Unicode characters directly:
-      Δ θ ω π α β γ δ ε ζ η Θ ι κ λ μ ν ξ ρ σ τ φ χ ψ Ω
-      × ÷ ± ≈ ≠ ≤ ≥ ∞ √ ∫ ∑ ∂ ∇ ∝ ⊥ ∥ → ←
-    Examples: "Δθ"   "ω"   "2ω"   "r = R/50"   (NOT "$\\Delta\\theta$")
-  * Drawing colours: stroke="currentColor" and fill="currentColor"
-    (or fill="none") so the figure adapts to light/dark theme.
-  * Label readability: <text font-size="14" fill="currentColor">…</text>
-    with text-anchor="middle" for centred labels. Keep 4+ px of clear
-    space between every line and every label.
-  * Vectors / direction arrows — define ONE marker once and reuse:
-      <defs>
-        <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5"
-                markerWidth="6" markerHeight="6" orient="auto">
-          <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
-        </marker>
-      </defs>
-    Apply via marker-end="url(#arr)" on the path/line.
-  * Dashed construction / reference lines:
-      stroke-dasharray="4 3"  stroke-width="1.2"
-  * Use the FULL 480×320 canvas; centre the main figure around (240,170).
-    Keep at least 20px margin from each edge.
-  * NO <script>, <foreignObject>, <iframe>, external <image>, or
-    event handlers (onload, onclick, …).
+_TIKZ_STYLE_RULES = r"""
+TIKZ STYLE RULES (mandatory):
+
+  WRAPPER — emit ONLY a single tikzpicture environment. NEVER include
+  `\documentclass`, `\usepackage`, `\begin{document}`, `\end{document}`,
+  or any preamble. The host renderer wraps the environment for you.
+
+      \begin{tikzpicture}[<options>]
+        ... content ...
+      \end{tikzpicture}
+
+  CANVAS — keep the figure within roughly an 8x6 bounding box. Use
+  `[scale=1.0]` or `[scale=1.2]` for most diagrams. Centre the main
+  shape around the origin (0,0) when natural; otherwise lay it out so
+  it sits comfortably without leaving huge empty regions.
+
+  COLOURS — stick to BLACK / GREY for strokes and labels. Do NOT use
+  saturated colours (red, blue, green) — the figure must read on both
+  the dark page AND the cream light page. Light fills are okay:
+      \fill[gray!20] (path) -- cycle;
+  for shaded regions.
+
+  LINE STYLES — match weight to purpose:
+      [thick]           main outlines, important shapes
+      [thin]            auxiliary lines
+      [dashed, thin]    construction / radius / hidden lines
+      [dotted, thin]    very faint reference lines
+
+  SHAPES — use TikZ primitives directly:
+      \draw (a) circle (r);
+      \draw (a) -- (b);
+      \draw (a) rectangle (b);
+      \draw (a) arc[start angle=0, end angle=90, radius=2];
+      \filldraw (a) circle (1.5pt);          % small filled dot for points
+  Use `\coordinate (name) at (x,y);` to name reusable points.
+
+  ARROWS — single arrow: `\draw[->, thick] (a) -- (b);`
+            double arrow: `\draw[<->]`
+            curved arrow for rotation:
+              \draw[->, thick] ($(C)+(0:r)$) arc[start angle=0, end angle=120, radius=r];
+
+  LABELS — always use `\node` with a positioning hint relative to the
+  anchor point. Math goes inside `$...$`:
+      \node[above]       at (1,1) {$P$};
+      \node[right]       at (2,0) {$R$};
+      \node[below right] at (0,0) {$\theta$};
+  Keep labels clear of lines — TikZ does NOT auto-place to avoid overlap.
+
+  GREEK LETTERS & SYMBOLS — use LaTeX commands inside `$...$`:
+      $\omega$  $\Omega$  $\Delta\theta$  $\vec{v}$  $\hat{n}$  $\theta_1$
+      $\pi$     $\alpha$  $\sin\theta$    $\frac{a}{b}$
+  NEVER use Unicode (ω, Δθ, π) — TikZ is LaTeX, it needs the command form.
+
+  FORBIDDEN — TikZJax does NOT support these. Do NOT emit:
+    * `\usepackage{...}` or any preamble command
+    * `\tikzset{...}`, `\pgfdeclareshape{...}`
+    * Libraries beyond core TikZ + amsmath: NO `tikz-cd`, `pgfplots`,
+      `tikz-3dplot`, `circuitikz`, `decorations.markings`.
+    * Complex `\foreach` (simple integer ranges like
+      `\foreach \i in {1,...,5}` are fine).
+    * External images: `\includegraphics`, `\externalize`.
+    * Any text outside `\begin{tikzpicture}...\end{tikzpicture}`.
+
+  PROFESSIONALISM — aim for textbook quality:
+    * Every shape mentioned in the description appears.
+    * Every label mentioned in the description appears.
+    * Lines don't cross labels; labels don't overlap.
+    * Coordinates are computed cleanly via `\coordinate`, not eyeballed.
+"""
+
+
+_TIKZ_EXAMPLE = r"""
+WORKED EXAMPLE — two small disks resting on a large disk, spinning
+with angular velocities omega and 2*omega in opposite directions, with
+an angular separation Delta-theta between the centres of the two small
+disks. This is the kind of textbook-quality figure to aim for:
+
+\begin{tikzpicture}[scale=1.2, line width=0.7pt]
+  % --- Large disk centred at origin ---
+  \coordinate (O) at (0,0);
+  \draw[thick] (O) circle (2.8);
+  \filldraw (O) circle (1.4pt);
+  \node[below right] at (O) {$O$};
+  \node at (1.8,-1.6) {$R$};
+
+  % --- Two small disks on the upper rim, separated by Delta-theta ---
+  \coordinate (C1) at ({2.8*cos(105)}, {2.8*sin(105)});
+  \coordinate (C2) at ({2.8*cos(75)},  {2.8*sin(75)});
+  \draw[thick] (C1) circle (0.35);
+  \draw[thick] (C2) circle (0.35);
+  \node[above left]  at (C1) {$r$};
+  \node[above right] at (C2) {$r$};
+
+  % --- Dashed radii from O to each small-disk centre ---
+  \draw[dashed, thin] (O) -- (C1);
+  \draw[dashed, thin] (O) -- (C2);
+
+  % --- Delta-theta arc between the two radii, near the centre ---
+  \draw[thick] (0,1.2) arc[start angle=90, end angle=75, radius=1.2];
+  \node[above] at (0,1.35) {$\Delta\theta$};
+
+  % --- Angular-velocity curved arrows on each small disk ---
+  \draw[->, thick] ($(C1)+(150:0.55)$) arc[start angle=150, end angle=30, radius=0.55];
+  \node[above left=2pt]  at ($(C1)+(135:0.7)$) {$\omega$};
+  \draw[->, thick] ($(C2)+(30:0.55)$)  arc[start angle=30,  end angle=150, radius=0.55];
+  \node[above right=2pt] at ($(C2)+(45:0.7)$)  {$2\omega$};
+\end{tikzpicture}
 """
 
 
 DIAGRAM_DRAFT_SYSTEM_PROMPT = (
-    """You are the Visual Reasoning Agent inside SolverX. Your one job is
-to produce a clean, faithful diagram for the description provided as a
-single inline SVG.
+    r"""You are the Visual Reasoning Agent inside SolverX. Your one job
+is to produce a clean, faithful, TEXTBOOK-QUALITY diagram for the
+description provided, as a SINGLE TikZ figure.
 """
-    + _SVG_STYLE_RULES
-    + """
+    + _TIKZ_STYLE_RULES
+    + _TIKZ_EXAMPLE
+    + r"""
 INSTRUCTIONS:
-  1. Read the description carefully. Identify every object that should
-     be drawn (disks, rays, axes, points, charges, masses, circuits…)
-     and every label (radii, angles, velocities, ω, q, v, m, lengths).
-     Miss none.
-  2. Pick a layout that fits the 480×320 canvas with 20px margins.
-  3. Emit ONLY the <svg>…</svg> element — no preamble, no explanation,
-     no code fence. The first character of your response must be `<`.
+  1. Read the description carefully. List every object that needs to
+     be drawn (disks, lines, rays, axes, points, charges, masses,
+     circuits, vectors, ...) and every label that should appear
+     (radii, angles, velocities, omega, q, v, m, lengths). Miss none.
+  2. Decide on a clean layout. Use `\coordinate` for every named
+     point. Centre the figure naturally — don't crowd one corner.
+  3. Pick the right line style for each element (thick / thin / dashed
+     for construction lines).
+  4. Use `\node[<position>]` to place labels CLEAR of lines and shapes.
+  5. Math labels go inside `$...$`. Use LaTeX command form for Greek
+     letters and operators (`$\omega$`, `$\Delta\theta$`, `$\vec{v}$`).
+  6. Emit ONLY the `\begin{tikzpicture}...\end{tikzpicture}` — no
+     preamble, no explanation, no code fence. The first character of
+     your response must be `\`.
 """
 )
 
 
 DIAGRAM_POLISH_SYSTEM_PROMPT = (
-    """You are the Diagram Refactor Agent inside SolverX. A draft SVG has
-been produced by another agent. Your job is to review it against the
-description and ship an improved version.
+    r"""You are the Diagram Refactor Agent inside SolverX. A draft TikZ
+figure has been produced by another agent. Your job is to review it
+against the description and ship a clearer, more professional version.
 """
-    + _SVG_STYLE_RULES
-    + """
+    + _TIKZ_STYLE_RULES
+    + r"""
 CHECKLIST — fix every issue you find:
-  * Wrong COUNT of objects.
-  * Missing or wrong LABELS.
-  * Any LaTeX / markdown leaking into <text> nodes — replace with
-    the Unicode equivalent (Δθ, ω, π, etc.).
-  * Labels OVERLAPPING shapes or each other.
-  * Elements clipped by the viewBox or crowded into a corner.
-  * Missing arrowheads on vectors.
-  * Dashed construction lines missing.
-  * Stroke colours that aren't `currentColor`.
+  * Wrong COUNT of objects (e.g. two disks asked for, only one drawn).
+  * Missing or wrong LABELS — every named object / quantity in the
+    description must appear in the figure.
+  * Any Unicode Greek letters in `\node` text — replace with `$\omega$`,
+    `$\Delta\theta$`, `$\pi$`, etc.
+  * Labels OVERLAPPING lines, shapes, or each other — move them clear,
+    add a position hint (`above`, `right`, `above left`, `below=2pt`).
+  * Coordinates that look eyeballed — recompute via `\coordinate`.
+  * Missing arrowheads on vectors / direction-of-motion lines.
+  * Dashed construction lines (radii, perpendiculars) missing.
+  * Saturated colours — strokes and labels should be black/grey only.
+  * Use of forbidden packages or commands — strip them out.
+  * Any text outside the `tikzpicture` environment — remove it.
   * Anything that looks unprofessional next to a textbook figure.
 
 OUTPUT:
-  Emit ONLY the improved <svg>…</svg>. First character must be `<`.
-  Do NOT wrap in a code fence. Do NOT add commentary.
+  Emit ONLY the improved `\begin{tikzpicture}...\end{tikzpicture}`.
+  The first character of your response must be `\`. Do NOT wrap in a
+  code fence. Do NOT add commentary.
 """
 )
 
@@ -673,14 +763,15 @@ def diagram_draft_user_message(
             parts.append(f"\nClassification: {crumbs}")
     parts.append(
         "\nProduce the diagram. Every object and label from the description "
-        "must appear. Reply with ONLY the <svg> markup."
+        "must appear. Reply with ONLY the TikZ environment."
     )
     return "\n".join(parts)
 
 
-def diagram_polish_user_message(description: str, draft_svg: str) -> str:
+def diagram_polish_user_message(description: str, draft_tikz: str) -> str:
     return (
         f"Diagram description:\n{description.strip()}\n\n"
-        f"Draft SVG to review and improve:\n{draft_svg.strip()}\n\n"
-        "Audit it against the checklist. Return ONLY the improved <svg>."
+        f"Draft TikZ to review and improve:\n{draft_tikz.strip()}\n\n"
+        "Audit it against the checklist. Return ONLY the improved "
+        "`\\begin{tikzpicture}...\\end{tikzpicture}`."
     )
