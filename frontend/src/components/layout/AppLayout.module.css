@@ -1,0 +1,385 @@
+/* ============================================================
+ * Global app layout — sidebar (desktop) + top-bar + main area
+ * + bottom nav (mobile). Renders on every protected route except
+ * the handful flagged FULLSCREEN_RE in AppLayout.jsx (active
+ * test, active battle, SolverX).
+ *
+ * Styles inherit the design tokens declared in
+ * `src/styles/abstracts/_variables.css`. Both dark (default) and
+ * light themes apply via the sun/moon button in the top bar.
+ *
+ *   < 960px → sticky top-bar + main + fixed bottom nav (5 icons)
+ *   ≥ 960px → fixed vertical sidebar on the left + top-bar
+ * ============================================================ */
+
+.shell {
+  min-height: 100vh;
+  color: var(--color-text-primary);
+  font-family: var(--font-secondary);
+  background:
+    radial-gradient(900px 600px at 100% -10%, var(--color-glow-teal), transparent 60%),
+    radial-gradient(700px 500px at -10% 110%, var(--color-glow-cyan), transparent 60%);
+  background-attachment: fixed;
+  background-color: var(--color-bg-page);
+}
+
+.contentArea {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  padding-bottom: 76px; /* room for fixed bottom nav on mobile */
+}
+
+@media (min-width: 960px) {
+  .contentArea {
+    margin-left: 76px;
+    padding-bottom: 0;
+  }
+}
+
+/* ============================================================
+ * Top bar — brand on the left, theme toggle + user chip on the right
+ * ============================================================ */
+
+.topBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 14px clamp(14px, 4vw, 36px);
+  background: var(--dash-card-bg);
+  border-bottom: 1px solid var(--dash-card-border);
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  backdrop-filter: blur(10px);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  text-decoration: none;
+  color: inherit;
+}
+
+.brandLogo {
+  flex: 0 0 auto;
+  height: 32px;
+  width: auto;
+  max-width: 160px;
+  object-fit: contain;
+  display: block;
+}
+
+@media (min-width: 540px) {
+  .brandLogo { height: 38px; max-width: 200px; }
+}
+
+.brandTag {
+  display: none;
+  font-weight: 500;
+  color: var(--dash-text-muted);
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  padding-left: 12px;
+  border-left: 1px solid var(--dash-card-border);
+}
+
+@media (min-width: 720px) {
+  .brandTag { display: inline; }
+}
+
+.topBarRight {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.themeToggle {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--dash-input-bg);
+  border: 1px solid var(--dash-card-border);
+  color: var(--dash-text-strong);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.18s ease, background 0.15s ease;
+}
+
+.themeToggle:hover {
+  transform: rotate(12deg);
+  background: var(--color-chip-bg);
+}
+
+.themeIcon { width: 18px; height: 18px; }
+
+.userArea { position: relative; }
+
+.userChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 6px 4px 4px;
+  border-radius: 999px;
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-family: inherit;
+  color: inherit;
+}
+
+.userChip:hover {
+  background: var(--color-chip-bg);
+  border-color: var(--dash-card-border);
+}
+
+.avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: linear-gradient(135deg,
+    var(--color-brand-grad-from), var(--color-brand-grad-to));
+  color: var(--color-brand-contrast);
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex: 0 0 auto;
+}
+
+.userText {
+  display: none;
+  flex-direction: column;
+  text-align: left;
+  line-height: 1.2;
+  min-width: 0;
+}
+
+@media (min-width: 540px) {
+  .userText { display: inline-flex; }
+}
+
+.userName {
+  font-weight: 600;
+  font-size: 13px;
+  max-width: 16ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--dash-text-strong);
+}
+
+.userEmail {
+  font-size: 11px;
+  color: var(--dash-text-muted);
+  max-width: 22ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.userMenu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  background: var(--dash-card-bg);
+  border: 1px solid var(--dash-card-border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-soft);
+  min-width: 160px;
+  padding: 4px;
+  z-index: 40;
+}
+
+.userMenuItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background: transparent;
+  border: none;
+  text-align: left;
+  padding: 9px 10px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  color: var(--dash-logout-color);
+}
+
+.userMenuItem:hover { background: var(--color-chip-bg); }
+
+.userMenuIcon { width: 16px; height: 16px; }
+
+/* ============================================================
+ * Side nav (desktop)
+ * ============================================================ */
+
+.sideNav { display: none; }
+
+@media (min-width: 960px) {
+  .sideNav {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 76px;
+    background: var(--dash-sidebar-bg);
+    border-right: 1px solid var(--dash-card-border);
+    padding: 18px 0;
+    z-index: 50;
+  }
+}
+
+.sideNavList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  width: 100%;
+}
+
+.sideNavList li { width: 100%; padding: 0 10px; }
+
+.sideNavItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  padding: 10px 4px;
+  background: transparent;
+  border: none;
+  border-radius: 12px;
+  color: var(--dash-sidebar-text);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-decoration: none;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.sideNavItem:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--dash-sidebar-text-active);
+}
+
+.sideNavItemActive {
+  background: linear-gradient(135deg,
+    rgba(20, 184, 166, 0.18), rgba(245, 196, 81, 0.18));
+  color: var(--dash-sidebar-text-active);
+}
+
+.sideNavIcon {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+
+.sideNavLabel { display: block; }
+
+/* Sign-out at the bottom of the rail — danger colour to differentiate. */
+.sideNav > .sideNavItem {
+  margin: 0 10px;
+  width: calc(100% - 20px);
+  color: var(--dash-logout-color);
+}
+
+/* ============================================================
+ * Bottom nav (mobile) — fixed strip of 5 NAV_ITEMS
+ * ============================================================ */
+
+.bottomNav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 64px;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  background: var(--dash-sidebar-bg);
+  border-top: 1px solid var(--dash-card-border);
+  z-index: 40;
+  box-shadow: 0 -6px 16px rgba(0, 0, 0, 0.18);
+}
+
+@media (min-width: 960px) {
+  .bottomNav { display: none; }
+}
+
+.bottomNavItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  text-decoration: none;
+  color: var(--dash-sidebar-text);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  padding: 6px 2px;
+}
+
+.bottomNavItem:active { background: rgba(255, 255, 255, 0.06); }
+
+.bottomNavItemActive { color: var(--dash-accent-yellow); }
+
+.bottomNavItemActive .bottomNavIcon { transform: translateY(-2px); }
+
+.bottomNavIcon {
+  width: 22px;
+  height: 22px;
+  transition: transform 0.18s ease;
+}
+
+.bottomNavLabel { white-space: nowrap; }
+
+@media (max-width: 339px) {
+  .bottomNavLabel { display: none; }
+}
+
+/* ============================================================
+ * Main content area — pages plug in here via <Outlet />.
+ * Centered with a sensible max-width; per-page CSS can override
+ * with its own width/padding if needed.
+ * ============================================================ */
+
+.main {
+  flex: 1;
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: clamp(16px, 3.5vw, 32px);
+  display: flex;
+  flex-direction: column;
+  gap: clamp(14px, 2.2vw, 22px);
+  min-height: 0; /* allow nested overflow:auto containers to size properly */
+}
+
+/* Chat / canvas surfaces (SolverX, future image tools) opt into
+   full-bleed so they can span the viewport edge-to-edge without the
+   default 32px padding + 1280px clamp. */
+.mainFullBleed {
+  max-width: none;
+  padding: 0;
+  gap: 0;
+}

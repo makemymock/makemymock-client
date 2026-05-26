@@ -1,16 +1,14 @@
 import React from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import AppRoutes from './routes/AppRoutes';
-import DashboardFab from './components/common/DashboardFab/DashboardFab';
-import ThemeToggleFab from './components/common/ThemeToggleFab/ThemeToggleFab';
 import './App.css';
 
+// The global sidebar (AppLayout) handles dashboard navigation, theme
+// toggling, and sign-out. The old floating buttons are gone.
 function App() {
   return (
     <BrowserRouter>
       <AppRoutes />
-      <DashboardFab />
-      <ThemeToggleFab />
     </BrowserRouter>
   );
 }

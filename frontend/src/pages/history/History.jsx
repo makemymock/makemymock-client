@@ -44,7 +44,7 @@ const History = () => {
 
   if (loading) {
     return (
-      <ExamShell title="Loading history…">
+      <ExamShell chromeless title="Loading history…">
         <Loader />
       </ExamShell>
     );
@@ -52,14 +52,14 @@ const History = () => {
 
   if (error) {
     return (
-      <ExamShell title="Test history">
+      <ExamShell chromeless title="Test history">
         <ErrorMessage message={error} />
       </ExamShell>
     );
   }
 
   return (
-    <ExamShell
+    <ExamShell chromeless
       eyebrow="Past performance"
       title="Your test history"
       subtitle="Every test you start lives here — whether you submitted it or not. Resume an in-progress test or open a finished one's analytics."

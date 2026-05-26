@@ -50,6 +50,14 @@ class Settings(BaseSettings):
     OTP_MAX_ATTEMPTS: int = 5
     OTP_RESEND_COOLDOWN_SECONDS: int = 60
 
+    # ---- SolverX (Groq) ----
+    # Leave GROQ_API_KEY blank in env to disable SolverX in dev.
+    # GROQ_MODEL is overridable so we can swap models without code
+    # changes. Llama 4 Scout is multimodal — when we add image upload to
+    # the SolverX UI later, the same model handles it.
+    GROQ_API_KEY: str = ""
+    GROQ_MODEL: str = "meta-llama/llama-4-scout-17b-16e-instruct"
+
 
 @lru_cache
 def get_settings() -> Settings:

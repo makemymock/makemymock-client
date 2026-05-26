@@ -130,7 +130,7 @@ const ChapterAnalytics = () => {
 
   if (loading) {
     return (
-      <ExamShell title="Loading chapter analytics…">
+      <ExamShell chromeless title="Loading chapter analytics…">
         <Loader />
       </ExamShell>
     );
@@ -138,7 +138,7 @@ const ChapterAnalytics = () => {
 
   if (error) {
     return (
-      <ExamShell title="Chapter analytics">
+      <ExamShell chromeless title="Chapter analytics">
         <ErrorMessage message={error} />
         <p className={styles.backRow}>
           <Link to="/analytics">← Back to analytics</Link>
@@ -152,7 +152,7 @@ const ChapterAnalytics = () => {
   const noActivity = data.attempts === 0;
 
   return (
-    <ExamShell
+    <ExamShell chromeless
       eyebrow={data.subject_name || 'Chapter'}
       title={data.chapter_name || 'Chapter analytics'}
       subtitle={

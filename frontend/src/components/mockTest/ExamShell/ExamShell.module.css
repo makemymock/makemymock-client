@@ -7,6 +7,17 @@
   isolation: isolate;
 }
 
+/* Chromeless mode — nested inside the global AppLayout. We drop the
+   page background and min-height so the surrounding shell shows
+   through; only the intro section + children render. */
+.chromeless {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(14px, 2.2vw, 22px);
+  color: var(--color-text-primary);
+  font-family: var(--font-secondary);
+}
+
 /* A quiet static line-grid backdrop — replaces the radial-glow look while
    keeping a sense of texture, and matches the analytical mood of an exam
    room. The grid uses the existing panel-border colour so it adapts to

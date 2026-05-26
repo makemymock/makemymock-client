@@ -14,6 +14,8 @@ import History from '../pages/history/History';
 import BattleLaunch from '../pages/battle/BattleLaunch';
 import BattleArena from '../pages/battle/BattleArena';
 import BattleHistory from '../pages/battle/BattleHistory';
+import SolverX from '../pages/solverx/SolverX';
+import AppLayout from '../components/layout/AppLayout';
 import ProtectedRoute from './ProtectedRoute';
 import { tokenStorage } from '../utils/token';
 
@@ -27,6 +29,7 @@ const RedirectIfAuthed = ({ children }) => {
 const AppRoutes = () => {
   return (
     <Routes>
+      {/* ---- Public ---- */}
       <Route path="/" element={<Landing />} />
       <Route
         path="/signup"
@@ -44,6 +47,9 @@ const AppRoutes = () => {
           </RedirectIfAuthed>
         }
       />
+
+      {/* Profile setup runs before the layout so it isn't shown inside
+          the dashboard chrome (the user doesn't yet have a profile). */}
       <Route
         path="/profile/setup"
         element={
@@ -52,96 +58,31 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
+
+      {/* ---- Protected pages, all wrapped in the global AppLayout.
+            Active test / battle and SolverX bypass the chrome via the
+            FULLSCREEN_RE inside AppLayout itself. ---- */}
       <Route
-        path="/dashboard"
         element={
           <ProtectedRoute>
-            <Dashboard />
+            <AppLayout />
           </ProtectedRoute>
         }
-      />
-      {/* Mock-test section — URL-only access for now (no buttons). */}
-      <Route
-        path="/tests"
-        element={
-          <ProtectedRoute>
-            <TestsLaunch />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/tests/:sessionId"
-        element={
-          <ProtectedRoute>
-            <TakeTest />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/tests/:sessionId/result"
-        element={
-          <ProtectedRoute>
-            <Result />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/analytics"
-        element={
-          <ProtectedRoute>
-            <Analytics />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/analytics/chapter/:chapterId"
-        element={
-          <ProtectedRoute>
-            <ChapterAnalytics />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/analytics/topic/:topicId"
-        element={
-          <ProtectedRoute>
-            <TopicAnalytics />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/history"
-        element={
-          <ProtectedRoute>
-            <History />
-          </ProtectedRoute>
-        }
-      />
-      {/* 1-vs-1 Battle Arena */}
-      <Route
-        path="/battle"
-        element={
-          <ProtectedRoute>
-            <BattleLaunch />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/battle/play"
-        element={
-          <ProtectedRoute>
-            <BattleArena />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/battle/history"
-        element={
-          <ProtectedRoute>
-            <BattleHistory />
-          </ProtectedRoute>
-        }
-      />
+      >
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/tests" element={<TestsLaunch />} />
+        <Route path="/tests/:sessionId" element={<TakeTest />} />
+        <Route path="/tests/:sessionId/result" element={<Result />} />
+        <Route path="/analytics" element={<Analytics />} />
+        <Route path="/analytics/chapter/:chapterId" element={<ChapterAnalytics />} />
+        <Route path="/analytics/topic/:topicId" element={<TopicAnalytics />} />
+        <Route path="/history" element={<History />} />
+        <Route path="/battle" element={<BattleLaunch />} />
+        <Route path="/battle/play" element={<BattleArena />} />
+        <Route path="/battle/history" element={<BattleHistory />} />
+        <Route path="/solverx" element={<SolverX />} />
+      </Route>
+
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

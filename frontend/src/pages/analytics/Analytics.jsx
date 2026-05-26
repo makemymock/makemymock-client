@@ -98,7 +98,7 @@ const Analytics = () => {
 
   if (loading) {
     return (
-      <ExamShell title="Loading analytics…">
+      <ExamShell chromeless title="Loading analytics…">
         <Loader />
       </ExamShell>
     );
@@ -106,7 +106,7 @@ const Analytics = () => {
 
   if (error) {
     return (
-      <ExamShell title="Analytics">
+      <ExamShell chromeless title="Analytics">
         <ErrorMessage message={error} />
       </ExamShell>
     );
@@ -115,7 +115,7 @@ const Analytics = () => {
   const empty = (overview?.total_tests || 0) === 0;
 
   return (
-    <ExamShell
+    <ExamShell chromeless
       eyebrow="Personal analytics"
       title="How your practice is shaping your priority profile"
       subtitle="Every submitted test feeds the recommender. Higher priority means more questions next time."

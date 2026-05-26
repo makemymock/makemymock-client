@@ -42,14 +42,14 @@ const Result = () => {
 
   if (loading) {
     return (
-      <ExamShell title="Loading results…">
+      <ExamShell chromeless title="Loading results…">
         <Loader />
       </ExamShell>
     );
   }
   if (error) {
     return (
-      <ExamShell title="Couldn't load results">
+      <ExamShell chromeless title="Couldn't load results">
         <ErrorMessage message={error} />
       </ExamShell>
     );
@@ -65,7 +65,7 @@ const Result = () => {
     : '0.0';
 
   return (
-    <ExamShell
+    <ExamShell chromeless
       eyebrow={`Test #${sessionId}`}
       title="Your results"
       subtitle="Every question is graded server-side. Partial credit is awarded for multi-correct and matching questions. Solutions are shown below each question."

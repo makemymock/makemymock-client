@@ -292,3 +292,175 @@
   padding: 1px 6px;
   border-radius: 6px;
 }
+
+/* ===========================================================================
+ * Tab strip — switches between "Launch a test" and "Past tests"
+ * =========================================================================== */
+
+.tabStrip {
+  display: inline-flex;
+  align-self: flex-start;
+  background: var(--color-chip-bg);
+  border: 1px solid var(--color-chip-border);
+  padding: 4px;
+  border-radius: 999px;
+  gap: 4px;
+}
+
+.tabBtn {
+  appearance: none;
+  font: inherit;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 7px 16px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.tabBtn:hover {
+  color: var(--color-text-primary);
+}
+
+.tabBtnOn,
+.tabBtnOn:hover {
+  background: linear-gradient(90deg, var(--color-brand-grad-from), var(--color-brand-grad-to));
+  color: var(--color-brand-contrast);
+}
+
+/* ===========================================================================
+ * Embedded history list (formerly the /history page)
+ * =========================================================================== */
+
+.historyEmpty {
+  background: var(--color-panel-bg);
+  border: 1px dashed var(--color-panel-border);
+  border-radius: 14px;
+  padding: 28px 24px;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.historyEmpty h3 {
+  margin: 0 0 6px;
+  color: var(--color-text-primary);
+}
+
+.historyList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.historyItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 16px;
+  background: var(--color-panel-bg);
+  border: 1px solid var(--color-panel-border);
+  border-radius: 14px;
+}
+
+@media (max-width: 600px) {
+  .historyItem {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+}
+
+.historyMain {
+  min-width: 0;
+}
+
+.historyHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.historyId {
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--color-text-primary);
+}
+
+.historyStatus {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+
+.historyStatusOk {
+  background: rgba(34, 197, 94, 0.16);
+  color: rgb(134, 239, 172);
+}
+
+.historyStatusPending {
+  background: rgba(245, 158, 11, 0.16);
+  color: rgb(253, 224, 71);
+}
+
+.historyMeta {
+  margin-top: 4px;
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+}
+
+.historyScoreCol {
+  text-align: right;
+  min-width: 96px;
+}
+
+.historyScore {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.historyScoreSub {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+.historyActions {
+  justify-self: end;
+}
+
+.historyAction {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: var(--color-chip-bg);
+  border: 1px solid var(--color-chip-border);
+  color: var(--color-text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.historyAction:hover {
+  background: var(--color-action-primary-bg);
+}
+
+.historyActionPrimary,
+.historyActionPrimary:hover {
+  background: linear-gradient(90deg, var(--color-brand-grad-from), var(--color-brand-grad-to));
+  color: var(--color-brand-contrast);
+  border-color: transparent;
+}
