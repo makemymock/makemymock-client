@@ -9,6 +9,7 @@ import { parseApiError } from '../../utils/validators';
 import Loader from '../../components/common/Loader/Loader';
 import ErrorMessage from '../../components/common/ErrorMessage/ErrorMessage';
 import Heatmap from '../../components/common/Heatmap/Heatmap';
+import ConfidenceTrophy from '../../components/common/ConfidenceTrophy/ConfidenceTrophy';
 import PotdModal from '../../components/dashboard/PotdModal/PotdModal';
 import styles from './dashboard.module.css';
 
@@ -75,6 +76,7 @@ const Dashboard = () => {
   const [overview, setOverview] = useState(null);
   const [battles, setBattles] = useState([]);
   const [heatmap, setHeatmap] = useState(null);
+  const [confidence, setConfidence] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [potdOpen, setPotdOpen] = useState(false);
@@ -86,7 +88,7 @@ const Dashboard = () => {
 
     (async () => {
       try {
-        const [me, myProfile, hist, ov, battleData, hm] = await Promise.all([
+        const [me, myProfile, hist, ov, battleData, hm, conf] = await Promise.all([
           authService.me(),
           profileService.getMyProfile().catch((err) => {
             if (err?.response?.status === 404) return null;
@@ -96,6 +98,7 @@ const Dashboard = () => {
           mockTestService.getOverview().catch(() => null),
           battleService.fetchHistory().catch(() => ({ items: [] })),
           mockTestService.getActivityHeatmap().catch(() => null),
+          mockTestService.getConfidence().catch(() => null),
         ]);
         if (cancelled) return;
 
@@ -111,6 +114,7 @@ const Dashboard = () => {
         setOverview(ov);
         setBattles(battleData.items || []);
         setHeatmap(hm);
+        setConfidence(conf);
       } catch (err) {
         if (!cancelled) setError(parseApiError(err, 'Could not load your dashboard.'));
       } finally {
@@ -151,6 +155,12 @@ const Dashboard = () => {
       {!loading && !error ? (
         <>
           <HeroCard user={user} profile={profile} />
+
+          {confidence ? (
+            <section className={styles.trophyRow}>
+              <ConfidenceTrophy data={confidence} />
+            </section>
+          ) : null}
 
           <PotdBanner onOpen={() => setPotdOpen(true)} userId={user?.id} />
 

@@ -12,6 +12,12 @@
   min-width: 0;
 }
 
+/* Confidence trophy slot — full-width, sits above the stats+heatmap row. */
+.trophySection {
+  display: block;
+  min-width: 0;
+}
+
 /* Hero row — stat cards on the left, heatmap on the right at laptop
    widths. On smaller screens they stack: stats first, then heatmap. */
 .heroRow {

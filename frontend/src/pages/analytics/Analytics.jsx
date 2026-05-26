@@ -8,6 +8,7 @@ import LineChart from '../../components/common/LineChart/LineChart';
 import BarChart from '../../components/common/BarChart/BarChart';
 import DonutChart from '../../components/common/DonutChart/DonutChart';
 import Heatmap from '../../components/common/Heatmap/Heatmap';
+import ConfidenceTrophy from '../../components/common/ConfidenceTrophy/ConfidenceTrophy';
 import { mockTestService } from '../../services/mockTestService';
 import { parseApiError } from '../../utils/validators';
 import styles from './analytics.module.css';
@@ -34,6 +35,7 @@ const Analytics = () => {
   const [chapters, setChapters] = useState(null);
   const [topics, setTopics] = useState(null);
   const [heatmap, setHeatmap] = useState(null);
+  const [confidence, setConfidence] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -41,17 +43,19 @@ const Analytics = () => {
     let cancelled = false;
     (async () => {
       try {
-        const [ov, ch, tp, hm] = await Promise.all([
+        const [ov, ch, tp, hm, conf] = await Promise.all([
           mockTestService.getOverview(),
           mockTestService.getChapterAnalytics(),
           mockTestService.getTopicAnalytics(),
           mockTestService.getActivityHeatmap().catch(() => null),
+          mockTestService.getConfidence().catch(() => null),
         ]);
         if (cancelled) return;
         setOverview(ov);
         setChapters(ch);
         setTopics(tp);
         setHeatmap(hm);
+        setConfidence(conf);
       } catch (err) {
         if (!cancelled) setError(parseApiError(err, 'Could not load analytics.'));
       } finally {
@@ -135,6 +139,13 @@ const Analytics = () => {
         </section>
       ) : (
         <>
+          {/* ----- Confidence trophy ----- */}
+          {confidence ? (
+            <section className={styles.trophySection}>
+              <ConfidenceTrophy data={confidence} />
+            </section>
+          ) : null}
+
           {/* ----- Headline stats + activity heatmap (side-by-side on laptop) -----
               On phones/tablets the inner sections stack normally. On laptop
               (≥ 1080px) the stat grid sits on the left in a 3×2 layout

@@ -13,6 +13,7 @@ from modules.mock_test.schema import (
     AnalyticsTopicsResponse,
     CatalogResponse,
     ChapterDetailResponse,
+    ConfidenceResponse,
     CreateMockTestRequest,
     CreateMockTestResponse,
     HistoryResponse,
@@ -173,3 +174,17 @@ async def analytics_activity_heatmap(
     user: CurrentVerifiedUser, db: DBDep,
 ) -> ActivityHeatmapResponse:
     return await MockTestService(db).get_activity_heatmap(user["_id"])
+
+
+@router.get(
+    "/analytics/confidence",
+    response_model=ConfidenceResponse,
+    summary=(
+        "Gamified Confidence Score (0–100) + trophy tier. Weighted blend "
+        "of volume, accuracy, consistency, 1v1 battles, and POTD streak."
+    ),
+)
+async def analytics_confidence(
+    user: CurrentVerifiedUser, db: DBDep,
+) -> ConfidenceResponse:
+    return await MockTestService(db).get_confidence(user["_id"])

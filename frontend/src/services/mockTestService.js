@@ -67,4 +67,9 @@ export const mockTestService = {
     const { data } = await api.get('/mock-test/analytics/activity-heatmap');
     return data;
   },
+
+  async getConfidence() {
+    const { data } = await api.get('/mock-test/analytics/confidence');
+    return data;
+  },
 };

@@ -733,6 +733,13 @@
   min-width: 0;
 }
 
+/* Confidence trophy — full-width row right under the HeroCard so the
+   gamified headline number sits where the eye lands first. */
+.trophyRow {
+  display: block;
+  min-width: 0;
+}
+
 /* Hero row — wraps the three stat cards on the left and the heatmap
    card on the right. Phones/tablets stack the two sections. Laptops
    show them side-by-side: 3 stat cards align vertically on the left
