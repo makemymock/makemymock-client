@@ -254,6 +254,10 @@ async def _generate_diagram(
             model=diagram_model,
             temperature=0.4,
             max_tokens=1500,
+            # Disable thinking — SVG generation is recipe-following, not
+            # reasoning. Otherwise Gemini's invisible thinking tokens
+            # consume the entire budget and the response comes back empty.
+            disable_thinking=True,
         )
     except LLMError as exc:
         logger.warning("Diagram draft failed: %s", exc)
@@ -275,6 +279,7 @@ async def _generate_diagram(
             model=diagram_model,
             temperature=0.2,
             max_tokens=1600,
+            disable_thinking=True,
         )
     except LLMError as exc:
         logger.warning("Diagram polish failed, returning draft: %s", exc)

@@ -130,7 +130,9 @@
   display: block;
   max-width: 100%;
   height: auto;
-  max-height: 420px;
+  /* No max-height — let the figure be as tall as it naturally is.
+     Tall geometric figures (free-body diagrams, vertical optical
+     setups, etc.) were getting clipped at 420px previously. */
 }
 
 .diagramSvg :global(text) {
