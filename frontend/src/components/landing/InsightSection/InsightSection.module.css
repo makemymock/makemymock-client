@@ -3,6 +3,8 @@
   height: 100svh;
 }
 
+/* -------------------------------------------------- Sticky background */
+
 .insightSectionSticky {
   position: absolute;
   inset: 0;
@@ -44,33 +46,10 @@
     contrast(92%);
 }
 
-.insightSectionOrnamentOne {
-  width: 4.5rem;
-  top: 16%;
-  left: 10%;
-  transform: rotate(-14deg);
-}
-
-.insightSectionOrnamentTwo {
-  width: 6rem;
-  top: 18%;
-  right: 9%;
-  transform: rotate(9deg);
-}
-
-.insightSectionOrnamentThree {
-  width: 7rem;
-  bottom: 28%;
-  left: 14%;
-  transform: rotate(-10deg);
-}
-
-.insightSectionOrnamentFour {
-  width: 5rem;
-  bottom: 18%;
-  right: 12%;
-  transform: rotate(7deg);
-}
+.insightSectionOrnamentOne   { width: 4.5rem; top: 16%; left: 10%;  transform: rotate(-14deg); }
+.insightSectionOrnamentTwo   { width: 6rem;   top: 18%; right: 9%;  transform: rotate(9deg); }
+.insightSectionOrnamentThree { width: 7rem;   bottom: 28%; left: 14%; transform: rotate(-10deg); }
+.insightSectionOrnamentFour  { width: 5rem;   bottom: 18%; right: 12%; transform: rotate(7deg); }
 
 .insightSectionHeadline {
   position: absolute;
@@ -92,129 +71,247 @@
   letter-spacing: -0.04em;
 }
 
-.insightSectionHeadline p {
-  font-size: clamp(3rem, 5.8vw, 5.6rem);
-}
-
+.insightSectionHeadline p { font-size: clamp(3rem, 5.8vw, 5.6rem); }
 .insightSectionHeadline h2 {
   margin-top: 0.9rem;
   font-size: clamp(3.2rem, 6.2vw, 6.4rem);
 }
 
-.insightSectionCards {
+/* -------------------------------------------------- Card stage / slider */
+
+/* The stage hosts the absolutely-stacked card track plus the pager.
+   GSAP drives the per-card xPercent/scale/opacity values; this CSS
+   just owns the resting visual design. Padding-top reserves space
+   for the section headline so cards never overlap it. */
+.cardStage {
   position: absolute;
   inset: 0;
-  pointer-events: none;
   z-index: 2;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  /* Headline is at top: 4rem and is ~10rem tall on desktop, ~6rem on
+     mobile. This padding pushes the card track below it on every
+     viewport so the cards never collide with the headline text. */
+  padding-top: clamp(14rem, 24vh, 20rem);
+  padding-bottom: 2rem;
+}
+
+/* `overflow: hidden` clips any card that has slid off the active
+   position — the slider hand-off looks clean instead of letting two
+   cards drift across each other in the middle of the viewport. */
+.cardTrack {
+  position: relative;
+  width: min(56rem, calc(100% - 3rem));
+  height: clamp(20rem, 42svh, 26rem);
+  pointer-events: auto;
   overflow: hidden;
+  border-radius: 1.25rem;
 }
 
 .insightCard {
-  pointer-events: auto;
-  position: absolute;
-  top: 50%;
-  width: min(42rem, 82vw);
-  perspective: 1400px;
-  transform-origin: center;
-  background: transparent;
-  border: 0;
-  box-shadow: none;
-  padding: 0;
-}
-
-.insightCardInner {
-  position: relative;
-  width: 100%;
-  min-height: 13rem;
-  transform-style: preserve-3d;
-  will-change: transform;
-  border-radius: 0.4rem;
-}
-
-.insightCardFace {
-  display: flex;
-  flex-direction: column;
-  padding: 1.75rem 1.85rem 1.95rem;
-  border-radius: 0.4rem;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.12);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-
-.insightCardFaceFront {
   position: absolute;
   inset: 0;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  padding: clamp(1.6rem, 3vw, 2.6rem);
+  border-radius: 1.25rem;
+  box-shadow:
+    0 30px 70px rgba(0, 0, 0, 0.28),
+    0 2px 0 rgba(255, 255, 255, 0.35) inset;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  transform-origin: center;
+  will-change: transform, opacity;
   overflow: hidden;
 }
 
-.insightCardFaceBack {
-  position: relative;
-  min-height: 13rem;
-  transform: rotateX(180deg);
-  justify-content: center;
-  gap: 0.6rem;
+/* Diagonal sheen in the bottom-right corner — gives each card a
+   sense of dimensional light without leaning on the flip-trick. */
+.cardCorner {
+  position: absolute;
+  bottom: -3rem;
+  right: -3rem;
+  width: 14rem;
+  height: 14rem;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.45), transparent 60%);
+  pointer-events: none;
+  filter: blur(2px);
 }
 
-.insightCardFaceFront h3 {
+.cardIndex {
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  opacity: 0.55;
+}
+
+.cardEyebrow {
+  display: inline-block;
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.12);
+  align-self: flex-start;
+  width: fit-content;
+}
+
+.cardTitle {
   margin: 0;
   font-family: var(--font-primary);
-  font-size: clamp(1.8rem, 2.8vw, 3.2rem);
-  line-height: 1.05;
-  letter-spacing: -0.03em;
+  font-size: clamp(1.75rem, 3.6vw, 3rem);
+  line-height: 1.08;
+  letter-spacing: -0.025em;
 }
 
-.insightCardFaceBack p {
+.cardDetail {
   margin: 0;
   font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
-  font-size: clamp(0.95rem, 1.25vw, 1.4rem);
-  line-height: 1.45;
+  font-size: clamp(0.95rem, 1.3vw, 1.15rem);
+  line-height: 1.55;
+  max-width: 44ch;
+  opacity: 0.88;
 }
 
-.insightCardAmber .insightCardFace {
-  background: linear-gradient(180deg, rgba(255, 231, 43, 0.95) 0%, rgba(255, 214, 10, 0.96) 100%);
-  color: rgba(0, 0, 0, 0.88);
-}
+/* -------------------------------------------------- Tone palettes
+   Each card gets a layered gradient with a bright accent edge so the
+   active card reads as confident, not posterised. Text colour stays
+   near-black for AAA contrast on each background. */
 
-.insightCardPink .insightCardFace {
-  background: linear-gradient(180deg, rgba(215, 28, 184, 0.88) 0%, rgba(242, 131, 207, 0.92) 100%);
-  color: rgba(0, 0, 0, 0.9);
-}
-
-.insightCardCyan .insightCardFace {
-  background: linear-gradient(180deg, rgba(119, 233, 245, 0.9) 0%, rgba(85, 221, 235, 0.95) 100%);
-  color: rgba(0, 0, 0, 0.92);
-}
-
+/* Fully opaque card backgrounds — semi-transparent gradients let the
+   section headline and other cards bleed through during the slide
+   transition. Solid colors guarantee a clean stage. */
 .insightCardAmber {
-  left: 6vw;
+  background: linear-gradient(155deg, #fff482 0%, #ffd138 70%);
+  color: rgba(20, 14, 0, 0.92);
 }
+.insightCardAmber .cardEyebrow { background: rgba(0, 0, 0, 0.18); color: rgba(20, 14, 0, 0.88); }
 
 .insightCardPink {
-  right: 8vw;
-  left: auto;
+  background: linear-gradient(155deg, #ffb6e0 0%, #d74eba 70%);
+  color: rgba(40, 6, 32, 0.95);
 }
+.insightCardPink .cardEyebrow { background: rgba(255, 255, 255, 0.35); color: rgba(40, 6, 32, 0.9); }
 
 .insightCardCyan {
-  left: calc(50% + 6vw - min(21rem, 41vw));
+  background: linear-gradient(155deg, #bef5fa 0%, #3fcfde 70%);
+  color: rgba(6, 32, 38, 0.95);
+}
+.insightCardCyan .cardEyebrow { background: rgba(255, 255, 255, 0.4); color: rgba(6, 32, 38, 0.9); }
+
+/* -------------------------------------------------- Pager */
+
+.pager {
+  margin-top: 1.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
+.pagerDot {
+  display: inline-block;
+  width: 26px;
+  height: 4px;
+  border-radius: 999px;
+  background: #16a085;
+  transition: opacity 0.2s ease;
+}
+
+/* -------------------------------------------------- Responsive */
+
 @media (max-width: 860px) {
-  .insightSectionHeadline {
-    top: 3.5rem;
+  .insightSectionHeadline { top: 3rem; }
+
+  /* Headline is shorter on mobile (h2 clamp lower), so the stage can
+     start a bit higher up — keeps the cards in the visual sweet spot
+     without leaving a chunk of empty space below the headline. */
+  .cardStage {
+    padding-top: clamp(11rem, 22vh, 15rem);
+    padding-bottom: 1.25rem;
   }
 
-  .insightCard,
-  .insightCardAmber,
-  .insightCardPink,
-  .insightCardCyan {
-    width: calc(100% - 2rem);
-    left: 1rem;
-    right: auto;
+  .cardTrack {
+    width: calc(100% - 1.5rem);
+    height: clamp(15rem, 38svh, 19rem);
+    border-radius: 1rem;
   }
+
+  .insightCard {
+    border-radius: 1rem;
+    padding: 1.25rem 1.2rem;
+    gap: 0.65rem;
+  }
+
+  .cardIndex {
+    font-size: 0.82rem;
+    letter-spacing: 0.16em;
+  }
+
+  .cardEyebrow {
+    font-size: 0.66rem;
+    letter-spacing: 0.18em;
+    padding: 0.28rem 0.6rem;
+  }
+
+  .cardTitle {
+    font-size: clamp(1.3rem, 5vw, 1.7rem);
+    line-height: 1.1;
+  }
+
+  .cardDetail {
+    font-size: 0.85rem;
+    line-height: 1.5;
+  }
+
+  .cardCorner { width: 8rem; height: 8rem; bottom: -1.5rem; right: -1.5rem; }
+
+  .pager { margin-top: 1.1rem; }
+  .pagerDot { width: 22px; height: 3px; }
+}
+
+/* Very narrow phones (≤ 420px) — tighten further so the card never
+   overflows the viewport and the detail text still fits without being
+   cropped. */
+@media (max-width: 420px) {
+  .cardStage {
+    padding-top: clamp(9.5rem, 20vh, 13rem);
+  }
+
+  .cardTrack {
+    width: calc(100% - 1.25rem);
+    height: clamp(14rem, 36svh, 17rem);
+  }
+
+  .insightCard {
+    padding: 1.05rem 1rem;
+    gap: 0.5rem;
+  }
+
+  .cardIndex { font-size: 0.75rem; }
+  .cardEyebrow { font-size: 0.62rem; padding: 0.22rem 0.55rem; }
+  .cardTitle  { font-size: clamp(1.15rem, 5.5vw, 1.5rem); }
+  .cardDetail { font-size: 0.8rem; line-height: 1.45; }
+  .cardCorner { width: 6rem; height: 6rem; }
+
+  .pagerDot { width: 18px; height: 3px; }
+}
+
+/* iPhone-SE / 320px-class — last-mile shrink so even the smallest
+   supported viewport keeps everything inside the card. */
+@media (max-width: 360px) {
+  .cardStage {
+    padding-top: clamp(8.5rem, 18vh, 11rem);
+  }
+  .cardTrack { height: clamp(13rem, 38svh, 15.5rem); }
+  .insightCard { padding: 0.95rem 0.9rem; gap: 0.4rem; }
+  .cardTitle  { font-size: clamp(1.05rem, 5.8vw, 1.35rem); }
+  .cardDetail { font-size: 0.75rem; }
 }
