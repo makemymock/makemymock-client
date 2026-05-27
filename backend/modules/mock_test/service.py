@@ -8,9 +8,10 @@ submission grader.
 from __future__ import annotations
 
 import logging
+import math
 import time
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from bson import ObjectId
@@ -44,6 +45,7 @@ from modules.mock_test.model import (
 from modules.mock_test.repository import MockTestRepository
 from modules.mock_test.schema import (
     AccuracyTrendPoint,
+    ActivityHeatmapResponse,
     AnalyticsChaptersResponse,
     AnalyticsOverviewResponse,
     AnalyticsTopicsResponse,
@@ -57,7 +59,11 @@ from modules.mock_test.schema import (
     CreateMockTestRequest,
     CreateMockTestResponse,
     CumulativePoint,
+    ConfidenceResponse,
+    ConfidenceSubScore,
+    ConfidenceTier,
     DifficultyBreakdown,
+    HeatmapDay,
     HistoryItem,
     HistoryResponse,
     PerQuestionResult,
@@ -77,6 +83,61 @@ from modules.mock_test.schema import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+# India Standard Time (UTC+5:30, no DST). MakeMyMock's audience is
+# Indian students — day-bucketed analytics (heatmap, daily trends)
+# must line up with what students see on their wall clock, not with
+# UTC. A problem solved at 01:00 IST belongs to that calendar day.
+IST = timezone(timedelta(hours=5, minutes=30))
+
+
+# ---------------------------------------------------------------------------
+# Confidence-score tiers and sub-score weights.
+#
+# Six bands across the [0, 100] confidence score, each gets a trophy name:
+#   0–15   Doubter      — just starting
+#   16–32  Explorer     — trying things
+#   33–50  Confident    — finding the groove
+#   51–68  Focused      — committed practice
+#   69–84  Fearless     — high performer
+#   85–100 Unstoppable  — elite
+# Weights below sum to 1.0; tweak with care — bigger weight on accuracy
+# means low-volume high-accuracy students rank above grinders, and so on.
+# ---------------------------------------------------------------------------
+
+_CONFIDENCE_TIERS: list[dict[str, Any]] = [
+    {"name": "Doubter",     "index": 0, "min": 0,  "max": 15},
+    {"name": "Explorer",    "index": 1, "min": 16, "max": 32},
+    {"name": "Confident",   "index": 2, "min": 33, "max": 50},
+    {"name": "Focused",     "index": 3, "min": 51, "max": 68},
+    {"name": "Fearless",    "index": 4, "min": 69, "max": 84},
+    {"name": "Unstoppable", "index": 5, "min": 85, "max": 100},
+]
+
+_CONFIDENCE_WEIGHTS = {
+    "volume":      0.20,   # log-scaled total attempts
+    "accuracy":    0.30,   # accuracy adjusted for sample size + floor
+    "consistency": 0.20,   # active days in last 30
+    "battle":      0.15,   # engagement + win rate in 1v1 battles
+    "potd":        0.15,   # Problem-of-the-Day days in last 30
+}
+assert abs(sum(_CONFIDENCE_WEIGHTS.values()) - 1.0) < 1e-9, (
+    "Confidence sub-score weights must sum to 1.0"
+)
+
+
+def _tier_for_confidence(score: float) -> dict[str, Any]:
+    """Return the tier dict whose [min, max] band contains `score`."""
+    bounded = max(0.0, min(100.0, score))
+    for t in _CONFIDENCE_TIERS:
+        if t["min"] <= bounded <= t["max"]:
+            return t
+    return _CONFIDENCE_TIERS[0]
+
+
+def _next_tier(index: int) -> Optional[dict[str, Any]]:
+    return _CONFIDENCE_TIERS[index + 1] if index + 1 < len(_CONFIDENCE_TIERS) else None
 
 
 # Display order rule (frontend & backend agree):
@@ -118,19 +179,24 @@ def _bucket_by_key(
 
 
 def _cumulative_by_day(attempts: list[dict]):
-    """Return [(day, delta, cumulative)] ordered by day."""
+    """Return [(day, delta, cumulative)] ordered by day.
+
+    Days are bucketed by IST midnight (see the `IST` constant at the
+    top of this module) so the chapter / topic trend charts show one
+    point per *Indian calendar day*, matching what students see.
+    """
     from modules.mock_test.schema import CumulativePoint  # local import avoids cycles
     if not attempts:
         return []
     by_day: dict[datetime, int] = defaultdict(int)
     for a in attempts:
         at = a.get("attempted_at")
-        if at is None:
+        if not isinstance(at, datetime):
             continue
-        if isinstance(at, datetime):
-            day = at.replace(hour=0, minute=0, second=0, microsecond=0)
-        else:
-            continue
+        if at.tzinfo is None:
+            at = at.replace(tzinfo=timezone.utc)
+        at_ist = at.astimezone(IST)
+        day = at_ist.replace(hour=0, minute=0, second=0, microsecond=0)
         by_day[day] += 1
     out = []
     cumulative = 0
@@ -1031,6 +1097,269 @@ class MockTestService:
         # Default sort: priority desc (weakest first).
         topics.sort(key=lambda t: t.priority_score, reverse=True)
         return AnalyticsTopicsResponse(topics=topics)
+
+    async def get_activity_heatmap(
+        self, user_oid: ObjectId, range_days: int = 182,
+    ) -> ActivityHeatmapResponse:
+        """Dense daily-count series anchored to IST midnight.
+
+        India Standard Time (UTC+5:30, no DST) is the canonical timezone
+        for this product — student-facing dates need to line up with
+        local wall-clock days, so a problem solved at 01:00 IST belongs
+        to that calendar day, not the previous UTC day.
+
+        Always returns `range_days` contiguous buckets (oldest → newest),
+        zero-filling days with no attempts so the frontend can lay out a
+        fixed grid without having to handle gaps.
+        """
+        now_ist = datetime.now(IST)
+        today_ist = now_ist.replace(hour=0, minute=0, second=0, microsecond=0)
+        start_ist = today_ist - timedelta(days=range_days - 1)
+        end_ist_exclusive = today_ist + timedelta(days=1)
+
+        attempts = await self.repo.list_user_attempts(user_oid)
+        counts: dict[str, int] = defaultdict(int)
+        for a in attempts:
+            at = a.get("attempted_at")
+            if not isinstance(at, datetime):
+                continue
+            # Mongo BSON datetimes come back naive; the spec is they're
+            # stored as UTC, so attach that tz before shifting to IST.
+            if at.tzinfo is None:
+                at = at.replace(tzinfo=timezone.utc)
+            at_ist = at.astimezone(IST)
+            if at_ist < start_ist or at_ist >= end_ist_exclusive:
+                continue
+            counts[at_ist.strftime("%Y-%m-%d")] += 1
+
+        days: list[HeatmapDay] = []
+        max_count = 0
+        total = 0
+        for i in range(range_days):
+            d = start_ist + timedelta(days=i)
+            key = d.strftime("%Y-%m-%d")
+            c = int(counts.get(key, 0))
+            days.append(HeatmapDay(date=key, count=c))
+            if c > max_count:
+                max_count = c
+            total += c
+
+        return ActivityHeatmapResponse(
+            days=days,
+            range_days=range_days,
+            max_count=max_count,
+            total=total,
+            timezone="Asia/Kolkata",
+        )
+
+    async def get_confidence(self, user_oid: ObjectId) -> ConfidenceResponse:
+        """Compute the gamified Confidence Score (0–100) + trophy tier.
+
+        The score is a weighted blend of five sub-scores. Each sub-score
+        is normalised to [0, 100] independently so weights are tunable
+        without scale juggling. See `_CONFIDENCE_WEIGHTS` and
+        `_CONFIDENCE_TIERS` for the constants. Math summary:
+
+            V (volume,        20%) = 100 · ln(1+Q) / ln(1+500), capped 100
+            A (accuracy,      30%) = max(0, (acc% − 30) · 100/70) · sample_ramp
+                where sample_ramp = min(Q, 10) / 10
+            C (consistency,   20%) = active_days_30 / 30 · 100
+            B (battles,       15%) = min(50, count·5) + win_rate · 50
+            P (POTD,          15%) = potd_days_30 / 30 · 100
+
+            Confidence = ΣᵢwᵢSᵢ, clamped to [0, 100].
+
+        All day-windows use IST (see the `IST` constant) so streaks
+        match what the student sees on their wall clock.
+        """
+        attempts = await self.repo.list_user_attempts(user_oid)
+        sessions = await self.repo.list_user_sessions(user_oid, limit=500)
+        # Read battles directly off the shared db handle — battles is a
+        # different module but we only want a simple count + winner check,
+        # not enough surface area to justify a cross-module HTTP hop or
+        # importing the BattleRepository here.
+        battle_cur = self.db["battles"].find({
+            "$or": [
+                {"player_a.user_id": user_oid},
+                {"player_b.user_id": user_oid},
+            ],
+        })
+        battles = [b async for b in battle_cur]
+
+        now_ist = datetime.now(IST)
+        cutoff = now_ist - timedelta(days=30)
+
+        # ---- Volume (V) ----
+        total_attempts = len(attempts)
+        if total_attempts <= 0:
+            v_score = 0.0
+        else:
+            v_score = min(
+                100.0,
+                100.0 * math.log1p(total_attempts) / math.log1p(500),
+            )
+
+        # ---- Accuracy (A) ----
+        if total_attempts == 0:
+            acc_pct = 0.0
+            a_score = 0.0
+        else:
+            score_sum = 0.0
+            for at in attempts:
+                corr = at.get("correctness")
+                if corr is None:
+                    corr = 1.0 if at.get("is_correct") else 0.0
+                score_sum += float(corr)
+            acc_pct = score_sum / total_attempts * 100.0
+            raw_a = max(0.0, (acc_pct - 30.0) * 100.0 / 70.0)
+            # Ramp down accuracy weight while sample size is tiny —
+            # 80% on 3 questions is noise, not skill.
+            sample_ramp = min(total_attempts, 10) / 10.0
+            a_score = raw_a * sample_ramp
+
+        # ---- Consistency (C) — distinct IST days w/ ≥ 1 attempt in last 30 ----
+        active_days_30: set = set()
+        for at in attempts:
+            ts = at.get("attempted_at")
+            if not isinstance(ts, datetime):
+                continue
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=timezone.utc)
+            ts_ist = ts.astimezone(IST)
+            if ts_ist >= cutoff:
+                active_days_30.add(ts_ist.date())
+        c_score = min(100.0, len(active_days_30) / 30.0 * 100.0)
+
+        # ---- Battle (B) — engagement + win rate ----
+        battle_count = len(battles)
+        if battle_count == 0:
+            win_rate = 0.0
+            b_score = 0.0
+        else:
+            wins = 0
+            for x in battles:
+                w = x.get("winner_user_id")
+                # Winner is stored as ObjectId; compare safely against the
+                # caller's user_oid. None on draws → not counted as a win.
+                if w == user_oid:
+                    wins += 1
+            win_rate = wins / battle_count
+            engagement = min(50.0, battle_count * 5.0)
+            b_score = min(100.0, engagement + win_rate * 50.0)
+
+        # ---- POTD (P) — distinct IST days w/ ≥ 1 single-question session ----
+        potd_days_30: set = set()
+        for s in sessions:
+            if int(s.get("total_questions") or 0) != 1:
+                continue
+            ts = s.get("completed_at") or s.get("created_at")
+            if not isinstance(ts, datetime):
+                continue
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=timezone.utc)
+            ts_ist = ts.astimezone(IST)
+            if ts_ist >= cutoff:
+                potd_days_30.add(ts_ist.date())
+        p_score = min(100.0, len(potd_days_30) / 30.0 * 100.0)
+
+        # ---- Weighted total ----
+        confidence = (
+            _CONFIDENCE_WEIGHTS["volume"]      * v_score
+            + _CONFIDENCE_WEIGHTS["accuracy"]    * a_score
+            + _CONFIDENCE_WEIGHTS["consistency"] * c_score
+            + _CONFIDENCE_WEIGHTS["battle"]      * b_score
+            + _CONFIDENCE_WEIGHTS["potd"]        * p_score
+        )
+        confidence = max(0.0, min(100.0, confidence))
+
+        # ---- Tier descriptors ----
+        tier_data = _tier_for_confidence(confidence)
+        next_data = _next_tier(tier_data["index"])
+
+        tier = ConfidenceTier(
+            name=tier_data["name"],
+            index=int(tier_data["index"]),
+            min_score=float(tier_data["min"]),
+            max_score=float(tier_data["max"]),
+        )
+        next_tier = (
+            ConfidenceTier(
+                name=next_data["name"],
+                index=int(next_data["index"]),
+                min_score=float(next_data["min"]),
+                max_score=float(next_data["max"]),
+            )
+            if next_data else None
+        )
+
+        sub_scores = [
+            ConfidenceSubScore(
+                key="volume",
+                label="Practice volume",
+                score=round(v_score, 1),
+                weight=_CONFIDENCE_WEIGHTS["volume"],
+                detail=(
+                    f"{total_attempts} question{'s' if total_attempts != 1 else ''} attempted overall"
+                    if total_attempts else "No attempts yet — try a mock test"
+                ),
+            ),
+            ConfidenceSubScore(
+                key="accuracy",
+                label="Accuracy",
+                score=round(a_score, 1),
+                weight=_CONFIDENCE_WEIGHTS["accuracy"],
+                detail=(
+                    f"{acc_pct:.0f}% correct on {total_attempts} attempts"
+                    + (" (sample ramping up)" if total_attempts < 10 else "")
+                    if total_attempts else "Solve a few questions to start scoring"
+                ),
+            ),
+            ConfidenceSubScore(
+                key="consistency",
+                label="Consistency",
+                score=round(c_score, 1),
+                weight=_CONFIDENCE_WEIGHTS["consistency"],
+                detail=(
+                    f"{len(active_days_30)} active day"
+                    f"{'s' if len(active_days_30) != 1 else ''} in the last 30"
+                ),
+            ),
+            ConfidenceSubScore(
+                key="battle",
+                label="1v1 battles",
+                score=round(b_score, 1),
+                weight=_CONFIDENCE_WEIGHTS["battle"],
+                detail=(
+                    f"{battle_count} battle{'s' if battle_count != 1 else ''}, "
+                    f"{int(round(win_rate * 100))}% wins"
+                    if battle_count else "No battles yet — enter the arena"
+                ),
+            ),
+            ConfidenceSubScore(
+                key="potd",
+                label="POTD streak",
+                score=round(p_score, 1),
+                weight=_CONFIDENCE_WEIGHTS["potd"],
+                detail=(
+                    f"Solved POTD on {len(potd_days_30)} day"
+                    f"{'s' if len(potd_days_30) != 1 else ''} in the last 30"
+                    if potd_days_30 else "No POTD solves in the last 30 days"
+                ),
+            ),
+        ]
+
+        return ConfidenceResponse(
+            score=round(confidence, 1),
+            tier=tier,
+            next_tier=next_tier,
+            sub_scores=sub_scores,
+            total_attempts=total_attempts,
+            overall_accuracy_pct=round(acc_pct, 1),
+            active_days_30=len(active_days_30),
+            potd_days_30=len(potd_days_30),
+            battle_count=battle_count,
+            battle_win_rate=round(win_rate, 3),
+        )
 
     async def _topic_analytics(
         self, user_oid: ObjectId, attempts: list[dict],

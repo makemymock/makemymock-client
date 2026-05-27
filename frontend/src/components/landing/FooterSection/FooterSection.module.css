@@ -1,128 +1,276 @@
+/* Footer chrome — dark slab with a subtle radial glow behind the
+   content. Two link "cards" sit on the right at panel-soft fill,
+   matching the reference layout. */
+
 .siteFooter {
   position: relative;
-  padding: 6rem 1.5rem 2rem;
-  background: linear-gradient(115deg, var(--footer-surface-from) 0%, var(--footer-surface-to) 100%);
-  color: var(--footer-text-color);
-  border-top: 1px solid var(--footer-surface-border);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  padding: 5rem 1.5rem 4rem;
+  background: var(--footer-surface-from, #0a0a10);
+  color: var(--footer-text-color, #e5e7eb);
+  overflow: hidden;
+  isolation: isolate;
 }
 
+/* Make the dark slab a little richer when on the dark theme. Light
+   theme keeps a softer cream tone so the cards still stand out. */
 :root[data-theme='dark'] .siteFooter,
 :root:not([data-theme='light']) .siteFooter {
-  border-top-color: var(--footer-surface-border);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 35%),
+    #08080d;
+  color: #e7e9ee;
 }
 
-.siteFooterInner {
+:root[data-theme='light'] .siteFooter {
+  background: #f1f1f4;
+  color: #1f2937;
+}
+
+/* Radial accent — pinkish-purple bloom behind the brand column, faint
+   amber bloom to the right. Sits behind the inner via z-index. */
+.glow {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(640px 320px at 20% 30%, rgba(168, 85, 247, 0.18), transparent 65%),
+    radial-gradient(560px 280px at 80% 20%, rgba(245, 196, 81, 0.10), transparent 65%);
+  pointer-events: none;
+}
+
+:root[data-theme='light'] .glow {
+  background:
+    radial-gradient(640px 320px at 20% 30%, rgba(168, 85, 247, 0.06), transparent 65%),
+    radial-gradient(560px 280px at 80% 20%, rgba(245, 196, 81, 0.10), transparent 65%);
+}
+
+/* ---------------------------------------------------------------- Inner grid */
+
+.inner {
+  position: relative;
+  z-index: 1;
   width: min(92rem, 100%);
   margin: 0 auto;
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) repeat(2, minmax(0, 0.8fr));
-  gap: 2.5rem;
-  align-items: start;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1.75rem;
+  align-items: stretch;
 }
 
-.siteFooterBrand h3,
-.siteFooterColumn h4 {
+/* ---------------------------------------------------------------- Brand column */
+
+.brand {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  padding: 0.5rem 0.25rem;
+  min-width: 0;
+}
+
+.brandTitle {
   margin: 0;
   font-family: var(--font-primary);
-  font-weight: 400;
+  font-size: clamp(2.4rem, 4.4vw, 3.6rem);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  font-weight: 500;
+  color: inherit;
 }
 
-.siteFooterBrand h3 {
-  font-size: clamp(2rem, 2.8vw, 3.2rem);
-}
-
-.siteFooterBrand p,
-.siteFooterColumn li,
-.siteFooterBar {
+.brandTagline {
+  margin: 0;
   font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+  font-size: 0.95rem;
+  opacity: 0.78;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  letter-spacing: 0.01em;
 }
 
-.siteFooterBrand p {
-  margin: 1.5rem 0 0;
-  max-width: 34rem;
-  font-size: 1.1rem;
-  line-height: 1.45;
+.heart {
+  display: inline-block;
+  color: #ec4899;
+  font-size: 1rem;
+  line-height: 1;
+  transform: translateY(-1px);
 }
 
-.siteFooterColumn h4 {
-  font-size: clamp(1.8rem, 2.2vw, 2.6rem);
-  margin-bottom: 1rem;
+/* Square icon buttons — matches the reference; subtle dark fill with
+   a soft border. Hover lifts + recolors using the brand teal. */
+.socialList {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
 }
 
-.siteFooterColumn ul {
+.socialLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  color: inherit;
+  opacity: 0.88;
+  text-decoration: none;
+  transition: transform 0.16s ease, background 0.16s ease,
+              border-color 0.16s ease, color 0.16s ease, opacity 0.16s ease;
+}
+
+:root[data-theme='light'] .socialLink {
+  background: rgba(15, 23, 42, 0.04);
+  border-color: rgba(15, 23, 42, 0.10);
+}
+
+.socialLink:hover {
+  opacity: 1;
+  color: #16a085;
+  background: rgba(22, 160, 133, 0.14);
+  border-color: rgba(22, 160, 133, 0.42);
+  transform: translateY(-2px);
+}
+
+.copyright {
+  margin: auto 0 0;       /* push to the bottom of the column on desktop */
+  font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', monospace;
+  font-size: 0.82rem;
+  letter-spacing: 0.01em;
+  opacity: 0.62;
+}
+
+/* ---------------------------------------------------------------- Link cards */
+
+.linkCard {
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 22px;
+  padding: 1.85rem 2rem;
+  min-width: 0;
+  /* Stretch to match the brand column height — the grid uses
+     `align-items: stretch` by default, so this just needs to be a
+     flex container so its inner list spans correctly. */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.85rem;
+}
+
+:root[data-theme='light'] .linkCard {
+  background: rgba(15, 23, 42, 0.04);
+  border-color: rgba(15, 23, 42, 0.08);
+}
+
+/* Visually hidden column title (kept for SR / aria-label fallback). */
+.linkCardTitleSr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.linkList {
+  list-style: none;
   margin: 0;
   padding: 0;
-  list-style: none;
-}
-
-.siteFooterColumn li {
-  font-size: 1.05rem;
-  line-height: 1.7;
-}
-
-.siteFooterBar {
-  width: min(92rem, 100%);
-  margin: 5rem auto 0;
-  padding-top: 2rem;
-  border-top: 1px solid rgba(20, 42, 65, 0.5);
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
   gap: 1rem;
-  flex-wrap: wrap;
-  font-size: 0.95rem;
 }
 
-:root[data-theme='dark'] .siteFooterBar,
-:root:not([data-theme='light']) .siteFooterBar {
-  border-top-color: rgba(20, 42, 65, 0.5);
-}
-
-.siteFooterBar a {
+.linkItem {
+  display: inline-block;
+  font-family: var(--font-primary);
+  font-size: clamp(1rem, 1.2vw, 1.15rem);
+  letter-spacing: 0.005em;
   color: inherit;
   text-decoration: none;
+  opacity: 0.92;
+  transition: color 0.16s ease, opacity 0.16s ease, transform 0.16s ease;
 }
 
-@media (max-width: 860px) {
-  .siteFooter {
-    padding: 2.5rem 1.25rem 1.25rem;
-  }
+.linkItem:hover {
+  color: #16a085;
+  opacity: 1;
+  transform: translateX(2px);
+}
 
-  .siteFooterInner {
+/* ===========================================================================
+ * Responsive
+ * =========================================================================== */
+
+/* Tablet — keep brand on top spanning full width, two link cards
+   side-by-side underneath. */
+@media (max-width: 980px) {
+  .inner {
     grid-template-columns: 1fr 1fr;
-    gap: 1.5rem 1.25rem;
+    gap: 1.5rem;
   }
-
-  .siteFooterBrand {
+  .brand {
     grid-column: 1 / -1;
+    padding-bottom: 0.5rem;
   }
-
-  .siteFooterBrand h3 {
-    font-size: 1.75rem;
+  .copyright {
+    margin-top: 0.5rem;
   }
+}
 
-  .siteFooterBrand p {
-    margin: 0.6rem 0 0;
-    font-size: 0.95rem;
-    line-height: 1.45;
+/* Phones — brand block stacks naturally; the two link cards stack
+   to single column so they're easy to scan. */
+@media (max-width: 640px) {
+  .siteFooter {
+    padding: 3rem 1.1rem 2.5rem;
   }
-
-  .siteFooterColumn h4 {
-    font-size: 1.25rem;
-    margin-bottom: 0.5rem;
+  .inner {
+    grid-template-columns: 1fr;
+    gap: 1.1rem;
   }
-
-  .siteFooterColumn li {
-    font-size: 0.9rem;
-    line-height: 1.5;
+  .brand {
+    gap: 0.85rem;
   }
+  .brandTitle {
+    font-size: clamp(2rem, 7vw, 2.5rem);
+  }
+  .brandTagline {
+    font-size: 0.88rem;
+  }
+  .socialLink {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+  }
+  .linkCard {
+    border-radius: 18px;
+    padding: 1.35rem 1.4rem;
+    gap: 0.5rem;
+  }
+  .linkList {
+    gap: 0.75rem;
+  }
+  .linkItem {
+    font-size: 0.98rem;
+  }
+  .copyright {
+    font-size: 0.78rem;
+  }
+}
 
-  .siteFooterBar {
-    margin-top: 1.75rem;
-    padding-top: 1rem;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.4rem;
-    font-size: 0.82rem;
+@media (max-width: 380px) {
+  .siteFooter {
+    padding: 2.5rem 0.9rem 2rem;
+  }
+  .linkCard {
+    padding: 1.15rem 1.2rem;
   }
 }

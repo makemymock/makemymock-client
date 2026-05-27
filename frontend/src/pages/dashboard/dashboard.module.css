@@ -726,6 +726,46 @@
   .grid { grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); }
 }
 
+/* Heatmap card slot inside the hero row. Stretches to fill its column
+   on phones/tablets; sits on the right at a compact size on laptop. */
+.heatmapRow {
+  display: block;
+  min-width: 0;
+}
+
+/* Confidence trophy — full-width row right under the HeroCard so the
+   gamified headline number sits where the eye lands first. */
+.trophyRow {
+  display: block;
+  min-width: 0;
+}
+
+/* Hero row — wraps the three stat cards on the left and the heatmap
+   card on the right. Phones/tablets stack the two sections. Laptops
+   show them side-by-side: 3 stat cards align vertically on the left
+   and the heatmap card sits at the right at a comfortable compact size. */
+.heroRow {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: clamp(12px, 2vw, 18px);
+  min-width: 0;
+}
+
+@media (min-width: 1080px) {
+  .heroRow {
+    /* Stats flex, heatmap card auto-sizes to its content. */
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+  }
+
+  /* Inside the hero row, switch the 3-column statRow back to a single
+     column so the cards stack vertically beside the heatmap. Outside
+     the hero row the existing 3-column layout still wins. */
+  .heroRow .statRow {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ----- Performance card ----- */
 
 .perfCard {

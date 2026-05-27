@@ -5,107 +5,117 @@ import styles from './InsightSection.module.css';
 
 gsap.registerPlugin(ScrollTrigger);
 
+// Each card now shows everything on a single face — no flip. The
+// `tone` class drives the colour, the index drives the slide order.
 const studyCards = [
   {
     id: 'direction',
-    toneClass: 'insightCardAmber',
+    tone: 'insightCardAmber',
     title: 'Studying a lot, but not seeing real improvement?',
-    shortText: 'You keep putting in hours, but the right topics still do not get enough attention.',
-    fullText:
+    detail:
       'Most of the time, the effort is there, but the practice is not directed toward your weak areas. That makes the progress feel slow even when the study time is high.',
   },
   {
     id: 'practice',
-    toneClass: 'insightCardPink',
+    tone: 'insightCardPink',
     title: 'Practising randomly without knowing your weak areas.',
-    shortText: 'Solving questions without a map can leave the real gaps hidden.',
-    fullText:
+    detail:
       'When practice is random, it is easy to miss the chapters and concepts that actually need more attention. A focused plan makes each session count.',
   },
   {
     id: 'consistency',
-    toneClass: 'insightCardCyan',
+    tone: 'insightCardCyan',
     title: 'Losing consistency and motivation over time.',
-    shortText: 'Without a steady path, it becomes harder to keep momentum.',
-    fullText:
+    detail:
       'A clear study direction makes it easier to stay consistent. Seeing progress in the right places keeps motivation alive and helps you avoid the spiral of unfocused preparation.',
   },
 ];
 
-const FLIP_TIMES = [0.75, 1.75, 2.75];
-
 function InsightSection() {
   const sectionRef = useRef(null);
   const cardRefs = useRef([]);
-  const innerRefs = useRef([]);
+  const dotRefs = useRef([]);
 
   useEffect(() => {
     const section = sectionRef.current;
     const cards = cardRefs.current.filter(Boolean);
-    const inners = innerRefs.current.filter(Boolean);
+    const dots = dotRefs.current.filter(Boolean);
 
     if (!section || cards.length === 0) return undefined;
 
     const ctx = gsap.context(() => {
-      gsap.set(cards, { yPercent: -50, y: '100vh', opacity: 0 });
-      gsap.set(inners, { rotateX: 0, scale: 1 });
-
-      const flipState = FLIP_TIMES.map(() => false);
-
-      const flipForward = (inner) =>
-        gsap.to(inner, {
-          rotateX: 180,
-          scale: 1.06,
-          duration: 0.9,
-          ease: 'power2.inOut',
-          overwrite: 'auto',
-        });
-
-      const flipReverse = (inner) =>
-        gsap.to(inner, {
-          rotateX: 0,
-          scale: 1,
-          duration: 0.9,
-          ease: 'power2.inOut',
-          overwrite: 'auto',
-        });
+      // Resting state for non-active cards: parked off-stage to the
+      // RIGHT, fully invisible. Card 0 starts on stage. zIndex keeps
+      // the active card on top of the others without flicker.
+      gsap.set(cards, { xPercent: 110, scale: 0.92, opacity: 0, zIndex: 0 });
+      gsap.set(cards[0], { xPercent: 0, scale: 1, opacity: 1, zIndex: 3 });
+      gsap.set(dots, { opacity: 0.35 });
+      if (dots[0]) gsap.set(dots[0], { opacity: 1 });
 
       const tl = gsap.timeline({
-        onUpdate: () => {
-          const t = tl.time();
-          FLIP_TIMES.forEach((flipT, i) => {
-            const shouldFlip = t >= flipT;
-            if (shouldFlip && !flipState[i]) {
-              flipForward(inners[i]);
-              flipState[i] = true;
-            } else if (!shouldFlip && flipState[i]) {
-              flipReverse(inners[i]);
-              flipState[i] = false;
-            }
-          });
-        },
         scrollTrigger: {
           trigger: section,
           start: 'top top',
-          end: '+=200%',
+          end: '+=220%',
           scrub: 1,
           pin: true,
           pinSpacing: true,
         },
       });
 
-      cards.forEach((card, index) => {
-        const enterStart = index * 1.0;
-        tl.to(card, { y: 0, opacity: 1, ease: 'none', duration: 0.5 }, enterStart);
+      // Sequential hand-off — the OUTGOING card slides off + fades in
+      // the first 60% of the transition; the INCOMING card waits, then
+      // slides on + fades in for the last 60%. The two windows overlap
+      // by only 20% so the slider never shows two half-faded cards on
+      // top of each other (that was the "overlap" bug in the previous
+      // cross-fade version).
+      cards.forEach((card, i) => {
+        if (i === 0) return;
+        const t = (i - 1) * 1.0;
 
-        if (index < cards.length - 1) {
+        // Outgoing card (i - 1) — first 0.6 of the unit
+        tl.to(
+          cards[i - 1],
+          {
+            xPercent: -110,
+            scale: 0.92,
+            opacity: 0,
+            zIndex: 1,
+            ease: 'power3.in',
+            duration: 0.6,
+          },
+          t,
+        );
+
+        // Incoming card (i) — last 0.6 of the unit, starts at +0.4
+        tl.to(
+          card,
+          {
+            xPercent: 0,
+            scale: 1,
+            opacity: 1,
+            zIndex: 3,
+            ease: 'power3.out',
+            duration: 0.6,
+          },
+          t + 0.4,
+        );
+
+        // Pager dot crossfade — matches the card hand-off, slightly
+        // longer so the pager state is always interpretable.
+        if (dots[i - 1]) {
           tl.to(
-            card,
-            { y: '-100vh', opacity: 0, ease: 'none', duration: 0.5 },
-            enterStart + 1.0,
+            dots[i - 1],
+            { opacity: 0.35, ease: 'power1.in', duration: 0.6 },
+            t,
           );
-        } else {
-          tl.to(card, { y: 0, duration: 0.5 }, enterStart + 0.5);
+        }
+        if (dots[i]) {
+          tl.to(
+            dots[i],
+            { opacity: 1, ease: 'power1.out', duration: 0.6 },
+            t + 0.4,
+          );
         }
       });
     }, section);
@@ -127,31 +137,35 @@ function InsightSection() {
         <img className={`${styles.insightSectionOrnament} ${styles.insightSectionOrnamentFour}`} src="/chemical_tubes.png" alt="" />
       </div>
 
-      <div className={styles.insightSectionCards}>
-        {studyCards.map((card, index) => (
-          <article
-            className={`${styles.insightCard} ${styles[card.toneClass]}`}
-            key={card.id}
-            ref={(element) => {
-              cardRefs.current[index] = element;
-            }}
-          >
-            <div
-              className={styles.insightCardInner}
-              ref={(element) => {
-                innerRefs.current[index] = element;
-              }}
+      <div className={styles.cardStage}>
+        <div className={styles.cardTrack}>
+          {studyCards.map((card, index) => (
+            <article
+              key={card.id}
+              ref={(element) => { cardRefs.current[index] = element; }}
+              className={`${styles.insightCard} ${styles[card.tone]}`}
             >
-              <div className={`${styles.insightCardFace} ${styles.insightCardFaceFront}`}>
-                <h3>{card.title}</h3>
-              </div>
-              <div className={`${styles.insightCardFace} ${styles.insightCardFaceBack}`}>
-                <p>{card.shortText}</p>
-                <p>{card.fullText}</p>
-              </div>
-            </div>
-          </article>
-        ))}
+              <span className={styles.cardIndex}>
+                {String(index + 1).padStart(2, '0')}
+              </span>
+              <span className={styles.cardEyebrow}>The honest truth</span>
+              <h3 className={styles.cardTitle}>{card.title}</h3>
+              <p className={styles.cardDetail}>{card.detail}</p>
+              <span className={styles.cardCorner} aria-hidden="true" />
+            </article>
+          ))}
+        </div>
+
+        {/* Pager — small visual cue that there are 3 cards. */}
+        <div className={styles.pager} aria-hidden="true">
+          {studyCards.map((card, i) => (
+            <span
+              key={card.id}
+              ref={(element) => { dotRefs.current[i] = element; }}
+              className={styles.pagerDot}
+            />
+          ))}
+        </div>
       </div>
     </section>
   );

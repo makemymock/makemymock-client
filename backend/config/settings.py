@@ -50,13 +50,27 @@ class Settings(BaseSettings):
     OTP_MAX_ATTEMPTS: int = 5
     OTP_RESEND_COOLDOWN_SECONDS: int = 60
 
-    # ---- SolverX (Groq) ----
-    # Leave GROQ_API_KEY blank in env to disable SolverX in dev.
-    # GROQ_MODEL is overridable so we can swap models without code
-    # changes. Llama 4 Scout is multimodal — when we add image upload to
-    # the SolverX UI later, the same model handles it.
-    GROQ_API_KEY: str = ""
-    GROQ_MODEL: str = "meta-llama/llama-4-scout-17b-16e-instruct"
+    # ---- SolverX (Google Vertex AI / Gemini) ----
+    # Auth is handled by Application Default Credentials (ADC) — the
+    # SDK auto-discovers `gcloud auth application-default login` on dev
+    # machines, and a runtime-bound identity (Cloud Run / GKE Workload
+    # Identity) in production. No JSON key needs to live on disk.
+    #
+    # Four model slots are configured because SolverX routes by mode +
+    # complexity AND treats diagrams as a separate concern:
+    #   * SIMPLE solve / easy theory  → FLASH       (cheap, fast)
+    #   * Plan stage in DEEP modes    → FLASH_LITE  (cheapest, structured JSON only)
+    #   * Deep solver / theory tutor  → PRO         (most capable, slower)
+    #   * Diagram draft + polish      → DIAGRAM     (tuned separately;
+    #     SVG generation is more layout than reasoning, so Flash is
+    #     cheap and fast enough — but kept as its own slot so it can be
+    #     swapped without touching the solver model)
+    GCP_PROJECT_ID: str = ""
+    GCP_LOCATION: str = "global"
+    GEMINI_MODEL_PRO: str = "gemini-3.1-pro-preview"
+    GEMINI_MODEL_FLASH: str = "gemini-3.5-flash"
+    GEMINI_MODEL_FLASH_LITE: str = "gemini-3.1-flash-lite"
+    GEMINI_MODEL_DIAGRAM: str = "gemini-3.5-flash"
 
 
 @lru_cache

@@ -7,7 +7,11 @@ from typing import Annotated, Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
-ComplexityMode = Literal["guided", "deep"]
+# Solve mode supports `guided` / `deep`; Theory supports `easy` / `deep`.
+# We accept the union so the same field carries either; the service
+# dispatcher routes by (mode, complexity) and treats `guided` and `easy`
+# as the same "simple Flash" path.
+ComplexityMode = Literal["guided", "deep", "easy"]
 ConversationMode = Literal["solve", "theory"]
 
 QuestionText = Annotated[str, StringConstraints(min_length=1, max_length=20_000)]
@@ -15,7 +19,7 @@ QuestionText = Annotated[str, StringConstraints(min_length=1, max_length=20_000)
 
 # ---- requests ----
 
-# A `data:image/...;base64,...` URL. Capped well below Groq's per-image
+# A `data:image/...;base64,...` URL. Capped below Gemini's per-image
 # limit so we fail fast on giant uploads instead of paying the round-trip.
 ImageDataUrl = Annotated[str, StringConstraints(min_length=22, max_length=8_000_000)]
 
@@ -33,7 +37,9 @@ class SolveRequest(BaseModel):
 class TheoryRequest(BaseModel):
     question_text: Annotated[str, StringConstraints(min_length=1, max_length=20_000)] = "Explain what's in this image."
     image_data_url: Optional[ImageDataUrl] = None
-    complexity_mode: ComplexityMode = "guided"
+    # Default to `deep` for theory — most theory questions deserve a
+    # full explanation; users can flip to `easy` for a quick read.
+    complexity_mode: ComplexityMode = "deep"
     conversation_id: Optional[str] = None
 
 

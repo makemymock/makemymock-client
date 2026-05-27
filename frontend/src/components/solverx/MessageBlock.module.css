@@ -130,9 +130,69 @@
   display: block;
   max-width: 100%;
   height: auto;
-  max-height: 420px;
+  /* No max-height — let the figure be as tall as it naturally is.
+     Tall geometric figures (free-body diagrams, vertical optical
+     setups, etc.) were getting clipped at 420px previously. */
 }
 
 .diagramSvg :global(text) {
   font-family: var(--font-secondary);
+}
+
+/* Pending diagram — placeholder rendered while the Visual Reasoning
+   agents finish drafting + polishing the SVG. Lives in the exact
+   position the final figure will occupy, so the transcript layout
+   doesn't jump when the diagram drops in. */
+.diagramPending {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  background: var(--color-chip-bg);
+  border: 1px dashed var(--color-panel-border);
+  border-radius: 10px;
+  color: var(--color-text-muted);
+}
+
+.diagramSpinner {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid rgba(20, 184, 166, 0.25);
+  border-top-color: var(--color-accent);
+  animation: solverxDiagramSpin 0.75s linear infinite;
+}
+
+@keyframes solverxDiagramSpin {
+  to { transform: rotate(360deg); }
+}
+
+.diagramPendingText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.diagramPendingTitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  letter-spacing: 0.2px;
+}
+
+.diagramPendingDescription {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  /* Truncate very long descriptions — the full text is in the model's
+     mind and on the way to the canvas; the placeholder just needs to
+     hint at what's coming. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }

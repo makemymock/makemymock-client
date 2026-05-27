@@ -4,6 +4,45 @@
   gap: 12px;
 }
 
+/* Heatmap section — the Heatmap component supplies its own card chrome,
+   so this wrapper just controls vertical rhythm against the surrounding
+   stat-grid and chart cards. */
+.heatmapSection {
+  display: block;
+  min-width: 0;
+}
+
+/* Confidence trophy slot — full-width, sits above the stats+heatmap row. */
+.trophySection {
+  display: block;
+  min-width: 0;
+}
+
+/* Hero row — stat cards on the left, heatmap on the right at laptop
+   widths. On smaller screens they stack: stats first, then heatmap. */
+.heroRow {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  min-width: 0;
+}
+
+@media (min-width: 1080px) {
+  .heroRow {
+    /* Stats column flexes, heatmap card sizes to its content (compact). */
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 18px;
+  }
+
+  /* Inside the hero row, force the stat grid to a clean 3×2 so the
+     6 cards form a symmetric block on the left. Outside this row the
+     auto-fit grid stays in charge. */
+  .heroRow .overviewGridInHero {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 .card {
   background: var(--color-panel-bg);
   border: 1px solid var(--color-panel-border);

@@ -1,0 +1,320 @@
+/* Activity heatmap card. Same panel chrome as the other Dashboard /
+   Analytics cards so it slots in without looking foreign. */
+
+.wrap {
+  background: var(--color-panel-bg);
+  border: 1px solid var(--color-panel-border);
+  border-radius: 16px;
+  padding: 18px 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;             /* belt-and-braces inside flex/grid parents */
+}
+
+/* Compact variant — used in tight slots like the dashboard sidebar. */
+.compact {
+  padding: 14px 14px 12px;
+  gap: 10px;
+  border-radius: 14px;
+}
+
+/* ----------------------------------------------------------------- Head */
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.headText {
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(15px, 2vw, 18px);
+  font-weight: 700;
+  letter-spacing: 0.1px;
+  color: var(--color-text-primary);
+}
+
+.subtitle {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+.headStat {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.headStat strong {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin-right: 4px;
+}
+
+/* ----------------------------------------------------------------- Toolbar */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.rangeTabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  background: var(--color-chip-bg);
+  border: 1px solid var(--color-panel-border);
+  border-radius: 999px;
+}
+
+.rangeTab {
+  appearance: none;
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.rangeTab:hover:not(.rangeTabActive) {
+  color: var(--color-text-primary);
+}
+
+.rangeTabActive {
+  background: var(--color-panel-bg);
+  color: var(--color-text-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+}
+
+:root[data-theme='light'] .rangeTabActive {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* ----------------------------------------------------------------- Grid */
+
+.colLabels {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+  padding: 0 1px;
+  width: 100%;
+  max-width: 100%;
+}
+
+.colLabel {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+  width: 100%;
+  /* Each cell auto-sizes via the 7-column track and the row count from
+     the JSX style prop. `aspect-ratio: 1` keeps every cell square no
+     matter the viewport. The max-width below keeps cells from ballooning
+     to 80–100px on laptop when the card has lots of horizontal space —
+     a 7×4 heatmap of 100px cells reads as a billboard, not data. */
+}
+
+/* From the tablet breakpoint up, anchor the grid (and matching column
+   labels) to a comfortable size so cells stay ~38–50px instead of
+   tracking the parent column width. The card chrome still fills the
+   surrounding card; the grid centers inside it. */
+@media (min-width: 720px) {
+  .grid,
+  .colLabels {
+    max-width: 360px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+.cell {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 4px;
+  background: var(--cell-bg, rgba(255, 255, 255, 0.05));
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  position: relative;
+}
+
+.cell:hover {
+  transform: scale(1.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  z-index: 1;
+}
+
+/* ----------------------------------------------------------------- Intensity levels.
+   Green is chosen for both themes; opacity ramps to readability against
+   the panel background. Brand teal is the project accent, but the user
+   wants explicit "green" semantics — so we ride the universal heatmap
+   convention (GitHub-style emerald scale). */
+
+.lvl0 {
+  background: rgba(148, 163, 184, 0.16);      /* slate-tinted "no activity" */
+}
+.lvl1 { background: rgba(34, 197, 94, 0.22); }
+.lvl2 { background: rgba(34, 197, 94, 0.45); }
+.lvl3 { background: rgba(34, 197, 94, 0.72); }
+.lvl4 { background: rgba(34, 197, 94, 0.95); }
+
+/* Light theme — same emerald hue but lift the "empty" cell so it
+   reads on cream paper instead of disappearing. */
+:root[data-theme='light'] .lvl0 {
+  background: rgba(15, 23, 42, 0.08);
+}
+:root[data-theme='light'] .lvl1 { background: rgba(22, 163, 74, 0.22); }
+:root[data-theme='light'] .lvl2 { background: rgba(22, 163, 74, 0.45); }
+:root[data-theme='light'] .lvl3 { background: rgba(22, 163, 74, 0.72); }
+:root[data-theme='light'] .lvl4 { background: rgba(22, 163, 74, 0.95); }
+
+/* ----------------------------------------------------------------- Footer */
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.footerDates {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.legendLabel {
+  letter-spacing: 0.3px;
+}
+
+.legendCell {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+/* ----------------------------------------------------------------- Empty state */
+
+.empty {
+  margin: 6px 0 4px;
+  padding: 18px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--color-text-muted);
+  border: 1px dashed var(--color-panel-border);
+  border-radius: 12px;
+}
+
+/* ===========================================================================
+ * Responsive — phone-first.
+ * The grid auto-sizes via `repeat(7, 1fr)` + `aspect-ratio: 1`, so we
+ * mostly only tweak padding and font-sizes here.
+ * =========================================================================== */
+
+@media (max-width: 600px) {
+  .wrap {
+    padding: 14px 14px 12px;
+    border-radius: 14px;
+    gap: 12px;
+  }
+  .head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+  .subtitle {
+    font-size: 12.5px;
+  }
+  .toolbar {
+    gap: 8px;
+  }
+  .rangeTab {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+  .headStat {
+    font-size: 12.5px;
+  }
+  .headStat strong {
+    font-size: 15px;
+  }
+  .grid {
+    gap: 3px;
+  }
+  .cell {
+    border-radius: 3px;
+  }
+  .colLabels {
+    gap: 3px;
+  }
+  .colLabel {
+    font-size: 10px;
+  }
+  .footer {
+    gap: 6px;
+  }
+  .legendCell {
+    width: 10px;
+    height: 10px;
+  }
+}
+
+/* Last-mile fixes for ≤ 380px (iPhone SE / very narrow Androids).
+   We still want all 7 columns; just tighten gaps and lose extra padding. */
+@media (max-width: 380px) {
+  .wrap {
+    padding: 12px 12px 10px;
+  }
+  .rangeTabs {
+    padding: 2px;
+  }
+  .rangeTab {
+    padding: 5px 8px;
+    font-size: 11.5px;
+  }
+  .grid,
+  .colLabels {
+    gap: 2px;
+  }
+  .legend {
+    gap: 3px;
+  }
+}

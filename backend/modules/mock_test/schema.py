@@ -247,6 +247,63 @@ class AnalyticsTopicsResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Activity heatmap — daily problem-solving intensity, last ~6 months.
+# The frontend buckets these into 1×7 (week), 4×7 (month), or weekly-rolled
+# 4×7 (six months) grids depending on the selected range.
+# ---------------------------------------------------------------------------
+
+class HeatmapDay(BaseModel):
+    date: str           # "YYYY-MM-DD" — anchored to UTC midnight
+    count: int          # attempts on that day (0 when none)
+
+
+class ActivityHeatmapResponse(BaseModel):
+    days: list[HeatmapDay]      # contiguous, oldest → newest
+    range_days: int             # how many days the payload spans (always 182 today)
+    max_count: int              # largest single-day count in the window
+    total: int                  # sum of all counts in the window
+    timezone: str = "UTC"       # what `date` keys are anchored to
+
+
+# ---------------------------------------------------------------------------
+# Confidence score + trophy tier.
+#
+# Single 0–100 score capturing how well the student is using the platform:
+# weighted blend of volume, accuracy, consistency, 1v1 battle activity,
+# and POTD streak. Trophy tiers are six bands across the [0, 100] range:
+# Doubter → Explorer → Confident → Focused → Fearless → Unstoppable.
+# ---------------------------------------------------------------------------
+
+class ConfidenceTier(BaseModel):
+    name: str                   # 'Focused'
+    index: int                  # 0..5, monotonic with name
+    min_score: float            # inclusive band start
+    max_score: float            # inclusive band end
+
+
+class ConfidenceSubScore(BaseModel):
+    key: str                    # 'volume' | 'accuracy' | 'consistency' | 'battle' | 'potd'
+    label: str                  # human-readable
+    score: float                # 0..100
+    weight: float               # 0..1, sums to 1 across all sub-scores
+    detail: str                 # one-line explanation with raw counts
+
+
+class ConfidenceResponse(BaseModel):
+    score: float                # 0..100, the headline number
+    tier: ConfidenceTier
+    next_tier: Optional[ConfidenceTier] = None   # None when at the top tier
+    sub_scores: list[ConfidenceSubScore]
+    # Raw counts exposed for any UI/debug consumer that wants them.
+    total_attempts: int
+    overall_accuracy_pct: float
+    active_days_30: int
+    potd_days_30: int
+    battle_count: int
+    battle_win_rate: float
+
+
+# ---------------------------------------------------------------------------
 # Chapter analytics
 # ---------------------------------------------------------------------------
 
