@@ -117,12 +117,13 @@
   transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
 }
 
-.option:hover:not(:disabled) {
+.option:hover:not(:disabled):not(.optionOn):not(.optionCorrect):not(.optionWrong) {
   background: rgba(255, 255, 255, 0.06);
   border-color: var(--color-border-strong);
 }
 
-.optionOn {
+.optionOn,
+.optionOn:hover:not(:disabled) {
   background: linear-gradient(135deg, color-mix(in srgb, var(--color-brand-grad-from) 18%, transparent), color-mix(in srgb, var(--color-brand-grad-to) 18%, transparent));
   border-color: var(--color-accent);
 }
