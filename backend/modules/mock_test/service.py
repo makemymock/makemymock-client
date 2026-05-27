@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import math
+import re
 import time
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
@@ -26,6 +27,7 @@ from fastapi import status
 
 from modules.mock_test.constants import (
     COUNTER_SESSION,
+    PRACTICE_SESSION_ID,
     SECONDS_PER_QUESTION,
 )
 from modules.mock_test.engine_adapter import BufferedRepository
@@ -50,6 +52,16 @@ from modules.mock_test.schema import (
     AnalyticsOverviewResponse,
     AnalyticsTopicsResponse,
     AnswerInput,
+    BrowseAttemptRequest,
+    BrowseAttemptResponse,
+    BrowseItem,
+    BrowseListResponse,
+    BrowsePerformance,
+    BrowseQuestionDetail,
+    BrowseSolutionResponse,
+    BrowseSubQuestion,
+    NotebookCountResponse,
+    NotebookToggleResponse,
     CatalogChapter,
     CatalogResponse,
     CatalogSubject,
@@ -221,6 +233,86 @@ def _matching_cols(doc: dict) -> tuple[list[str], list[str]]:
     return left, right
 
 
+# ---------------------------------------------------------------------------
+# Browse (practice) helpers — turn raw grading / stored attempts into the
+# `correct / partial / incorrect` status the Browse UI shows.
+# ---------------------------------------------------------------------------
+
+def _eff_correctness(is_correct: bool, correctness: Optional[float]) -> float:
+    if correctness is not None:
+        return float(correctness)
+    return 1.0 if is_correct else 0.0
+
+
+def _browse_status(is_correct: bool, correctness: Optional[float]) -> str:
+    if is_correct:
+        return "correct"
+    return "partial" if _eff_correctness(is_correct, correctness) > 0 else "incorrect"
+
+
+def _perf_from_graded(g: GradedAnswer) -> BrowsePerformance:
+    return BrowsePerformance(
+        status=_browse_status(g.is_correct, g.correctness),
+        correctness=_eff_correctness(g.is_correct, g.correctness),
+        attempted_at=None,
+    )
+
+
+def _perf_from_attempt(a: dict) -> BrowsePerformance:
+    ic = bool(a.get("is_correct"))
+    corr = a.get("correctness")
+    return BrowsePerformance(
+        status=_browse_status(ic, corr),
+        correctness=_eff_correctness(ic, corr),
+        attempted_at=a.get("attempted_at"),
+    )
+
+
+def _aggregate_perf(attempts: list[dict]) -> Optional[BrowsePerformance]:
+    """Roll several attempts (e.g. a passage's sub-questions) into one
+    status: all-correct → correct, none → incorrect, mixed → partial."""
+    if not attempts:
+        return None
+    effs = [
+        _eff_correctness(bool(a.get("is_correct")), a.get("correctness"))
+        for a in attempts
+    ]
+    avg = sum(effs) / len(effs)
+    all_correct = all(bool(a.get("is_correct")) for a in attempts)
+    if all_correct:
+        status = "correct"
+    elif avg <= 0:
+        status = "incorrect"
+    else:
+        status = "partial"
+    times = [a.get("attempted_at") for a in attempts if a.get("attempted_at")]
+    return BrowsePerformance(
+        status=status, correctness=avg,
+        attempted_at=max(times) if times else None,
+    )
+
+
+def _correct_answer_for(doc: dict, qtype: str) -> Any:
+    """Correct answer in the shape `QuestionViewer` expects in readOnly mode."""
+    if qtype == "single_correct":
+        opts = sorted({str(x).strip().upper() for x in (doc.get("correctOptions") or []) if str(x).strip()})
+        return opts[0] if len(opts) == 1 else opts
+    if qtype == "multi_correct":
+        return sorted({str(x).strip().upper() for x in (doc.get("correctOptions") or []) if str(x).strip()})
+    if qtype == "integer":
+        return doc.get("integerAnswer")
+    if qtype == "matching":
+        md = doc.get("matchingData") or {}
+        out: dict[str, list[str]] = {}
+        for k, v in (md.get("correctMapping") or {}).items():
+            if isinstance(v, (list, tuple, set)):
+                out[str(k)] = [str(x) for x in v]
+            elif v is not None:
+                out[str(k)] = [str(v)]
+        return out
+    return None
+
+
 class MockTestService:
     def __init__(self, db: AsyncIOMotorDatabase):
         self.db = db
@@ -271,6 +363,319 @@ class MockTestService:
             for c in s.chapters:
                 c.topics.sort(key=lambda t: t.name.lower())
         return CatalogResponse(subjects=ordered_subjects)
+
+    # ------------------------------------------------------------------
+    # Browse (practice catalog)
+    # ------------------------------------------------------------------
+
+    async def browse_questions(
+        self,
+        user_id: ObjectId,
+        *,
+        subject: Optional[str] = None,
+        chapter: Optional[str] = None,
+        topic: Optional[str] = None,
+        difficulty: Optional[str] = None,
+        question_type: Optional[str] = None,
+        attempted: Optional[bool] = None,
+        marked: Optional[bool] = None,
+        search: Optional[str] = None,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> BrowseListResponse:
+        page = max(1, int(page))
+        page_size = max(1, min(100, int(page_size)))
+
+        filt: dict[str, Any] = {}
+        if subject:
+            filt["subject"] = subject
+        if chapter:
+            filt["chapter"] = chapter
+        if topic:
+            filt["topic"] = topic
+        if difficulty:
+            filt["difficulty"] = difficulty
+        if question_type:
+            filt["questionType"] = question_type
+        if search and search.strip():
+            filt["questionText"] = {"$regex": re.escape(search.strip()), "$options": "i"}
+
+        # The attempted + marked filters each constrain `_id` to a set derived
+        # from another collection. Collect "must be in" sets (intersected) and
+        # "must not be in" ids (unioned) so both filters can apply together.
+        in_sets: list[set[str]] = []
+        nin_ids: set[str] = set()
+        if attempted is not None:
+            ids = await self.repo.attempted_obj_ids(user_id)
+            (in_sets.append(ids) if attempted else nin_ids.update(ids))
+        if marked is not None:
+            ids = await self.repo.marked_obj_ids(user_id)
+            (in_sets.append(ids) if marked else nin_ids.update(ids))
+        if in_sets or nin_ids:
+            id_clause: dict[str, Any] = {}
+            if in_sets:
+                allowed = set.intersection(*in_sets)
+                id_clause["$in"] = [ObjectId(x) for x in allowed]
+            if nin_ids:
+                id_clause["$nin"] = [ObjectId(x) for x in nin_ids]
+            filt["_id"] = id_clause
+
+        total = await self.repo.count_browse(filt)
+        docs = await self.repo.find_browse(
+            filt, skip=(page - 1) * page_size, limit=page_size,
+        )
+
+        obj_ids = [str(d["_id"]) for d in docs]
+        qid_entries = await self.repo.qid_entries_for_obj_ids(obj_ids)
+        all_int_ids = [
+            int(e["_id"]) for rows in qid_entries.values() for e in rows
+        ]
+        attempts = await self.repo.attempts_for_int_ids(user_id, all_int_ids)
+        viewed = await self.repo.viewed_obj_ids(user_id, obj_ids)
+        marked_ids = await self.repo.marked_obj_ids(user_id, obj_ids)
+
+        items: list[BrowseItem] = []
+        for d in docs:
+            obj_id = str(d["_id"])
+            its_int_ids = [int(e["_id"]) for e in qid_entries.get(obj_id, [])]
+            its_attempts = [attempts[i] for i in its_int_ids if i in attempts]
+            is_attempted = len(its_attempts) > 0
+            items.append(BrowseItem(
+                question_id=obj_id,
+                subject=(d.get("subject") or "").strip(),
+                chapter=(d.get("chapter") or "").strip(),
+                topic=(d.get("topic") or "").strip(),
+                difficulty=(d.get("difficulty") or "medium"),
+                question_type=(d.get("questionType") or "single_correct"),
+                question_text=d.get("questionText") or "",
+                attempted=is_attempted,
+                viewed=obj_id in viewed,
+                marked=obj_id in marked_ids,
+                performance=_aggregate_perf(its_attempts) if is_attempted else None,
+            ))
+
+        return BrowseListResponse(
+            items=items, total=total, page=page, page_size=page_size,
+        )
+
+    async def _question_attempts(
+        self, user_id: ObjectId, obj_id: str,
+    ) -> dict[Optional[int], dict]:
+        """Return {sub_index: attempt_doc} for one question (sub_index None for
+        a standalone question), pulling only allocated int ids."""
+        entries = (await self.repo.qid_entries_for_obj_ids([obj_id])).get(obj_id, [])
+        if not entries:
+            return {}
+        by_int = {int(e["_id"]): e.get("sub_index") for e in entries}
+        attempts = await self.repo.attempts_for_int_ids(user_id, list(by_int.keys()))
+        return {by_int[i]: a for i, a in attempts.items()}
+
+    async def get_browse_detail(
+        self, user_id: ObjectId, obj_id: str,
+    ) -> BrowseQuestionDetail:
+        try:
+            doc = await self.repo.get_question_by_obj_id(obj_id)
+        except Exception:
+            doc = None
+        if doc is None:
+            raise AppException(
+                "Question not found.", status_code=status.HTTP_404_NOT_FOUND,
+            )
+
+        qtype = (doc.get("questionType") or "single_correct").lower()
+        attempts_by_sub = await self._question_attempts(user_id, obj_id)
+        solution_viewed = await self.repo.has_viewed(user_id, obj_id)
+        marked = await self.repo.is_in_notebook(user_id, obj_id)
+
+        detail = BrowseQuestionDetail(
+            question_id=obj_id,
+            subject=(doc.get("subject") or "").strip(),
+            chapter=(doc.get("chapter") or "").strip(),
+            topic=(doc.get("topic") or "").strip(),
+            difficulty=(doc.get("difficulty") or "medium"),
+            question_type=qtype,
+            question_text=doc.get("questionText") or "",
+            solution_viewed=solution_viewed,
+            marked=marked,
+        )
+
+        if qtype == "passage":
+            pdata = doc.get("passageData") or {}
+            subs = pdata.get("subQuestions") or []
+            detail.passage_text = pdata.get("passageText") or ""
+            any_attempt = False
+            for i, sub in enumerate(subs):
+                att = attempts_by_sub.get(i)
+                gate_open = att is not None or solution_viewed
+                bs = BrowseSubQuestion(
+                    sub_index=i,
+                    question_text=sub.get("questionText") or "",
+                    options=_options_from_doc(sub),
+                    correct_option=(sub.get("correctOption") if gate_open else None),
+                )
+                if att is not None:
+                    any_attempt = True
+                    bs.performance = _perf_from_attempt(att)
+                detail.sub_questions.append(bs)
+            detail.attempted = any_attempt
+            return detail
+
+        # Standalone question
+        if qtype in ("single_correct", "multi_correct"):
+            detail.options = _options_from_doc(doc)
+        elif qtype == "matching":
+            detail.left_column, detail.right_column = _matching_cols(doc)
+
+        att = attempts_by_sub.get(None)
+        detail.attempted = att is not None
+        gate_open = detail.attempted or solution_viewed
+        if gate_open:
+            detail.correct_answer = _correct_answer_for(doc, qtype)
+        if att is not None:
+            detail.performance = _perf_from_attempt(att)
+        return detail
+
+    async def record_practice_attempt(
+        self, user_id: ObjectId, obj_id: str, req: BrowseAttemptRequest,
+    ) -> BrowseAttemptResponse:
+        try:
+            doc = await self.repo.get_question_by_obj_id(obj_id)
+        except Exception:
+            doc = None
+        if doc is None:
+            raise AppException(
+                "Question not found.", status_code=status.HTTP_404_NOT_FOUND,
+            )
+
+        qtype = (doc.get("questionType") or "single_correct").lower()
+        # Peek rule: a genuine attempt is recorded only if the solution has
+        # NOT been viewed for this question. Viewing downgrades to "seen".
+        recorded = not await self.repo.has_viewed(user_id, obj_id)
+        difficulty = str(doc.get("difficulty") or "medium")
+        now = datetime.now(timezone.utc)
+
+        # Resolve the question's topic int id once (shared by all sub-Qs).
+        _sid, _cid, topic_id = await self.repo.get_or_create_topic_id(
+            (doc.get("subject") or "").strip(),
+            (doc.get("chapter") or "").strip(),
+            (doc.get("topic") or "").strip(),
+        )
+
+        if qtype == "passage":
+            subs = (doc.get("passageData") or {}).get("subQuestions") or []
+            answers = req.answers or {}
+            sub_results: list[BrowseSubQuestion] = []
+            attempt_docs: list[dict] = []
+            for i, sub in enumerate(subs):
+                graded = grade_passage_sub(answers.get(str(i)), sub)
+                sub_results.append(BrowseSubQuestion(
+                    sub_index=i,
+                    question_text=sub.get("questionText") or "",
+                    options=_options_from_doc(sub),
+                    correct_option=sub.get("correctOption"),
+                    user_answer=graded.user_answer,
+                    performance=_perf_from_graded(graded),
+                ))
+                if recorded:
+                    int_id = await self.repo.get_or_create_question_int_id(obj_id, i)
+                    attempt_docs.append(new_attempt_doc(
+                        user_id=user_id, question_id=int_id, topic_id=topic_id,
+                        is_correct=graded.is_correct, correctness=graded.correctness,
+                        difficulty=difficulty, score_contribution=0,
+                        attempted_at=now, session_id=PRACTICE_SESSION_ID,
+                    ))
+            if recorded and attempt_docs:
+                await self.repo.bulk_upsert_attempts(attempt_docs)
+            agg = _aggregate_perf([
+                {"is_correct": sr.performance.status == "correct",
+                 "correctness": sr.performance.correctness}
+                for sr in sub_results if sr.performance
+            ]) or BrowsePerformance(status="incorrect", correctness=0.0)
+            return BrowseAttemptResponse(
+                performance=agg, correct_answer=None,
+                recorded=recorded, sub_results=sub_results,
+            )
+
+        # Standalone question
+        if qtype == "single_correct":
+            graded = grade_single_correct(req.selected_option, doc)
+        elif qtype == "multi_correct":
+            graded = grade_multi_correct(req.selected_options, doc)
+        elif qtype == "integer":
+            graded = grade_integer(req.integer_answer, doc)
+        elif qtype == "matching":
+            graded = grade_matching(req.matching, doc)
+        else:
+            graded = grade_single_correct(req.selected_option, doc)
+
+        if recorded:
+            int_id = await self.repo.get_or_create_question_int_id(obj_id, None)
+            await self.repo.bulk_upsert_attempts([new_attempt_doc(
+                user_id=user_id, question_id=int_id, topic_id=topic_id,
+                is_correct=graded.is_correct, correctness=graded.correctness,
+                difficulty=difficulty, score_contribution=0,
+                attempted_at=now, session_id=PRACTICE_SESSION_ID,
+            )])
+
+        return BrowseAttemptResponse(
+            performance=_perf_from_graded(graded),
+            correct_answer=graded.correct_answer,
+            recorded=recorded,
+        )
+
+    async def view_solution(
+        self, user_id: ObjectId, obj_id: str,
+    ) -> BrowseSolutionResponse:
+        try:
+            doc = await self.repo.get_question_by_obj_id(obj_id)
+        except Exception:
+            doc = None
+        if doc is None:
+            raise AppException(
+                "Question not found.", status_code=status.HTTP_404_NOT_FOUND,
+            )
+        await self.repo.record_view(user_id, obj_id)
+
+        qtype = (doc.get("questionType") or "single_correct").lower()
+        if qtype == "passage":
+            subs = (doc.get("passageData") or {}).get("subQuestions") or []
+            correct_answer = {str(i): sub.get("correctOption") for i, sub in enumerate(subs)}
+        else:
+            correct_answer = _correct_answer_for(doc, qtype)
+        return BrowseSolutionResponse(
+            solution=doc.get("solution") or "",
+            correct_answer=correct_answer,
+        )
+
+    # ------------------------------------------------------------------
+    # Notebook (revise-later)
+    # ------------------------------------------------------------------
+
+    async def _assert_question_exists(self, obj_id: str) -> None:
+        try:
+            doc = await self.repo.get_question_by_obj_id(obj_id)
+        except Exception:
+            doc = None
+        if doc is None:
+            raise AppException(
+                "Question not found.", status_code=status.HTTP_404_NOT_FOUND,
+            )
+
+    async def add_to_notebook(
+        self, user_id: ObjectId, obj_id: str,
+    ) -> NotebookToggleResponse:
+        await self._assert_question_exists(obj_id)
+        await self.repo.add_to_notebook(user_id, obj_id)
+        return NotebookToggleResponse(marked=True)
+
+    async def remove_from_notebook(
+        self, user_id: ObjectId, obj_id: str,
+    ) -> NotebookToggleResponse:
+        await self.repo.remove_from_notebook(user_id, obj_id)
+        return NotebookToggleResponse(marked=False)
+
+    async def get_notebook_count(self, user_id: ObjectId) -> NotebookCountResponse:
+        return NotebookCountResponse(count=await self.repo.notebook_count(user_id))
 
     # ------------------------------------------------------------------
     # Create mock test
@@ -840,6 +1245,10 @@ class MockTestService:
         sc_by_q = {int(a["question_id"]): int(a.get("score_contribution", 0))
                    for a in attempts}
 
+        # Which of these questions the user has marked into their notebook
+        # (one lookup; passage sub-Qs share the parent obj_id).
+        marked_set = await self.repo.marked_obj_ids(user_oid, obj_ids)
+
         results: list[PerQuestionResult] = []
         for r in responses:
             qid = int(r["question_id"])
@@ -921,6 +1330,8 @@ class MockTestService:
                 correctness = 1.0 if is_correct else 0.0
             results.append(PerQuestionResult(
                 question_id=qid,
+                obj_id=str(md["obj_id"]),
+                marked=str(md["obj_id"]) in marked_set,
                 topic_id=int(r["topic_id"]),
                 display_order=int(r["display_order"]),
                 is_correct=is_correct,

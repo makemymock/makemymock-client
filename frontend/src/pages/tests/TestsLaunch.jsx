@@ -1,12 +1,17 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import Button from '../../components/common/Button/Button';
 import Loader from '../../components/common/Loader/Loader';
 import ErrorMessage from '../../components/common/ErrorMessage/ErrorMessage';
 import ExamShell from '../../components/mockTest/ExamShell/ExamShell';
+import BrowsePanel from './BrowsePanel';
 import { mockTestService } from '../../services/mockTestService';
 import { parseApiError } from '../../utils/validators';
 import styles from './testsLaunch.module.css';
+
+// Browse-only URL params, cleared when leaving the Browse tab so they don't
+// linger on the Launch / Past-tests views.
+const BROWSE_PARAMS = ['subject', 'chapter', 'topic', 'difficulty', 'qtype', 'attempted', 'marked', 'q', 'page'];
 
 // Backend hard-caps total_questions at 1..100 (see schema.py); the UI
 // validates the same range so a runaway value doesn't bounce off the API.
@@ -32,7 +37,19 @@ function flattenChapterTopicIds(chapter) {
 
 const TestsLaunch = () => {
   const navigate = useNavigate();
-  const [tab, setTab] = useState('launch'); // 'launch' | 'history'
+  // Tab lives in the URL (?tab=) so Back from a Browse problem page restores
+  // the right view. 'launch' is the default and carries no param.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = searchParams.get('tab') || 'launch'; // 'launch' | 'history' | 'browse'
+  const setTab = (next) => {
+    setSearchParams((prev) => {
+      const p = new URLSearchParams(prev);
+      if (next === 'launch') p.delete('tab');
+      else p.set('tab', next);
+      if (next !== 'browse') BROWSE_PARAMS.forEach((k) => p.delete(k));
+      return p;
+    });
+  };
   const [catalog, setCatalog] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -159,11 +176,23 @@ const TestsLaunch = () => {
   return (
     <ExamShell
       chromeless
-      title={tab === 'history' ? 'Your test history' : 'Launch a personalised mock test'}
+      title={
+        tab === 'history'
+          ? 'Your test history'
+          : tab === 'browse'
+            ? 'Browse the question bank'
+            : tab === 'notebook'
+              ? 'Your notebook'
+              : 'Launch a personalised mock test'
+      }
       subtitle={
         tab === 'history'
           ? 'Every test you start lives here — resume an in-progress one or open a finished test’s analytics.'
-          : 'Pick the topics you want to drill. The recommender picks how many questions per topic, the right difficulty mix, and the rotation between fresh and recyclable items.'
+          : tab === 'browse'
+            ? 'Filter the full question bank, see what you’ve attempted, and practise any question on its own.'
+            : tab === 'notebook'
+              ? 'Questions you saved to revise later. Filter them just like Browse and practise any one on its own.'
+              : 'Pick the topics you want to drill. The recommender picks how many questions per topic, the right difficulty mix, and the rotation between fresh and recyclable items.'
       }
     >
       {/* Tab strip — launch vs. history. History is embedded here per
@@ -181,6 +210,24 @@ const TestsLaunch = () => {
         <button
           type="button"
           role="tab"
+          aria-selected={tab === 'browse'}
+          className={`${styles.tabBtn} ${tab === 'browse' ? styles.tabBtnOn : ''}`}
+          onClick={() => setTab('browse')}
+        >
+          Browse
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'notebook'}
+          className={`${styles.tabBtn} ${tab === 'notebook' ? styles.tabBtnOn : ''}`}
+          onClick={() => setTab('notebook')}
+        >
+          Notebook
+        </button>
+        <button
+          type="button"
+          role="tab"
           aria-selected={tab === 'history'}
           className={`${styles.tabBtn} ${tab === 'history' ? styles.tabBtnOn : ''}`}
           onClick={() => setTab('history')}
@@ -190,6 +237,8 @@ const TestsLaunch = () => {
       </div>
 
       {tab === 'history' ? <TestHistoryPanel /> : null}
+      {tab === 'browse' ? <BrowsePanel /> : null}
+      {tab === 'notebook' ? <BrowsePanel notebookMode /> : null}
 
       {tab === 'launch' ? (
       <>

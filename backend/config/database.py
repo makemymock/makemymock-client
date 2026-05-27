@@ -82,6 +82,21 @@ async def _ensure_indexes() -> None:
         [("session_id", ASCENDING)],
     )
 
+    # practice_solution_views — one marker per (user, question) that the
+    # user revealed the solution in Browse. Isolated from attempts so a
+    # peeked question never feeds the recommender.
+    await mongo.db["practice_solution_views"].create_index(
+        [("user_id", ASCENDING), ("obj_id", ASCENDING)],
+        unique=True,
+    )
+
+    # notebook_entries — questions a user marked to revise later. Unique per
+    # (user, question) so the same question can't be added twice.
+    await mongo.db["notebook_entries"].create_index(
+        [("user_id", ASCENDING), ("obj_id", ASCENDING)],
+        unique=True,
+    )
+
     await mongo.db["mock_test_sessions"].create_index([("user_id", ASCENDING)])
     await mongo.db["mock_test_sessions"].create_index(
         [("user_id", ASCENDING), ("created_at", -1)],

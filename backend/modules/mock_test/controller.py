@@ -3,7 +3,9 @@
 Mounted under /api/v1/mock-test by api/__init__.py.
 """
 
-from fastapi import APIRouter, status
+from typing import Optional
+
+from fastapi import APIRouter, Query, status
 
 from core.dependencies import CurrentVerifiedUser, DBDep
 from modules.mock_test.schema import (
@@ -11,6 +13,13 @@ from modules.mock_test.schema import (
     AnalyticsChaptersResponse,
     AnalyticsOverviewResponse,
     AnalyticsTopicsResponse,
+    BrowseAttemptRequest,
+    BrowseAttemptResponse,
+    BrowseListResponse,
+    BrowseQuestionDetail,
+    BrowseSolutionResponse,
+    NotebookCountResponse,
+    NotebookToggleResponse,
     CatalogResponse,
     ChapterDetailResponse,
     ConfidenceResponse,
@@ -36,6 +45,113 @@ async def get_catalog(
     _user: CurrentVerifiedUser, db: DBDep,
 ) -> CatalogResponse:
     return await MockTestService(db).get_catalog()
+
+
+@router.get(
+    "/browse",
+    response_model=BrowseListResponse,
+    summary="Paginated, filterable catalog of all questions with per-user status",
+)
+async def browse_questions(
+    user: CurrentVerifiedUser,
+    db: DBDep,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    subject: Optional[str] = None,
+    chapter: Optional[str] = None,
+    topic: Optional[str] = None,
+    difficulty: Optional[str] = None,
+    question_type: Optional[str] = None,
+    attempted: Optional[bool] = None,
+    marked: Optional[bool] = None,
+    search: Optional[str] = None,
+) -> BrowseListResponse:
+    return await MockTestService(db).browse_questions(
+        user["_id"],
+        subject=subject, chapter=chapter, topic=topic,
+        difficulty=difficulty, question_type=question_type,
+        attempted=attempted, marked=marked, search=search,
+        page=page, page_size=page_size,
+    )
+
+
+@router.get(
+    "/browse/{question_id}",
+    response_model=BrowseQuestionDetail,
+    summary="Full question detail for the Browse problem page (answer gated)",
+)
+async def browse_question_detail(
+    question_id: str,
+    user: CurrentVerifiedUser,
+    db: DBDep,
+) -> BrowseQuestionDetail:
+    return await MockTestService(db).get_browse_detail(user["_id"], question_id)
+
+
+@router.post(
+    "/browse/{question_id}/attempt",
+    response_model=BrowseAttemptResponse,
+    summary="Grade a practice attempt (feeds recommender unless solution was viewed)",
+)
+async def browse_attempt(
+    question_id: str,
+    payload: BrowseAttemptRequest,
+    user: CurrentVerifiedUser,
+    db: DBDep,
+) -> BrowseAttemptResponse:
+    return await MockTestService(db).record_practice_attempt(
+        user["_id"], question_id, payload,
+    )
+
+
+@router.post(
+    "/browse/{question_id}/view-solution",
+    response_model=BrowseSolutionResponse,
+    summary="Reveal the worked solution + answer; marks the question as viewed",
+)
+async def browse_view_solution(
+    question_id: str,
+    user: CurrentVerifiedUser,
+    db: DBDep,
+) -> BrowseSolutionResponse:
+    return await MockTestService(db).view_solution(user["_id"], question_id)
+
+
+@router.get(
+    "/notebook/count",
+    response_model=NotebookCountResponse,
+    summary="Number of questions in the current user's notebook",
+)
+async def notebook_count(
+    user: CurrentVerifiedUser, db: DBDep,
+) -> NotebookCountResponse:
+    return await MockTestService(db).get_notebook_count(user["_id"])
+
+
+@router.post(
+    "/notebook/{question_id}",
+    response_model=NotebookToggleResponse,
+    summary="Add a question to the notebook (idempotent — can't be added twice)",
+)
+async def notebook_add(
+    question_id: str,
+    user: CurrentVerifiedUser,
+    db: DBDep,
+) -> NotebookToggleResponse:
+    return await MockTestService(db).add_to_notebook(user["_id"], question_id)
+
+
+@router.delete(
+    "/notebook/{question_id}",
+    response_model=NotebookToggleResponse,
+    summary="Remove a question from the notebook",
+)
+async def notebook_remove(
+    question_id: str,
+    user: CurrentVerifiedUser,
+    db: DBDep,
+) -> NotebookToggleResponse:
+    return await MockTestService(db).remove_from_notebook(user["_id"], question_id)
 
 
 @router.post(

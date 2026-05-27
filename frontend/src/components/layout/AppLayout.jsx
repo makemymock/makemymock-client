@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import useTheme from '../../hooks/useTheme';
 import { authService } from '../../services/authService';
@@ -71,7 +71,7 @@ const IconMoon = (p) => (
 // ---------- five-item navigation ----------
 const NAV_ITEMS = [
   { to: '/dashboard', label: 'Home',      Icon: IconHome,    end: true },
-  { to: '/tests',     label: 'Tests',     Icon: IconTest },
+  { to: '/tests',     label: 'Practice',  Icon: IconTest },
   { to: '/solverx',   label: 'SolverX',   Icon: IconSpark },
   { to: '/battle',    label: 'Battle',    Icon: IconSwords },
   { to: '/analytics', label: 'Analytics', Icon: IconChart },

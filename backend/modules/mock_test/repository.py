@@ -23,6 +23,8 @@ from modules.mock_test.constants import (
     COUNTER_SESSION,
     COUNTER_SUBJECT,
     COUNTER_TOPIC,
+    NOTEBOOK_COLLECTION,
+    PRACTICE_VIEWS_COLLECTION,
     QUESTIONS_COLLECTION,
     QUESTION_ID_MAP_COLLECTION,
     RESPONSES_COLLECTION,
@@ -33,6 +35,8 @@ from modules.mock_test.constants import (
 )
 from modules.mock_test.model import (
     new_attempt_doc,
+    new_notebook_entry_doc,
+    new_practice_view_doc,
     new_response_doc,
     new_session_doc,
     new_topic_allocation_doc,
@@ -58,6 +62,8 @@ class MockTestRepository:
         self.topic_map = db[TOPIC_ID_MAP_COLLECTION]
         self.chapter_map = db[CHAPTER_ID_MAP_COLLECTION]
         self.subject_map = db[SUBJECT_ID_MAP_COLLECTION]
+        self.practice_views = db[PRACTICE_VIEWS_COLLECTION]
+        self.notebook = db[NOTEBOOK_COLLECTION]
 
     # ---------- counters ----------
 
@@ -265,6 +271,140 @@ class MockTestRepository:
                 "question_count": int(row["question_count"]),
             })
         return results
+
+    # ---------- browse (practice catalog) ----------
+
+    async def count_browse(self, filt: dict) -> int:
+        return await self.questions.count_documents(filt)
+
+    async def find_browse(
+        self, filt: dict, *, skip: int, limit: int,
+    ) -> list[dict]:
+        """Page of questions matching `filt`, ordered by `_id` for a stable
+        prev/next sequence across requests."""
+        cursor = (
+            self.questions.find(filt)
+            .sort("_id", 1)
+            .skip(max(0, skip))
+            .limit(max(1, limit))
+        )
+        return [doc async for doc in cursor]
+
+    async def get_question_by_obj_id(self, obj_id: str) -> Optional[dict]:
+        return await self.questions.find_one({"_id": ObjectId(obj_id)})
+
+    async def qid_entries_for_obj_ids(
+        self, obj_ids: Iterable[str],
+    ) -> dict[str, list[dict]]:
+        """Map each questions `_id` (str) → its `question_id_map` rows.
+
+        A standalone question has one row (sub_index None); a passage has
+        one row per sub-question (sub_index 0..n-1). Returns only obj_ids
+        that have at least one allocated int id.
+        """
+        ids = [o for o in obj_ids if o]
+        out: dict[str, list[dict]] = {}
+        if not ids:
+            return out
+        async for doc in self.qid_map.find({"obj_id": {"$in": ids}}):
+            out.setdefault(str(doc["obj_id"]), []).append(doc)
+        return out
+
+    async def attempts_for_int_ids(
+        self, user_id: ObjectId, int_ids: Iterable[int],
+    ) -> dict[int, dict]:
+        ids = [int(i) for i in int_ids]
+        out: dict[int, dict] = {}
+        if not ids:
+            return out
+        cursor = self.attempts.find(
+            {"user_id": user_id, "question_id": {"$in": ids}},
+        )
+        async for doc in cursor:
+            out[int(doc["question_id"])] = doc
+        return out
+
+    async def attempted_obj_ids(self, user_id: ObjectId) -> set[str]:
+        """All questions `_id`s (str) the user has a genuine attempt on.
+
+        Walks attempts → int question_ids → `obj_id`s, so passage sub-Q
+        attempts resolve to their parent question's obj_id.
+        """
+        int_ids: list[int] = []
+        async for a in self.attempts.find(
+            {"user_id": user_id}, {"question_id": 1},
+        ):
+            int_ids.append(int(a["question_id"]))
+        if not int_ids:
+            return set()
+        id_to_doc = await self.bulk_lookup_question_int_to_obj(int_ids)
+        return {str(d["obj_id"]) for d in id_to_doc.values() if d.get("obj_id")}
+
+    # ---------- practice solution views ----------
+
+    async def viewed_obj_ids(
+        self, user_id: ObjectId, obj_ids: Optional[Iterable[str]] = None,
+    ) -> set[str]:
+        q: dict[str, Any] = {"user_id": user_id}
+        if obj_ids is not None:
+            ids = [o for o in obj_ids if o]
+            if not ids:
+                return set()
+            q["obj_id"] = {"$in": ids}
+        out: set[str] = set()
+        async for doc in self.practice_views.find(q, {"obj_id": 1}):
+            out.add(str(doc["obj_id"]))
+        return out
+
+    async def has_viewed(self, user_id: ObjectId, obj_id: str) -> bool:
+        doc = await self.practice_views.find_one(
+            {"user_id": user_id, "obj_id": obj_id}, {"_id": 1},
+        )
+        return doc is not None
+
+    async def record_view(self, user_id: ObjectId, obj_id: str) -> None:
+        await self.practice_views.update_one(
+            {"user_id": user_id, "obj_id": obj_id},
+            {"$setOnInsert": new_practice_view_doc(user_id=user_id, obj_id=obj_id)},
+            upsert=True,
+        )
+
+    # ---------- notebook (revise-later) ----------
+
+    async def add_to_notebook(self, user_id: ObjectId, obj_id: str) -> None:
+        # Upsert keyed on (user, question) — idempotent, so marking a question
+        # already in the notebook is a no-op (can't be added twice).
+        await self.notebook.update_one(
+            {"user_id": user_id, "obj_id": obj_id},
+            {"$setOnInsert": new_notebook_entry_doc(user_id=user_id, obj_id=obj_id)},
+            upsert=True,
+        )
+
+    async def remove_from_notebook(self, user_id: ObjectId, obj_id: str) -> None:
+        await self.notebook.delete_one({"user_id": user_id, "obj_id": obj_id})
+
+    async def is_in_notebook(self, user_id: ObjectId, obj_id: str) -> bool:
+        doc = await self.notebook.find_one(
+            {"user_id": user_id, "obj_id": obj_id}, {"_id": 1},
+        )
+        return doc is not None
+
+    async def marked_obj_ids(
+        self, user_id: ObjectId, obj_ids: Optional[Iterable[str]] = None,
+    ) -> set[str]:
+        q: dict[str, Any] = {"user_id": user_id}
+        if obj_ids is not None:
+            ids = [o for o in obj_ids if o]
+            if not ids:
+                return set()
+            q["obj_id"] = {"$in": ids}
+        out: set[str] = set()
+        async for doc in self.notebook.find(q, {"obj_id": 1}):
+            out.add(str(doc["obj_id"]))
+        return out
+
+    async def notebook_count(self, user_id: ObjectId) -> int:
+        return await self.notebook.count_documents({"user_id": user_id})
 
     # ---------- session writes ----------
 

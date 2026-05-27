@@ -72,4 +72,53 @@ export const mockTestService = {
     const { data } = await api.get('/mock-test/analytics/confidence');
     return data;
   },
+
+  // ---- Browse (practice catalog) ----
+
+  async browseQuestions(params = {}) {
+    // Only forward set params so empty filters don't reach the API as "".
+    const query = {};
+    for (const [k, v] of Object.entries(params)) {
+      if (v !== undefined && v !== null && v !== '') query[k] = v;
+    }
+    const { data } = await api.get('/mock-test/browse', { params: query });
+    return data;
+  },
+
+  async getBrowseQuestion(questionId) {
+    const { data } = await api.get(`/mock-test/browse/${questionId}`);
+    return data;
+  },
+
+  async submitBrowseAttempt(questionId, answer) {
+    const { data } = await api.post(
+      `/mock-test/browse/${questionId}/attempt`,
+      answer,
+    );
+    return data;
+  },
+
+  async viewBrowseSolution(questionId) {
+    const { data } = await api.post(
+      `/mock-test/browse/${questionId}/view-solution`,
+    );
+    return data;
+  },
+
+  // ---- Notebook (revise-later) ----
+
+  async addToNotebook(questionId) {
+    const { data } = await api.post(`/mock-test/notebook/${questionId}`);
+    return data;
+  },
+
+  async removeFromNotebook(questionId) {
+    const { data } = await api.delete(`/mock-test/notebook/${questionId}`);
+    return data;
+  },
+
+  async getNotebookCount() {
+    const { data } = await api.get('/mock-test/notebook/count');
+    return data;
+  },
 };

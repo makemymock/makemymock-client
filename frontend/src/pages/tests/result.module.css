@@ -194,6 +194,35 @@
   min-width: 0;
 }
 
+.reviewerToolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 10px;
+}
+
+.markBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--color-panel-border);
+  background: var(--color-chip-bg);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+.markBtn:hover:not(:disabled) { border-color: var(--color-accent); }
+.markBtn:disabled { opacity: 0.6; cursor: default; }
+.markBtnOn {
+  background: rgba(245, 196, 81, 0.16);
+  border-color: rgba(245, 196, 81, 0.5);
+  color: #fcd34d;
+}
+
 .solution {
   margin-top: 14px;
   background: color-mix(in srgb, var(--color-accent) 10%, var(--surface-opaque));

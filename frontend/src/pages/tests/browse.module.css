@@ -1,0 +1,246 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ---------- filter bar ---------- */
+.filters {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--color-panel-bg);
+  border: 1px solid var(--color-panel-border);
+  border-radius: 16px;
+  padding: 14px;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.searchRow { display: flex; }
+
+.search {
+  flex: 1;
+  font: inherit;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--color-panel-border);
+  background: var(--color-chip-bg);
+  color: var(--color-text-primary);
+}
+.search:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.selectRow {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+@media (min-width: 640px) {
+  .selectRow { grid-template-columns: repeat(3, 1fr); }
+}
+
+.select {
+  font: inherit;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--color-panel-border);
+  /* Solid (not translucent) so the native option popup is readable — the
+     browser paints the dropdown list with this background-color. */
+  background: var(--surface-opaque);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  max-width: 100%;
+}
+.select:disabled { opacity: 0.5; cursor: not-allowed; }
+.select:focus { outline: none; border-color: var(--color-accent); }
+/* Style the popup option rows explicitly — they don't inherit the control's
+   colours on every browser, which is what made them white-on-light. */
+.select option {
+  background: var(--surface-opaque);
+  color: var(--color-text-primary);
+}
+
+.chipGroups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+}
+
+.chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--color-chip-border);
+  background: var(--color-chip-bg);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+.chip:hover { transform: translateY(-1px); }
+.chipOn {
+  background: linear-gradient(135deg, var(--color-brand-grad-from), var(--color-brand-grad-to));
+  border-color: transparent;
+  color: var(--color-brand-contrast);
+  font-weight: 600;
+}
+
+/* ---------- result count bar ---------- */
+.resultBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  padding: 0 4px;
+}
+.clearBtn {
+  font: inherit;
+  font-size: 13px;
+  background: none;
+  border: none;
+  color: var(--color-accent);
+  cursor: pointer;
+  padding: 4px 6px;
+}
+.clearBtn:hover { text-decoration: underline; }
+
+/* ---------- list ---------- */
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  text-align: left;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--color-panel-border);
+  background: var(--color-panel-bg);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.row:hover {
+  transform: translateY(-1px);
+  border-color: var(--color-accent);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+}
+
+.status {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  font-size: 14px;
+  line-height: 1;
+}
+.stCorrect { background: rgba(34, 197, 94, 0.18); color: #4ade80; }
+.stPartial { background: rgba(245, 158, 11, 0.18); color: #fbbf24; }
+.stWrong   { background: rgba(239, 68, 68, 0.18); color: #f87171; }
+.stViewed  { background: rgba(124, 58, 237, 0.16); color: #c4b5fd; }
+.stTodo    { background: var(--color-chip-bg); color: var(--color-text-muted); }
+
+.rowMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.rowText {
+  font-size: 15px;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+/* The inline markdown can emit block math; keep it on the text baseline. */
+.rowText :global(.katex-display) { margin: 0; display: inline; }
+.rowMeta {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rowTags {
+  flex: 0 0 auto;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.markFlag {
+  font-size: 13px;
+  line-height: 1;
+}
+.tag {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: var(--color-chip-bg);
+  border: 1px solid var(--color-chip-border);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+.tagType { border-color: var(--color-border-strong); }
+.diff_easy   { background: rgba(34, 197, 94, 0.16); border-color: rgba(34, 197, 94, 0.4); color: #86efac; }
+.diff_medium { background: rgba(245, 158, 11, 0.16); border-color: rgba(245, 158, 11, 0.4); color: #fcd34d; }
+.diff_hard   { background: rgba(239, 68, 68, 0.16); border-color: rgba(239, 68, 68, 0.4); color: #fca5a5; }
+
+@media (max-width: 560px) {
+  .rowTags { flex-direction: column; align-items: flex-end; }
+  .rowMeta { white-space: normal; }
+}
+
+/* ---------- empty + pager ---------- */
+.empty {
+  text-align: center;
+  padding: 40px 16px;
+  color: var(--color-text-muted);
+}
+.empty h3 { margin: 0 0 6px; color: var(--color-text-secondary); }
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 8px 0 4px;
+}
+.pagerBtn {
+  font: inherit;
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--color-panel-border);
+  background: var(--color-chip-bg);
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+.pagerBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+.pagerBtn:not(:disabled):hover { border-color: var(--color-accent); }
+.pagerInfo { font-size: 13px; color: var(--color-text-muted); }

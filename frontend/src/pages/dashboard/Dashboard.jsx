@@ -86,6 +86,7 @@ const Dashboard = () => {
   const [battles, setBattles] = useState([]);
   const [heatmap, setHeatmap] = useState(null);
   const [confidence, setConfidence] = useState(null);
+  const [notebookCount, setNotebookCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [potdOpen, setPotdOpen] = useState(false);
@@ -97,7 +98,7 @@ const Dashboard = () => {
 
     (async () => {
       try {
-        const [me, myProfile, hist, ov, battleData, hm, conf] = await Promise.all([
+        const [me, myProfile, hist, ov, battleData, hm, conf, nb] = await Promise.all([
           authService.me(),
           profileService.getMyProfile().catch((err) => {
             if (err?.response?.status === 404) return null;
@@ -108,6 +109,7 @@ const Dashboard = () => {
           battleService.fetchHistory().catch(() => ({ items: [] })),
           mockTestService.getActivityHeatmap().catch(() => null),
           mockTestService.getConfidence().catch(() => null),
+          mockTestService.getNotebookCount().catch(() => ({ count: 0 })),
         ]);
         if (cancelled) return;
 
@@ -124,6 +126,7 @@ const Dashboard = () => {
         setBattles(battleData.items || []);
         setHeatmap(hm);
         setConfidence(conf);
+        setNotebookCount(nb?.count || 0);
       } catch (err) {
         if (!cancelled) setError(parseApiError(err, 'Could not load your dashboard.'));
       } finally {
@@ -163,59 +166,59 @@ const Dashboard = () => {
 
       {!loading && !error ? (
         <>
-          <HeroCard user={user} profile={profile} />
-
+          {/* Welcome + gamified trophy share one row on wide screens so
+              two light cards don't each eat a full-width band. */}
           {confidence ? (
-            <section className={styles.trophyRow}>
+            <section className={styles.topRow}>
+              <HeroCard user={user} profile={profile} />
               <ConfidenceTrophy data={confidence} />
             </section>
-          ) : null}
+          ) : (
+            <HeroCard user={user} profile={profile} />
+          )}
 
-          <PotdBanner onOpen={() => setPotdOpen(true)} userId={user?.id} />
+          <div className={styles.quickRow}>
+            <PotdBanner onOpen={() => setPotdOpen(true)} userId={user?.id} />
+            <NotebookCard
+              count={notebookCount}
+              onClick={() => navigate('/tests?tab=notebook')}
+            />
+          </div>
 
-          {/* Stat cards + activity heatmap (side-by-side on laptop).
-              At ≥ 1080px the three stat cards stack vertically on the
-              left while the heatmap card sits compactly on the right. */}
-          <section className={styles.heroRow}>
-            <section className={styles.statRow}>
-              <StatCard
-                accent="teal"
-                label="Mocks this week"
-                sub="Mock tests"
-                value={stats.mocksThisWeek}
-                rightTop={`${stats.mocksTotal} total`}
-                Icon={IconTest}
-              />
-              <StatCard
-                accent="gold"
-                label="Battles this month"
-                sub="1v1 Quiz Challenge"
-                value={stats.battlesThisMonth}
-                rightTop={`${stats.battleWins}W · ${stats.battleLosses}L · ${stats.battleDraws}D`}
-                Icon={IconSwords}
-              />
-              <StatCard
-                accent="brown"
-                label="Overall accuracy"
-                sub={overview ? `${overview.total_questions} questions attempted` : '—'}
-                value={overview ? `${(overview.overall_accuracy_pct || 0).toFixed(0)}%` : '—'}
-                rightTop={overview ? `${overview.total_tests} tests` : ''}
-                Icon={IconChart}
-              />
-            </section>
-
-            <section className={styles.heatmapRow}>
-              <Heatmap
-                days={heatmap?.days || []}
-                maxCount={heatmap?.max_count || 0}
-                defaultRange="month"
-              />
-            </section>
+          {/* Three compact stat cards, always 3-across on desktop. */}
+          <section className={styles.statRow}>
+            <StatCard
+              accent="teal"
+              label="Mocks this week"
+              sub="Mock tests"
+              value={stats.mocksThisWeek}
+              rightTop={`${stats.mocksTotal} total`}
+              Icon={IconTest}
+            />
+            <StatCard
+              accent="gold"
+              label="Battles this month"
+              sub="1v1 Quiz Challenge"
+              value={stats.battlesThisMonth}
+              rightTop={`${stats.battleWins}W · ${stats.battleLosses}L · ${stats.battleDraws}D`}
+              Icon={IconSwords}
+            />
+            <StatCard
+              accent="brown"
+              label="Overall accuracy"
+              sub={overview ? `${overview.total_questions} questions attempted` : '—'}
+              value={overview ? `${(overview.overall_accuracy_pct || 0).toFixed(0)}%` : '—'}
+              rightTop={overview ? `${overview.total_tests} tests` : ''}
+              Icon={IconChart}
+            />
           </section>
 
+          {/* Main two-column body: the big performance card on the left, a
+              dense side column (heatmap + pending + battles) on the right. */}
           <section className={styles.grid}>
             <PerformanceCard overview={overview} pendingCount={stats.pending.length} />
             <SidePanel
+              heatmap={heatmap}
               pending={stats.pending}
               battles={battles}
               onResume={(sid) => navigate(`/tests/${sid}`)}
@@ -279,6 +282,22 @@ const PotdBanner = ({ onOpen, userId }) => {
   );
 };
 
+// ---- Notebook quick-access (revise-later) ----
+const NotebookCard = ({ count, onClick }) => (
+  <button type="button" className={styles.notebookCard} onClick={onClick}>
+    <span className={styles.notebookIcon} aria-hidden="true">🔖</span>
+    <span className={styles.notebookMeta}>
+      <span className={styles.notebookTitle}>Notebook</span>
+      <span className={styles.notebookSub}>
+        {count > 0
+          ? `${count} question${count === 1 ? '' : 's'} saved to revise`
+          : 'Save questions to revise them later'}
+      </span>
+    </span>
+    <span className={styles.notebookArrow} aria-hidden="true">→</span>
+  </button>
+);
+
 const HeroCard = ({ user, profile }) => {
   const exam = profile?.target_exam ? TARGET_EXAM_LABEL[profile.target_exam] : null;
   const cls = profile?.class_grade
@@ -301,15 +320,15 @@ const HeroCard = ({ user, profile }) => {
 
 const StatCard = ({ accent, label, sub, value, rightTop, Icon }) => (
   <article className={`${styles.statCard} ${styles[`statCard_${accent}`] || ''}`}>
-    <div className={styles.statCardTop}>
-      <span className={styles.statCardIconWrap} aria-hidden="true">
-        <Icon className={styles.statCardIcon} />
-      </span>
-      <span className={styles.statCardRightTop}>{rightTop}</span>
+    <span className={styles.statCardIconWrap} aria-hidden="true">
+      <Icon className={styles.statCardIcon} />
+    </span>
+    <div className={styles.statCardBody}>
+      <p className={styles.statCardValue}>{value}</p>
+      <p className={styles.statCardLabel}>{label}</p>
+      <p className={styles.statCardSub}>{sub}</p>
     </div>
-    <p className={styles.statCardValue}>{value}</p>
-    <p className={styles.statCardLabel}>{label}</p>
-    <p className={styles.statCardSub}>{sub}</p>
+    {rightTop ? <span className={styles.statCardRightTop}>{rightTop}</span> : null}
   </article>
 );
 
@@ -450,8 +469,14 @@ const AccuracyDonut = ({ value }) => {
   );
 };
 
-const SidePanel = ({ pending, battles, onResume, onNewTest, onBattle }) => (
+const SidePanel = ({ heatmap, pending, battles, onResume, onNewTest, onBattle }) => (
   <aside className={styles.sidePanel}>
+    <Heatmap
+      days={heatmap?.days || []}
+      maxCount={heatmap?.max_count || 0}
+      defaultRange="month"
+    />
+
     <section className={styles.sidePanelCard}>
       <header className={styles.cardHeader}>
         <h3 className={styles.cardTitle}>Pending tests</h3>

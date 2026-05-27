@@ -9,6 +9,19 @@ TOPICS_COLLECTION = "mock_test_topics"
 RESPONSES_COLLECTION = "mock_test_responses"
 ATTEMPTS_COLLECTION = "user_topic_attempts"
 
+# Browse / practice: records that a user revealed a question's solution.
+# Kept separate from `user_topic_attempts` so a peeked question never feeds
+# the recommender — viewing the solution is "seen", not "attempted".
+PRACTICE_VIEWS_COLLECTION = "practice_solution_views"
+
+# Notebook: questions a user marked to revise later. One doc per
+# (user, question); unique so a question can't be marked twice.
+NOTEBOOK_COLLECTION = "notebook_entries"
+
+# Sentinel session id stamped on attempts made through the Browse/practice
+# flow (no real mock-test session exists for them).
+PRACTICE_SESSION_ID = 0
+
 # ---------- ID mapping (ObjectId / triple ↔ int) ----------
 QUESTION_ID_MAP_COLLECTION = "question_id_map"
 TOPIC_ID_MAP_COLLECTION = "topic_id_map"

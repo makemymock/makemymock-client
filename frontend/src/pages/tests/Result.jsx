@@ -17,13 +17,24 @@ const Result = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
+  // Notebook membership keyed by question obj_id, seeded from the results
+  // payload and updated optimistically on toggle.
+  const [markedMap, setMarkedMap] = useState({});
+  const [markBusy, setMarkBusy] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const res = await mockTestService.getResults(sessionId);
-        if (!cancelled) setData(res);
+        if (!cancelled) {
+          setData(res);
+          const seed = {};
+          for (const r of res.results || []) {
+            if (r.obj_id) seed[r.obj_id] = Boolean(r.marked);
+          }
+          setMarkedMap(seed);
+        }
       } catch (err) {
         if (!cancelled) setError(parseApiError(err, 'Could not load results.'));
       } finally {
@@ -34,6 +45,21 @@ const Result = () => {
       cancelled = true;
     };
   }, [sessionId]);
+
+  const toggleMark = async (objId) => {
+    if (!objId || markBusy) return;
+    setMarkBusy(true);
+    const next = !markedMap[objId];
+    setMarkedMap((prev) => ({ ...prev, [objId]: next }));
+    try {
+      if (next) await mockTestService.addToNotebook(objId);
+      else await mockTestService.removeFromNotebook(objId);
+    } catch {
+      setMarkedMap((prev) => ({ ...prev, [objId]: !next })); // revert
+    } finally {
+      setMarkBusy(false);
+    }
+  };
 
   const sortedResults = useMemo(
     () => (data ? [...data.results].sort((a, b) => a.display_order - b.display_order) : []),
@@ -122,6 +148,21 @@ const Result = () => {
         <div className={styles.reviewerBody}>
           {current && currentQuestion ? (
             <>
+              {current.obj_id ? (
+                <div className={styles.reviewerToolbar}>
+                  <button
+                    type="button"
+                    className={`${styles.markBtn} ${markedMap[current.obj_id] ? styles.markBtnOn : ''}`}
+                    onClick={() => toggleMark(current.obj_id)}
+                    disabled={markBusy}
+                    aria-pressed={!!markedMap[current.obj_id]}
+                    title={markedMap[current.obj_id] ? 'Remove from notebook' : 'Save to notebook'}
+                  >
+                    <span aria-hidden="true">{markedMap[current.obj_id] ? '🔖' : '🏷️'}</span>
+                    {markedMap[current.obj_id] ? 'Saved to notebook' : 'Save to notebook'}
+                  </button>
+                </div>
+              ) : null}
               <QuestionViewer
                 question={currentQuestion}
                 index={activeIndex}

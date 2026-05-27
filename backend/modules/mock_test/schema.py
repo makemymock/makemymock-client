@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -140,6 +140,10 @@ class SubmitMockTestRequest(BaseModel):
 
 class PerQuestionResult(BaseModel):
     question_id: int
+    # The stored question's ObjectId (string) — lets the results UI mark a
+    # question into the notebook using the same obj_id-keyed endpoints as Browse.
+    obj_id: Optional[str] = None
+    marked: bool = False
     topic_id: int
     display_order: int
     is_correct: bool
@@ -424,3 +428,114 @@ class TopicDetailResponse(BaseModel):
     by_difficulty: list[DifficultyBreakdown]
     by_type: list[TypeBreakdown]
     recent_attempts: list[RecentAttempt]
+
+
+# ---------------------------------------------------------------------------
+# Browse (practice) — paginated catalog of all questions with per-user status.
+#
+# Distinct from the test-taking payloads: a browse row is one *stored*
+# question (ObjectIds, not engine ints), carries the user's per-question
+# status, and the detail/attempt/solution flow gates the answer + worked
+# solution behind an explicit "View solution" action.
+# ---------------------------------------------------------------------------
+
+class BrowsePerformance(BaseModel):
+    status: Literal["correct", "partial", "incorrect"]
+    correctness: Optional[float] = None
+    attempted_at: Optional[datetime] = None
+
+
+class BrowseItem(BaseModel):
+    question_id: str                 # questions._id (ObjectId) as string
+    subject: str
+    chapter: str
+    topic: str
+    difficulty: str
+    question_type: str
+    question_text: str = ""          # full text; the client clamps the preview
+    attempted: bool = False
+    viewed: bool = False
+    marked: bool = False             # in the user's notebook
+    performance: Optional[BrowsePerformance] = None
+
+
+class BrowseListResponse(BaseModel):
+    items: list[BrowseItem]
+    total: int
+    page: int
+    page_size: int
+
+
+class BrowseSubQuestion(BaseModel):
+    """A passage sub-question as rendered in Browse (single_correct)."""
+    sub_index: int
+    question_text: str = ""
+    options: list[QuestionPayloadOption] = Field(default_factory=list)
+    # Gated: only populated once attempted-or-viewed.
+    correct_option: Optional[str] = None
+    user_answer: Any = None
+    performance: Optional[BrowsePerformance] = None
+
+
+class BrowseQuestionDetail(BaseModel):
+    question_id: str
+    subject: str
+    chapter: str
+    topic: str
+    difficulty: str
+    question_type: str
+    question_text: str = ""
+
+    options: list[QuestionPayloadOption] = Field(default_factory=list)
+    left_column: list[str] = Field(default_factory=list)
+    right_column: list[str] = Field(default_factory=list)
+
+    passage_text: Optional[str] = None
+    sub_questions: list[BrowseSubQuestion] = Field(default_factory=list)
+
+    # Per-user gate state.
+    attempted: bool = False
+    solution_viewed: bool = False
+    marked: bool = False             # in the user's notebook
+
+    # Gated reveal — present only when (attempted || solution_viewed). The
+    # worked `solution` text is NEVER sent here; it comes from the
+    # view-solution endpoint so opening a question can't leak it.
+    correct_answer: Any = None
+    user_answer: Any = None
+    performance: Optional[BrowsePerformance] = None
+
+
+class BrowseAttemptRequest(BaseModel):
+    """Answer for a practice attempt.
+
+    Same wire shapes as `AnswerInput` for standalone questions. For passages,
+    `answers` maps a sub-index string ("0", "1", …) to that sub-question's
+    selected option key.
+    """
+    selected_option: Optional[str] = None
+    selected_options: Optional[list[str]] = None
+    integer_answer: Optional[Any] = None
+    matching: Optional[dict[str, list[str]]] = None
+    answers: Optional[dict[str, str]] = None   # passage sub-index → option key
+
+
+class BrowseAttemptResponse(BaseModel):
+    performance: BrowsePerformance
+    correct_answer: Any = None
+    recorded: bool                   # False when the solution was already viewed
+    # Per-sub breakdown for passages (empty otherwise).
+    sub_results: list[BrowseSubQuestion] = Field(default_factory=list)
+
+
+class BrowseSolutionResponse(BaseModel):
+    solution: str = ""
+    correct_answer: Any = None
+
+
+class NotebookToggleResponse(BaseModel):
+    marked: bool
+
+
+class NotebookCountResponse(BaseModel):
+    count: int

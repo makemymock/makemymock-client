@@ -7,6 +7,7 @@ import ProfileSetup from '../pages/profile/ProfileSetup';
 import TestsLaunch from '../pages/tests/TestsLaunch';
 import TakeTest from '../pages/tests/TakeTest';
 import Result from '../pages/tests/Result';
+import BrowseQuestion from '../pages/tests/BrowseQuestion';
 import Analytics from '../pages/analytics/Analytics';
 import ChapterAnalytics from '../pages/analytics/ChapterAnalytics';
 import TopicAnalytics from '../pages/analytics/TopicAnalytics';
@@ -71,6 +72,7 @@ const AppRoutes = () => {
       >
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/tests" element={<TestsLaunch />} />
+        <Route path="/tests/browse/:questionId" element={<BrowseQuestion />} />
         <Route path="/tests/:sessionId" element={<TakeTest />} />
         <Route path="/tests/:sessionId/result" element={<Result />} />
         <Route path="/analytics" element={<Analytics />} />

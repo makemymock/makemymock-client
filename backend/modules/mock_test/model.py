@@ -83,6 +83,40 @@ def new_response_doc(
     }
 
 
+def new_practice_view_doc(
+    *,
+    user_id: ObjectId,
+    obj_id: str,
+) -> dict[str, Any]:
+    """Marker that a user revealed a question's solution in Browse.
+
+    Lives in `practice_solution_views` (unique on user_id + obj_id), kept
+    out of `user_topic_attempts` so viewing never feeds the recommender.
+    """
+    return {
+        "user_id": user_id,
+        "obj_id": obj_id,
+        "viewed_at": now_utc(),
+    }
+
+
+def new_notebook_entry_doc(
+    *,
+    user_id: ObjectId,
+    obj_id: str,
+) -> dict[str, Any]:
+    """A question the user marked to revise later.
+
+    Lives in `notebook_entries` (unique on user_id + obj_id), so the same
+    question can never be added twice.
+    """
+    return {
+        "user_id": user_id,
+        "obj_id": obj_id,
+        "added_at": now_utc(),
+    }
+
+
 def new_attempt_doc(
     *,
     user_id: ObjectId,

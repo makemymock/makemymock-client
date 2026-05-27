@@ -394,13 +394,29 @@
  * ============================================================ */
 
 .main {
-  max-width: 1280px;
+  /* Wider cap so large monitors don't leave big empty gutters either side.
+     Stays centered + responsive below this width. */
+  max-width: 1520px;
   margin: 0 auto;
   width: 100%;
-  padding: clamp(16px, 3.5vw, 32px);
+  padding: clamp(16px, 3vw, 30px);
   display: flex;
   flex-direction: column;
-  gap: clamp(14px, 2.2vw, 22px);
+  gap: clamp(14px, 2vw, 20px);
+}
+
+/* Quick-actions row — POTD + Notebook. Stacks on phones, sits side-by-side
+   from tablet up so the notebook entry point lives near the top and the
+   row fills the width on wide screens. */
+.quickRow {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: clamp(12px, 2vw, 18px);
+  min-width: 0;
+}
+
+@media (min-width: 860px) {
+  .quickRow { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); }
 }
 
 /* ----- Hero ----- */
@@ -622,14 +638,25 @@
   background: var(--dash-card-bg);
   border: 1px solid var(--dash-card-border);
   border-radius: 18px;
-  padding: 16px 18px;
+  padding: 14px 16px;
+  /* Horizontal bar: icon · value+label · right-top. Fills the card width so
+     it doesn't read as a near-empty box on wide screens. */
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
   min-width: 0;
   position: relative;
   overflow: hidden;
   transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.statCardBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
 }
 
 .statCard:hover {
@@ -649,13 +676,6 @@
 .statCard_teal::before  { background: linear-gradient(180deg, var(--color-accent), #6fd9bd); }
 .statCard_gold::before  { background: linear-gradient(180deg, var(--dash-accent-yellow-strong), var(--dash-accent-yellow)); }
 .statCard_brown::before { background: linear-gradient(180deg, var(--color-brand-grad-from), var(--color-brand-grad-to)); }
-
-.statCardTop {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
 
 .statCardIconWrap {
   width: 38px;
@@ -681,28 +701,27 @@
 .statCardIcon { width: 20px; height: 20px; }
 
 .statCardRightTop {
+  flex: 0 0 auto;
+  align-self: flex-start;
   font-size: 11px;
   font-weight: 600;
   color: var(--dash-text-muted);
   text-align: right;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
 }
 
 .statCardValue {
-  margin: 4px 0 0 0;
+  margin: 0;
   font-family: var(--font-secondary);
-  font-size: clamp(28px, 4.5vw, 40px);
+  font-size: clamp(24px, 3vw, 32px);
   font-weight: 800;
-  line-height: 1;
-  letter-spacing: -1px;
+  line-height: 1.05;
+  letter-spacing: -0.5px;
   color: var(--dash-text-strong);
 }
 
 .statCardLabel {
-  margin: 4px 0 0 0;
+  margin: 2px 0 0 0;
   font-size: 13px;
   font-weight: 600;
   color: var(--dash-text-strong);
@@ -726,43 +745,21 @@
   .grid { grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); }
 }
 
-/* Heatmap card slot inside the hero row. Stretches to fill its column
-   on phones/tablets; sits on the right at a compact size on laptop. */
-.heatmapRow {
-  display: block;
-  min-width: 0;
-}
-
-/* Confidence trophy — full-width row right under the HeroCard so the
-   gamified headline number sits where the eye lands first. */
-.trophyRow {
-  display: block;
-  min-width: 0;
-}
-
-/* Hero row — wraps the three stat cards on the left and the heatmap
-   card on the right. Phones/tablets stack the two sections. Laptops
-   show them side-by-side: 3 stat cards align vertically on the left
-   and the heatmap card sits at the right at a comfortable compact size. */
-.heroRow {
+/* Top row — Welcome + Confidence trophy. Both are light on content, so on
+   wide screens they share one line instead of each taking a full-width band.
+   Trophy gets a touch more room (it carries the score + progress + subscores).
+   align-items:start keeps the short welcome card snug to its content. */
+.topRow {
   display: grid;
   grid-template-columns: 1fr;
   gap: clamp(12px, 2vw, 18px);
   min-width: 0;
 }
 
-@media (min-width: 1080px) {
-  .heroRow {
-    /* Stats flex, heatmap card auto-sizes to its content. */
-    grid-template-columns: minmax(0, 1fr) auto;
+@media (min-width: 1024px) {
+  .topRow {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
     align-items: start;
-  }
-
-  /* Inside the hero row, switch the 3-column statRow back to a single
-     column so the cards stack vertically beside the heatmap. Outside
-     the hero row the existing 3-column layout still wins. */
-  .heroRow .statRow {
-    grid-template-columns: 1fr;
   }
 }
 
@@ -1050,6 +1047,68 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+/* Notebook quick-access card */
+.notebookCard {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  height: 100%;
+  text-align: left;
+  background: linear-gradient(135deg, var(--color-glow-yellow), var(--dash-card-bg));
+  border: 1px solid var(--dash-card-border);
+  border-radius: 18px;
+  padding: 16px 18px;
+  cursor: pointer;
+  font-family: inherit;
+  color: inherit;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.notebookCard:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-soft);
+}
+
+.notebookIcon {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  background: var(--color-glow-yellow);
+}
+
+.notebookMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.notebookTitle {
+  font-family: var(--font-secondary);
+  font-weight: 800;
+  font-size: 17px;
+  color: var(--dash-text-strong);
+}
+
+.notebookSub {
+  font-size: 12px;
+  color: var(--dash-text-muted);
+}
+
+.notebookArrow {
+  flex: 0 0 auto;
+  font-size: 18px;
+  color: var(--color-accent);
+  font-weight: 700;
 }
 
 .pill {
