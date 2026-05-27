@@ -94,6 +94,16 @@ _NESTED_DIAGRAM_RE = re.compile(
     re.DOTALL,
 )
 
+# The deep solver occasionally bypasses the diagram_pending placeholder
+# flow and just embeds a full <svg>…</svg> directly inside a step block's
+# body. The frontend then renders that block as markdown, which escapes
+# the SVG into visible XML text. We catch that pattern here and lift the
+# SVG out into its own `diagram` block.
+_INLINE_SVG_RE = re.compile(
+    r"<svg\b[^>]*>[\s\S]*?</svg>",
+    re.IGNORECASE,
+)
+
 
 # ---------------------------------------------------------------------------
 # Plan JSON tolerance — Gemini occasionally wraps JSON in ```json fences
@@ -587,16 +597,33 @@ def _split_out_nested_diagrams(
     parent_attrs: str,
     content: str,
 ) -> list[dict[str, Any]]:
-    """If `content` contains nested `[[BLOCK type=diagram_pending …]]`
-    placeholders, split the parent block into alternating
-    (parent-text, diagram, parent-text, …) emissions so the diagram
-    appears at roughly the right spot in the transcript.
+    """Split a parent block whose content contains EITHER:
 
-    If no nested diagrams are found, returns a single-element list with
-    the parent block as-is.
+        * a `[[BLOCK type=diagram_pending …]]` placeholder, OR
+        * a literal inline `<svg>…</svg>` blob
+
+    into alternating (parent-text, diagram, parent-text, …) emissions so
+    each artifact lands as its own block in the transcript.
+
+    Placeholders become `diagram_pending` blocks (the existing async
+    diagram-agent flow takes over). Inline SVGs become `diagram` blocks
+    whose `content` IS the SVG markup — the frontend renders them
+    immediately, no extra round-trip needed.
+
+    If nothing matches, returns a single-element list with the parent
+    block as-is.
     """
-    matches = list(_NESTED_DIAGRAM_RE.finditer(content))
-    if not matches:
+    # Build a unified list of (start, end, kind, payload) interruptions.
+    interruptions: list[tuple[int, int, str, str]] = []
+    for m in _NESTED_DIAGRAM_RE.finditer(content):
+        interruptions.append(
+            (m.start(), m.end(), "pending", m.group("attrs") or ""),
+        )
+    for m in _INLINE_SVG_RE.finditer(content):
+        interruptions.append((m.start(), m.end(), "svg", m.group(0)))
+    interruptions.sort(key=lambda t: t[0])
+
+    if not interruptions:
         return [_build_block_from_match(parent_type, parent_attrs, content.strip())]
 
     out: list[dict[str, Any]] = []
@@ -614,16 +641,19 @@ def _split_out_nested_diagrams(
         parent_title_used = True
 
     cursor = 0
-    for m in matches:
-        emit_parent_chunk(content[cursor : m.start()])
-        out.append(
-            _build_block_from_match(
-                "diagram_pending",
-                m.group("attrs") or "",
-                "",
+    for start, end, kind, payload in interruptions:
+        emit_parent_chunk(content[cursor:start])
+        if kind == "pending":
+            out.append(
+                _build_block_from_match("diagram_pending", payload, ""),
             )
-        )
-        cursor = m.end()
+        else:  # "svg" — emit a real diagram block carrying the SVG markup.
+            out.append({
+                "type": "diagram",
+                "title": "Diagram",
+                "content": payload.strip(),
+            })
+        cursor = end
     emit_parent_chunk(content[cursor:])
 
     return out
@@ -1124,9 +1154,15 @@ class SolverXService:
                     )
                     continue
 
-                # Drop a bare `diagram` block — only `diagram_pending` is
-                # honoured in the new protocol.
+                # Bare `diagram` block — the solver emitted a full SVG
+                # directly instead of using the diagram_pending → diagram_ready
+                # async flow. Honor it as long as the content actually
+                # contains an <svg> blob the frontend can render.
                 if btype == "diagram":
+                    raw = (block.get("content") or "").strip()
+                    if "<svg" in raw.lower() and "</svg>" in raw.lower():
+                        collected_blocks.append(block)
+                        yield _sse("block", block)
                     continue
 
                 if not progress_announced and len(collected_blocks) >= 2:
