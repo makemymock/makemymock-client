@@ -10,7 +10,10 @@ passlib[bcrypt]==1.7.4
 bcrypt==4.0.1
 email-validator==2.2.0
 aiosmtplib==3.0.2
-httpx==0.27.2
+# Bumped from 0.27.2 → 0.28.x to satisfy google-genai>=1.20.0 which
+# requires httpx>=0.28.1. The httpx 0.27 → 0.28 jump is API-compatible
+# for our usage (async client + basic request flow).
+httpx>=0.28.1,<1.0
 jinja2==3.1.4
 python-multipart
 # Pin a known-good floor — earlier 1.x builds reject
