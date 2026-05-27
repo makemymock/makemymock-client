@@ -9,8 +9,8 @@
      component picks it up — labels, buttons, stat cards, headings. The
      readable sans-serif fallback is kept on the question-rendering
      surface (MarkdownText) and on monospace contexts (code, timer). */
-  --font-primary: 'Patrick Hand SC', 'Patrick Hand', cursive;
-  --font-secondary: 'Patrick Hand SC', 'Patrick Hand', cursive,
+  --font-primary: 'Patrick Hand', cursive;
+  --font-secondary: 'Patrick Hand', cursive,
                     'Jost', 'Avenir Next', sans-serif;
 
   --color-bg-page: #09090f;
