@@ -339,6 +339,18 @@ const SolverX = () => {
           setStreaming((s) => s && { ...s, insights: data.items || [] });
         } else if (event === 'block') {
           setStreaming((s) => s && { ...s, blocks: [...s.blocks, data] });
+        } else if (event === 'block_update') {
+          // A text block's content was cleaned up by the background
+          // LaTeX-polish agent (Flash). Swap the rendered content in
+          // place using the block's stable `id`. We don't shift the
+          // block's position — order stays as the user already saw it.
+          setStreaming((s) => {
+            if (!s) return s;
+            const blocks = s.blocks.map((b) =>
+              b.id === data.id ? { ...b, content: data.content } : b,
+            );
+            return { ...s, blocks };
+          });
         } else if (event === 'diagram_ready') {
           // A `diagram_pending` placeholder block has finished baking
           // on the backend. If `content` is non-null, swap the

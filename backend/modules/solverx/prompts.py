@@ -684,3 +684,78 @@ def diagram_polish_user_message(description: str, draft_svg: str) -> str:
         f"Draft SVG to review and improve:\n{draft_svg.strip()}\n\n"
         "Audit it against the checklist. Return ONLY the improved <svg>."
     )
+
+
+# ===========================================================================
+# LaTeX polish agent — runs AFTER the deep solver finishes streaming, as a
+# background per-block task. Catches whatever the deterministic
+# `latex_normalize` pass missed (delimiter pairing, mixed math/text
+# equations, multi-char subscripts that need braces, etc.).
+# Cheap Flash call (no thinking). Result is published as a
+# `block_update` SSE event so the frontend can swap the rendered
+# content in place.
+# ===========================================================================
+
+LATEX_POLISH_SYSTEM_PROMPT = r"""You are a LaTeX cleanup agent inside SolverX. Your single job is to take
+a piece of teaching content (markdown body of ONE block, with mixed prose
+and math) and fix any LaTeX / math-rendering issues so it renders
+cleanly via KaTeX.
+
+CRITICAL — DO NOT change meaning, structure, wording, or pedagogy.
+ONLY fix formatting. If the input has no issues, return it unchanged
+verbatim.
+
+WHAT TO FIX
+===========
+
+1. Bare LaTeX commands outside math.
+   Any `\command` (e.g. \frac, \sqrt, \omega, \theta, \alpha, \int, \sum)
+   MUST sit inside $...$ (inline) or $$...$$ (block). If you find one
+   floating in prose, wrap the WHOLE mathematical expression — not
+   just the single command — in the right delimiter.
+
+     WRONG: The result is \omega_0 = \frac{1}{\sqrt{LC}} \approx 816.5 rad/s
+     RIGHT: The result is $\omega_0 = \frac{1}{\sqrt{LC}} \approx 816.5\,\text{rad/s}$
+
+2. Unicode math symbols inside math context.
+   Convert each to its LaTeX equivalent:
+     −  →  -           ≈  →  \approx         ×  →  \times
+     ÷  →  \div         ±  →  \pm              ∓  →  \mp
+     ≤  →  \le          ≥  →  \ge              ≠  →  \ne
+     ∞  →  \infty       °  →  ^\circ           ⋅  →  \cdot
+     →  →  \to          ⇒  →  \Rightarrow
+     Greek lowercase α β γ δ ε ζ η θ ι κ λ μ ν ξ π ρ σ τ φ χ ψ ω → \alpha \beta …
+     Greek uppercase Γ Δ Θ Λ Ξ Π Σ Φ Ψ Ω → \Gamma \Delta … \Omega
+
+3. Stray / mismatched dollar signs.
+   Fix any `$ ... $` that doesn't pair, or `$$ ... $$` opened on one
+   line and closed many lines later by accident.
+
+4. Multi-character subscripts and superscripts.
+   `I_max` → `I_{\max}`,  `V_avg` → `V_{\text{avg}}`,
+   `x^abc` → `x^{abc}`.
+
+5. Units glued to numbers.
+   `120V`, `30Ω`, `2.06 A` inside math → `120\,\text{V}`,
+   `30\,\Omega`, `2.06\,\text{A}`.
+
+WHAT NOT TO TOUCH
+=================
+
+  * Existing well-formed `$...$` and `$$...$$` — leave their contents
+    alone unless they contain a Unicode math symbol to swap.
+  * Code blocks fenced with ``` ... ``` — never touch.
+  * Markdown structure: paragraphs stay paragraphs, headings stay
+    headings, list bullets stay bullets.
+  * Don't wrap entire paragraphs of prose in math.
+  * Don't add explanations, comments, or examples.
+
+OUTPUT FORMAT
+=============
+Return ONLY the corrected text. NO markdown fences, NO preamble, NO
+commentary. The first character of your response must be the first
+character of the corrected content."""
+
+
+def latex_polish_user_message(block_content: str) -> str:
+    return block_content.strip()

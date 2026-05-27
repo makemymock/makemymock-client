@@ -32,6 +32,7 @@ import asyncio
 import json
 import logging
 import re
+import secrets
 from typing import Any, AsyncIterator, Optional
 
 from bson import ObjectId
@@ -45,12 +46,14 @@ from modules.solverx.constants import (
     SOLVE_STATUS_MESSAGES,
     THEORY_STATUS_MESSAGES,
 )
+from modules.solverx.latex_normalize import normalize_latex_block
 from modules.solverx.llm import LLMError, chat_json, chat_stream
 from modules.solverx.model import new_conversation_doc, new_message_doc
 from modules.solverx.prompts import (
     BLOCK_CLOSE,
     DIAGRAM_DRAFT_SYSTEM_PROMPT,
     DIAGRAM_POLISH_SYSTEM_PROMPT,
+    LATEX_POLISH_SYSTEM_PROMPT,
     PLAN_SYSTEM_PROMPT,
     SIMPLE_SOLVE_SYSTEM_PROMPT,
     SIMPLE_THEORY_SYSTEM_PROMPT,
@@ -61,6 +64,7 @@ from modules.solverx.prompts import (
     deep_theory_user_message,
     diagram_draft_user_message,
     diagram_polish_user_message,
+    latex_polish_user_message,
     plan_user_message,
     simple_solve_user_message,
     simple_theory_user_message,
@@ -508,6 +512,78 @@ def _extract_svg(raw: str) -> Optional[str]:
     return text[start : end + 6]
 
 
+# ---------------------------------------------------------------------------
+# LaTeX polish agent — runs as a background task per text block AFTER
+# the deep solver finishes streaming. Catches whatever the deterministic
+# `normalize_latex_block` missed (broken delimiters, mixed math/text
+# equations, multi-character subscripts, unit glue, etc.). Cheap Flash
+# call with thinking disabled; result is published as a `block_update`
+# SSE event so the frontend can swap the rendered content in place.
+# ---------------------------------------------------------------------------
+
+# Text block types eligible for polish. `diagram` / `diagram_pending`
+# carry SVG or are placeholders, not markdown — never polish them.
+_POLISHABLE_BLOCK_TYPES = frozenset({
+    "understanding",
+    "key_concept",
+    "step",
+    "intuition",
+    "warning",
+    "final_answer",
+    "alternative",
+    "summary",
+    "insight",
+})
+
+
+async def _polish_block_latex(content: str) -> Optional[str]:
+    """Single Flash round-trip to clean up LaTeX/math formatting in a
+    block's content. Returns the polished text, or None on failure /
+    suspicious output. Cheap (~$0.001 per call, thinking disabled).
+
+    Caller is responsible for shipping the result back to the client
+    via a `block_update` SSE event.
+    """
+    if not content or not content.strip():
+        return None
+    try:
+        polished = await chat_json(
+            [
+                {"role": "system", "content": LATEX_POLISH_SYSTEM_PROMPT},
+                {"role": "user", "content": latex_polish_user_message(content)},
+            ],
+            model=settings.GEMINI_MODEL_FLASH,
+            temperature=0.1,
+            max_tokens=4000,
+            disable_thinking=True,
+        )
+    except LLMError as exc:
+        logger.debug("LaTeX polish failed: %s", exc)
+        return None
+
+    polished = (polished or "").strip()
+    if not polished:
+        return None
+
+    # Defensive sanity check — polish shouldn't double the size of the
+    # block. If it does, the LLM probably appended commentary despite
+    # the prompt; discard rather than ship a corrupted block.
+    if len(polished) > max(200, len(content) * 1.8):
+        logger.debug(
+            "LaTeX polish output unusually large (%d → %d chars); discarding",
+            len(content), len(polished),
+        )
+        return None
+
+    # Strip any code-fence wrapper the model might have added.
+    if polished.startswith("```"):
+        polished = re.sub(r"^```[a-zA-Z]*\s*\n?", "", polished)
+        polished = re.sub(r"\n?```\s*$", "", polished)
+        polished = polished.strip()
+
+    return polished if polished else None
+
+
 async def _generate_diagram(
     *,
     description: str,
@@ -573,16 +649,31 @@ async def _generate_diagram(
 # ---------------------------------------------------------------------------
 
 
+def _new_block_id() -> str:
+    """Short opaque id used to address a block from later SSE events
+    (e.g. `block_update` after LaTeX polish). 8 hex chars give 32 bits
+    of entropy — collision-free for any single conversation."""
+    return secrets.token_hex(4)
+
+
 def _build_block_from_match(
     block_type: str,
     header_attrs: str,
     content: str,
 ) -> dict[str, Any]:
-    """Convert a regex match's pieces into the canonical block dict."""
+    """Convert a regex match's pieces into the canonical block dict.
+
+    Every block gets a unique `id` so downstream events
+    (`block_update`, `diagram_ready`) can address it by identity rather
+    than by position — which is critical because the frontend's block
+    array can re-index when a `diagram_pending` placeholder is dropped
+    (failed diagram) or upgraded to `diagram`.
+    """
     attrs: dict[str, str] = {}
     for k, v in _ATTR_RE.findall(header_attrs or ""):
         attrs[k] = v
     block: dict[str, Any] = {
+        "id": _new_block_id(),
         "type": block_type,
         "title": attrs.pop("title", ""),
         "content": content,
@@ -649,6 +740,7 @@ def _split_out_nested_diagrams(
             )
         else:  # "svg" — emit a real diagram block carrying the SVG markup.
             out.append({
+                "id": _new_block_id(),
                 "type": "diagram",
                 "title": "Diagram",
                 "content": payload.strip(),
@@ -697,6 +789,14 @@ async def _stream_blocks_from_llm(
                 # but a nested diagram and a trailing newline).
                 if not blk.get("content") and blk["type"] != "diagram_pending":
                     continue
+                # Deterministic LaTeX normalize for text-bearing blocks.
+                # Diagrams (raw SVG) and pending placeholders are
+                # exempt — they're not markdown.
+                if (
+                    blk.get("content")
+                    and blk["type"] not in ("diagram", "diagram_pending")
+                ):
+                    blk["content"] = normalize_latex_block(blk["content"])
                 yield blk
 
             buf = buf[close_pos + len(BLOCK_CLOSE) :]
@@ -1105,6 +1205,13 @@ class SolverXService:
         # final SVGs (not just the placeholders).
         completed_diagrams: dict[int, str] = {}
 
+        # In-flight LaTeX polish tasks, keyed by block id. Each task
+        # fires the moment a text block is emitted to the client, then
+        # we drain them after the stream and the diagram tasks complete.
+        # `block_update` SSE events ship the polished content back so
+        # the frontend swaps it in place.
+        polish_tasks: dict[str, asyncio.Task] = {}
+
         collected_blocks: list[dict] = []
         progress_announced = False
         try:
@@ -1177,6 +1284,19 @@ class SolverXService:
 
                 collected_blocks.append(block)
                 yield _sse("block", block)
+
+                # Kick off LaTeX polish in the background — runs in
+                # parallel with the remaining stream + diagram tasks.
+                # The result lands as a `block_update` SSE event after
+                # we drain these tasks below.
+                if btype in _POLISHABLE_BLOCK_TYPES and block.get("content"):
+                    blk_id = block.get("id")
+                    blk_content = block["content"]
+                    if blk_id and blk_id not in polish_tasks:
+                        polish_tasks[blk_id] = asyncio.create_task(
+                            _polish_block_latex(blk_content)
+                        )
+
                 await asyncio.sleep(0)
         except LLMError as exc:
             logger.warning("Deep solve stage failed: %s", exc)
@@ -1185,6 +1305,8 @@ class SolverXService:
                 {"message": "The reasoning engine is busy. Please retry in a moment."},
             )
             for t in diagram_tasks.values():
+                t.cancel()
+            for t in polish_tasks.values():
                 t.cancel()
             return
 
@@ -1250,6 +1372,69 @@ class SolverXService:
                         yield _sse(
                             "diagram_ready", {"n": n_done, "content": None}
                         )
+
+        # ---- Drain LaTeX polish tasks. Each task runs in parallel with
+        #      the stream + diagram drain above; here we just collect the
+        #      results and emit `block_update` events so the frontend
+        #      can swap any blocks whose content needed cleanup.
+        #
+        # Polish is best-effort — timeouts and failures are silently
+        # dropped, leaving the original (already deterministically
+        # normalised) content visible.
+        if polish_tasks:
+            POLISH_TIMEOUT_SECONDS = 12.0
+
+            async def _await_polish(blk_id: str, task: asyncio.Task):
+                try:
+                    polished = await asyncio.wait_for(
+                        asyncio.shield(task),
+                        timeout=POLISH_TIMEOUT_SECONDS,
+                    )
+                    return blk_id, polished
+                except asyncio.TimeoutError:
+                    logger.debug("LaTeX polish task for %s timed out", blk_id)
+                    task.cancel()
+                    return blk_id, None
+                except Exception as exc:  # noqa: BLE001
+                    logger.debug("LaTeX polish task for %s crashed: %s", blk_id, exc)
+                    return blk_id, None
+
+            # Build a quick id → block-index map so we can update the
+            # persisted transcript in `collected_blocks` too.
+            id_to_index = {
+                b.get("id"): i for i, b in enumerate(collected_blocks) if b.get("id")
+            }
+
+            polish_wrappers = [
+                asyncio.create_task(_await_polish(blk_id, task))
+                for blk_id, task in polish_tasks.items()
+            ]
+            remaining_polish = list(polish_wrappers)
+            while remaining_polish:
+                done, _pending = await asyncio.wait(
+                    remaining_polish, return_when=asyncio.FIRST_COMPLETED
+                )
+                for w in done:
+                    remaining_polish.remove(w)
+                    try:
+                        blk_id, polished = w.result()
+                    except Exception as exc:  # noqa: BLE001
+                        logger.debug("Polish wrapper crashed: %s", exc)
+                        continue
+                    if not polished:
+                        continue
+                    # Update the in-memory block (so the persisted message
+                    # below carries the polished version) AND notify the
+                    # frontend so the rendered transcript swaps in place.
+                    idx = id_to_index.get(blk_id)
+                    if idx is not None:
+                        original = collected_blocks[idx].get("content")
+                        if polished == original:
+                            continue  # nothing to do — content unchanged
+                        collected_blocks[idx]["content"] = polished
+                    yield _sse(
+                        "block_update", {"id": blk_id, "content": polished}
+                    )
 
         # ---- Persist assistant message ----
         # Replace any diagram_pending entries in the saved transcript
