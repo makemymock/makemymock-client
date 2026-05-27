@@ -13,4 +13,8 @@ aiosmtplib==3.0.2
 httpx==0.27.2
 jinja2==3.1.4
 python-multipart
-google-genai>=1.0.0
+# Pin a known-good floor — earlier 1.x builds reject
+# ThinkingConfig(thinking_budget=...) with "Extra inputs are not
+# permitted", which kills every SolverX Vertex AI call. Pip's
+# resolver under `>=1.0.0` happily picks 1.2.0, so be explicit.
+google-genai>=1.20.0,<2.0
