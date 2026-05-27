@@ -1,4 +1,4 @@
-"""Buffered, in-memory adapter that satisfies the engine Repository protocol.
+"""Buffered, in-memory adapter the engine talks to.
 
 The engine is synchronous; FastAPI is async. To keep a single Mongo driver
 in the hot path (Motor), the controller pre-fetches everything the engine
@@ -7,23 +7,24 @@ that buffer, and then drains the engine's write buffer back to Motor.
 
 `session_id` is pre-allocated *before* the engine is invoked, so the
 buffered repo can return it synchronously from `save_session()`.
+
+`user_id` is opaque — we pass the user's Mongo `ObjectId` straight
+through. The engine only stores and equality-compares it.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Iterable, Optional
-from uuid import UUID
+from typing import Any, Iterable, Optional
 
 from engine.models import Attempt, Question
 
 
 @dataclass
 class BufferedRepository:
-    """Implements the engine Repository protocol against pre-fetched data
-    plus write buffers the caller drains after the engine returns."""
+    """Holds the engine's pre-fetched reads + write buffers for one request."""
 
-    user_id: UUID
+    user_id: Any
     preallocated_session_id: int
 
     # Pre-fetched reads
@@ -33,7 +34,7 @@ class BufferedRepository:
     topic_chapters: dict[int, int] = field(default_factory=dict)
 
     # Write buffers populated by the engine
-    saved_session: Optional[tuple[UUID, int, int, str]] = None
+    saved_session: Optional[tuple[Any, int, int, str]] = None
     saved_topic_allocations: list[tuple[int, int, float]] = field(default_factory=list)
     saved_question_responses: list[tuple[int, int, bool]] = field(default_factory=list)
     new_attempts: list[Attempt] = field(default_factory=list)
@@ -46,13 +47,13 @@ class BufferedRepository:
     # ----- Reads -----
 
     def get_attempts_for_topics(
-        self, user_id: UUID, topic_ids: Iterable[int],
+        self, user_id: Any, topic_ids: Iterable[int],
     ) -> list[Attempt]:
         wanted = set(topic_ids)
         return [a for a in self.attempts_for_topics
                 if a.user_id == user_id and a.topic_id in wanted]
 
-    def get_attempts_for_user(self, user_id: UUID) -> list[Attempt]:
+    def get_attempts_for_user(self, user_id: Any) -> list[Attempt]:
         return [a for a in self.attempts_for_user if a.user_id == user_id]
 
     def get_available_questions(
@@ -70,7 +71,7 @@ class BufferedRepository:
     # ----- Writes -----
 
     def save_session(
-        self, user_id: UUID, total_questions: int, extra_questions: int, status: str,
+        self, user_id: Any, total_questions: int, extra_questions: int, status: str,
     ) -> int:
         self.saved_session = (user_id, total_questions, extra_questions, status)
         return self.preallocated_session_id

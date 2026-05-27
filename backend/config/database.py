@@ -20,12 +20,19 @@ mongo = MongoDB()
 async def connect_to_mongo() -> None:
     """Initialize Motor client with connection pooling and ensure indexes."""
     logger.info("Connecting to MongoDB...")
+    # tz_aware=True so datetime values read back from Mongo carry UTC
+    # tzinfo. Without it, Motor returns timezone-naive datetimes and Pydantic
+    # serializes them as ISO strings WITHOUT a timezone marker, which the
+    # browser then interprets as local time. All datetime arithmetic in this
+    # codebase must therefore use `datetime.now(timezone.utc)` (tz-aware)
+    # rather than the deprecated `datetime.utcnow()` (tz-naive).
     mongo.client = AsyncIOMotorClient(
         settings.MONGO_URI,
         maxPoolSize=100,
         minPoolSize=10,
         serverSelectionTimeoutMS=5000,
         uuidRepresentation="standard",
+        tz_aware=True,
     )
     mongo.db = mongo.client[settings.MONGO_DB_NAME]
 

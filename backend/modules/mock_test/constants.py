@@ -25,14 +25,3 @@ COUNTER_SUBJECT = "subject_int_id"
 
 # ---------- Timer policy ----------
 SECONDS_PER_QUESTION = 90  # 1.5 minutes per question
-MIN_TEST_SIZE = 5
-MAX_TEST_SIZE = 100
-
-# ---------- Allowed question types ----------
-QUESTION_TYPES = (
-    "single_correct",
-    "multi_correct",
-    "integer",
-    "matching",
-    "passage",
-)

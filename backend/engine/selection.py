@@ -276,10 +276,8 @@ def select_questions(
         shuffle_seed: when None (default), atoms are kept in their stable
             lead-id order. When an int, each (pool, topic) atom list is
             shuffled with `random.Random(shuffle_seed)` before selection.
-            Use:
-              - a fixed int for reproducible tests
-              - `int(time.time())` or a per-session hash in production
-                so consecutive tests don't replay identical questions.
+            In production, pass `int(time.time())` or a per-session hash
+            so consecutive tests don't replay identical questions.
 
     Passage proportion is determined naturally by the pool: each atom is
     one item in the shuffled draw, so a passage of N has the same

@@ -1,291 +1,376 @@
-import { useEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import MarkdownText from '../../common/MarkdownText/MarkdownText';
 import styles from './MatchingEditor.module.css';
 
-// Renders a left column of items and lets the user pick one right-column
-// item per left row. Read-only mode shades correctness.
+// Matrix-match editor.
 //
-// The dropdown is a custom popover (NOT a native <select>) because native
-// <option> elements only render plain text — they strip HTML and can't
-// run KaTeX. We need each option to display rendered LaTeX, so we built
-// our own.
-const MatchingEditor = ({ left, right, value, onChange, readOnly = false, correctMapping = null }) => {
-  const handleChange = (leftKey, rightKey) => {
-    const next = { ...(value || {}) };
-    if (rightKey === '') {
-      delete next[leftKey];
-    } else {
-      next[leftKey] = rightKey;
+// Layout:
+//   1. Reference panel — Column I (P1..Pn) and Column II (Q1..Qm) side-by-side
+//      with curved SVG lines drawn from each picked P to its matched Q(s).
+//      Lines update live as the student ticks cells in the matrix below.
+//   2. Answer matrix — compact n×m checkbox grid where ticks are entered.
+//   3. Read-only review: lines are colored green (hit), red (wrong), or
+//      dashed-green (correct answer missed); the matrix cells are similarly
+//      shaded; correct answer is also listed in text form below.
+//
+// Answer shape (wire & local): `{ "<row_idx>": ["<col_idx>", ...] }`.
+
+function rowColor(i, total) {
+  // Evenly-spaced HSL hue per row — works for any n.
+  const hue = (i * 360) / Math.max(total, 1);
+  return `hsl(${hue}, 70%, 58%)`;
+}
+
+const MatchingEditor = ({
+  left,
+  right,
+  value,
+  onChange,
+  readOnly = false,
+  correctMapping = null,
+}) => {
+  const n = left?.length || 0;
+  const m = right?.length || 0;
+  const picked = useMemo(() => toRowSetMap(value), [value]);
+  const expected = useMemo(() => toRowSetMap(correctMapping), [correctMapping]);
+
+  const toggle = (rowIdx, colIdx) => {
+    if (readOnly) return;
+    const key = String(rowIdx);
+    const col = String(colIdx);
+    const current = new Set(picked.get(key) || []);
+    if (current.has(col)) current.delete(col);
+    else current.add(col);
+
+    const next = {};
+    for (const [k, set] of picked.entries()) {
+      if (k === key) continue;
+      if (set.size > 0) next[k] = Array.from(set).sort(byNumeric);
     }
+    if (current.size > 0) next[key] = Array.from(current).sort(byNumeric);
     onChange?.(next);
   };
 
   return (
-    <div className={styles.wrapper} role="group" aria-label="Matching question">
-      {/* ----------------------------------------------------------------
-       * Desktop layout — two-column table (Item | Match-dropdown).
-       * Hidden on small screens via CSS so the LatexSelect popup doesn't
-       * fight a narrow viewport.
-       * ---------------------------------------------------------------- */}
-      <table className={styles.table}>
-        <thead>
-          <tr>
-            <th className={styles.colHead}>Item</th>
-            <th className={styles.colHead}>Match</th>
-          </tr>
-        </thead>
-        <tbody>
-          {left.map((row) => {
-            const chosen = (value || {})[row.key] || '';
-            let rowClass = '';
-            if (readOnly && correctMapping) {
-              const expected = correctMapping[row.key];
-              if (chosen && expected) {
-                rowClass = chosen === expected ? styles.rowCorrect : styles.rowWrong;
-              } else if (!chosen) {
-                rowClass = styles.rowWrong;
-              }
-            }
-            return (
-              <tr key={row.key} className={rowClass}>
-                <td className={styles.cell}>
-                  <span className={styles.itemKey}>{row.key}</span>
-                  <span className={styles.itemText}>
-                    <MarkdownText text={row.text} inline />
-                  </span>
-                </td>
-                <td className={styles.cell}>
-                  {readOnly ? (
-                    <span className={styles.readOnlyVal}>
-                      {chosen || <em className={styles.emptyVal}>not answered</em>}
-                      {correctMapping && correctMapping[row.key] && correctMapping[row.key] !== chosen ? (
-                        <span className={styles.expected}>
-                          (correct: <strong>{correctMapping[row.key]}</strong>)
-                        </span>
-                      ) : null}
-                    </span>
-                  ) : (
-                    <LatexSelect
-                      options={right}
-                      value={chosen}
-                      onChange={(rightKey) => handleChange(row.key, rightKey)}
-                      ariaLabel={`Match for ${row.key}`}
-                    />
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-
-      {/* ----------------------------------------------------------------
-       * Mobile layout — three stacked sections so each part has room:
-       *   1. Items   — left column with their keys
-       *   2. Options — right column with their keys
-       *   3. Match   — for each item, a row of tappable chips
-       * ---------------------------------------------------------------- */}
-      <div className={styles.mobile}>
-        <section className={styles.mSection}>
-          <h4 className={styles.mSectionTitle}>Items</h4>
-          <ul className={styles.mList}>
-            {left.map((row) => (
-              <li key={row.key} className={styles.mListItem}>
-                <span className={styles.mListKey}>{row.key}</span>
-                <span className={styles.mListText}>
-                  <MarkdownText text={row.text} inline />
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        <section className={styles.mSection}>
-          <h4 className={styles.mSectionTitle}>Options</h4>
-          <ul className={styles.mList}>
-            {right.map((opt) => (
-              <li key={opt.key} className={styles.mListItem}>
-                <span className={styles.mListKey}>{opt.key}</span>
-                <span className={styles.mListText}>
-                  <MarkdownText text={opt.text} inline />
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        <section className={styles.mSection}>
-          <h4 className={styles.mSectionTitle}>Match each item</h4>
-          <ul className={styles.mMatchList}>
-            {left.map((row) => {
-              const chosen = (value || {})[row.key] || '';
-              const expected = readOnly && correctMapping ? correctMapping[row.key] : null;
-              const rowClass = [
-                styles.mMatchRow,
-                readOnly && expected && chosen
-                  ? chosen === expected
-                    ? styles.mMatchRowCorrect
-                    : styles.mMatchRowWrong
-                  : '',
-                readOnly && !chosen ? styles.mMatchRowWrong : '',
-              ]
-                .filter(Boolean)
-                .join(' ');
-              return (
-                <li key={row.key} className={rowClass}>
-                  <span className={styles.mMatchKey}>{row.key}</span>
-                  <div className={styles.mChipGroup} role="radiogroup"
-                       aria-label={`Match for ${row.key}`}>
-                    {right.map((opt) => {
-                      const isOn = chosen === opt.key;
-                      const isCorrect = readOnly && expected === opt.key;
-                      const chipClass = [
-                        styles.mChip,
-                        isOn ? styles.mChipOn : '',
-                        readOnly && isOn && expected && opt.key !== expected
-                          ? styles.mChipWrong
-                          : '',
-                        readOnly && isCorrect ? styles.mChipCorrect : '',
-                      ]
-                        .filter(Boolean)
-                        .join(' ');
-                      return (
-                        <button
-                          key={opt.key}
-                          type="button"
-                          role="radio"
-                          aria-checked={isOn}
-                          className={chipClass}
-                          disabled={readOnly}
-                          // Tap an already-selected chip to clear it,
-                          // otherwise switch to the tapped option.
-                          onClick={readOnly
-                            ? undefined
-                            : () => handleChange(row.key, isOn ? '' : opt.key)}
-                        >
-                          {opt.key}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {readOnly && expected && expected !== chosen ? (
-                    <p className={styles.mMatchHint}>
-                      Correct: <strong>{expected}</strong>
-                    </p>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      </div>
-
-      <details className={styles.refColumn}>
-        <summary>Reference column</summary>
-        <ul>
-          {right.map((opt) => (
-            <li key={opt.key}>
-              <strong>{opt.key}.</strong> <MarkdownText text={opt.text} inline />
-            </li>
-          ))}
-        </ul>
-      </details>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// LatexSelect — a click-to-open dropdown whose options render LaTeX/markdown.
-// ---------------------------------------------------------------------------
-
-const LatexSelect = ({ options, value, onChange, ariaLabel }) => {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef(null);
-  const selected = options.find((o) => o.key === value) || null;
-
-  // Close on outside click + Escape key.
-  useEffect(() => {
-    if (!open) return undefined;
-    const onDocClick = (e) => {
-      if (rootRef.current && !rootRef.current.contains(e.target)) {
-        setOpen(false);
-      }
-    };
-    const onKey = (e) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('mousedown', onDocClick);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDocClick);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
-
-  const pick = (key) => {
-    onChange(key);
-    setOpen(false);
-  };
-
-  return (
-    <div className={styles.lselect} ref={rootRef}>
-      <button
-        type="button"
-        className={`${styles.lselectTrigger} ${open ? styles.lselectTriggerOpen : ''}`}
-        onClick={() => setOpen((v) => !v)}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-label={ariaLabel}
-      >
-        <span className={styles.lselectValue}>
-          {selected ? (
-            <>
-              <span className={styles.lselectValueKey}>{selected.key}</span>
-              <span className={styles.lselectValueText}>
-                <MarkdownText text={selected.text} inline />
-              </span>
-            </>
-          ) : (
-            <span className={styles.lselectPlaceholder}>— pick —</span>
-          )}
-        </span>
-        <span aria-hidden="true" className={styles.lselectChevron}>▾</span>
-      </button>
-
-      {open ? (
-        <ul className={styles.lselectMenu} role="listbox" aria-label={ariaLabel}>
-          <li className={styles.lselectClear}>
-            <button
-              type="button"
-              className={styles.lselectClearBtn}
-              onClick={() => pick('')}
-            >
-              — pick —
-            </button>
-          </li>
-          {options.map((opt) => {
-            const isActive = opt.key === value;
-            return (
-              <li key={opt.key} role="option" aria-selected={isActive}>
-                <button
-                  type="button"
-                  className={`${styles.lselectItem} ${
-                    isActive ? styles.lselectItemActive : ''
-                  }`}
-                  onClick={() => pick(opt.key)}
-                >
-                  <span className={styles.lselectItemKey}>{opt.key}</span>
-                  <span className={styles.lselectItemText}>
-                    <MarkdownText text={opt.text} inline />
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+    <div className={styles.wrapper} role="group" aria-label="Matrix-match question">
+      <ReferencePanel
+        left={left}
+        right={right}
+        picked={picked}
+        expected={expected}
+        readOnly={readOnly}
+      />
+      <AnswerMatrix
+        n={n}
+        m={m}
+        picked={picked}
+        expected={expected}
+        readOnly={readOnly}
+        onToggle={toggle}
+      />
+      {readOnly ? (
+        <CorrectAnswerText n={n} expected={expected} />
       ) : null}
     </div>
   );
 };
+
+// --------------------------------------------------------------------------
+// Reference panel + SVG lines
+// --------------------------------------------------------------------------
+
+function ReferencePanel({ left, right, picked, expected, readOnly }) {
+  const containerRef = useRef(null);
+  const leftRefs = useRef([]);
+  const rightRefs = useRef([]);
+  const [paths, setPaths] = useState([]);
+  const n = left?.length || 0;
+
+  useLayoutEffect(() => {
+    const compute = () => {
+      const c = containerRef.current;
+      if (!c) return;
+      const cRect = c.getBoundingClientRect();
+
+      const endPoint = (rect, side) => ({
+        x: (side === 'right' ? rect.right : rect.left) - cRect.left,
+        y: rect.top + rect.height / 2 - cRect.top,
+      });
+
+      const out = [];
+
+      for (const [rowKey, colSet] of picked.entries()) {
+        const i = Number(rowKey);
+        const lEl = leftRefs.current[i];
+        if (!lEl) continue;
+        const a = endPoint(lEl.getBoundingClientRect(), 'right');
+        for (const col of colSet) {
+          const j = Number(col);
+          const rEl = rightRefs.current[j];
+          if (!rEl) continue;
+          const b = endPoint(rEl.getBoundingClientRect(), 'left');
+          let kind = 'pick';
+          if (readOnly) {
+            const isCorrect = !!expected.get(rowKey)?.has(col);
+            kind = isCorrect ? 'hit' : 'wrong';
+          }
+          out.push({ a, b, row: i, kind });
+        }
+      }
+
+      if (readOnly) {
+        for (const [rowKey, colSet] of expected.entries()) {
+          const i = Number(rowKey);
+          const lEl = leftRefs.current[i];
+          if (!lEl) continue;
+          const a = endPoint(lEl.getBoundingClientRect(), 'right');
+          for (const col of colSet) {
+            if (picked.get(rowKey)?.has(col)) continue;
+            const j = Number(col);
+            const rEl = rightRefs.current[j];
+            if (!rEl) continue;
+            const b = endPoint(rEl.getBoundingClientRect(), 'left');
+            out.push({ a, b, row: i, kind: 'missed' });
+          }
+        }
+      }
+
+      setPaths(out);
+    };
+
+    compute();
+    const ro = new ResizeObserver(compute);
+    if (containerRef.current) ro.observe(containerRef.current);
+    [...leftRefs.current, ...rightRefs.current].forEach((el) => el && ro.observe(el));
+    return () => ro.disconnect();
+  }, [picked, expected, left, right, readOnly]);
+
+  return (
+    <div ref={containerRef} className={styles.refPanel}>
+      <section className={styles.refCol}>
+        <h4 className={styles.refColHead}>Column I</h4>
+        <ol className={styles.refList}>
+          {left.map((t, i) => (
+            <li
+              key={`p-${i}`}
+              ref={(el) => (leftRefs.current[i] = el)}
+              className={styles.refItem}
+            >
+              <span
+                className={styles.refLabel}
+                style={{ color: rowColor(i, n) }}
+              >
+                P{i + 1}.
+              </span>
+              <span className={styles.refText}>
+                <MarkdownText text={t} inline />
+              </span>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <section className={styles.refCol}>
+        <h4 className={styles.refColHead}>Column II</h4>
+        <ol className={styles.refList}>
+          {right.map((t, j) => (
+            <li
+              key={`q-${j}`}
+              ref={(el) => (rightRefs.current[j] = el)}
+              className={styles.refItem}
+            >
+              <span className={styles.refLabel}>Q{j + 1}.</span>
+              <span className={styles.refText}>
+                <MarkdownText text={t} inline />
+              </span>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <svg className={styles.lineSvg} aria-hidden="true">
+        {paths.map((p, idx) => {
+          const dx = (p.b.x - p.a.x) * 0.45;
+          const d = `M ${p.a.x},${p.a.y} C ${p.a.x + dx},${p.a.y} ${p.b.x - dx},${p.b.y} ${p.b.x},${p.b.y}`;
+          let stroke = rowColor(p.row, n);
+          let strokeDasharray;
+          let opacity = 0.9;
+          if (p.kind === 'hit') stroke = '#22c55e';
+          else if (p.kind === 'wrong') stroke = '#ef4444';
+          else if (p.kind === 'missed') {
+            stroke = '#22c55e';
+            strokeDasharray = '6 5';
+            opacity = 0.75;
+          }
+          return (
+            <path
+              key={`line-${idx}`}
+              d={d}
+              stroke={stroke}
+              strokeWidth={2.5}
+              strokeDasharray={strokeDasharray}
+              strokeLinecap="round"
+              fill="none"
+              opacity={opacity}
+            />
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+// --------------------------------------------------------------------------
+// Answer matrix
+// --------------------------------------------------------------------------
+
+function AnswerMatrix({ n, m, picked, expected, readOnly, onToggle }) {
+  return (
+    <div className={styles.matrixBlock}>
+      <h4 className={styles.matrixHead}>
+        {readOnly ? 'Your matrix' : 'Mark your matches'}
+      </h4>
+      <div className={styles.matrixScroll}>
+        <table className={styles.matrix}>
+          <thead>
+            <tr>
+              <th className={styles.cornerCell} aria-hidden="true" />
+              {Array.from({ length: m }, (_, j) => (
+                <th key={`mc-${j}`} scope="col" className={styles.matrixColHead}>
+                  Q{j + 1}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {Array.from({ length: n }, (_, i) => {
+              const rowKey = String(i);
+              const rowPicked = picked.get(rowKey) || new Set();
+              const rowExpected = expected.get(rowKey) || new Set();
+              return (
+                <tr key={`mr-${i}`}>
+                  <th
+                    scope="row"
+                    className={styles.matrixRowHead}
+                    style={{ color: rowColor(i, n) }}
+                  >
+                    P{i + 1}
+                  </th>
+                  {Array.from({ length: m }, (_, j) => {
+                    const col = String(j);
+                    const isPicked = rowPicked.has(col);
+                    const isExpected = rowExpected.has(col);
+                    return (
+                      <td key={`mcell-${i}-${j}`} className={styles.cell}>
+                        <button
+                          type="button"
+                          role="checkbox"
+                          aria-checked={isPicked}
+                          aria-label={`P${i + 1} matches Q${j + 1}`}
+                          className={cellClass({ readOnly, isPicked, isExpected })}
+                          onClick={() => onToggle(i, j)}
+                          disabled={readOnly}
+                        >
+                          <span aria-hidden="true">
+                            {readOnly
+                              ? cellGlyph({ isPicked, isExpected })
+                              : (isPicked ? '●' : '')}
+                          </span>
+                        </button>
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// --------------------------------------------------------------------------
+// Read-only: correct-answer text block
+// --------------------------------------------------------------------------
+
+function CorrectAnswerText({ n, expected }) {
+  const rows = [];
+  for (let i = 0; i < n; i++) {
+    const set = expected.get(String(i));
+    if (set && set.size > 0) {
+      const cols = Array.from(set).map((c) => Number(c)).sort((a, b) => a - b);
+      rows.push({ row: i, cols });
+    }
+  }
+  if (rows.length === 0) return null;
+  return (
+    <div className={styles.correctBlock}>
+      <h4 className={styles.correctHead}>Correct answer</h4>
+      <ul className={styles.correctList}>
+        {rows.map(({ row, cols }) => (
+          <li key={`er-${row}`}>
+            <span
+              className={styles.correctLabel}
+              style={{ color: rowColor(row, n) }}
+            >
+              P{row + 1}
+            </span>
+            <span className={styles.correctArrow}>↔</span>
+            <span className={styles.correctCols}>
+              {cols.map((c) => `Q${c + 1}`).join(', ')}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+// --------------------------------------------------------------------------
+// helpers
+// --------------------------------------------------------------------------
+
+function toRowSetMap(raw) {
+  const out = new Map();
+  if (!raw || typeof raw !== 'object') return out;
+  for (const [k, v] of Object.entries(raw)) {
+    const key = String(k);
+    if (v == null) {
+      out.set(key, new Set());
+    } else if (Array.isArray(v)) {
+      out.set(key, new Set(v.map((x) => String(x))));
+    } else {
+      out.set(key, new Set([String(v)]));
+    }
+  }
+  return out;
+}
+
+function byNumeric(a, b) {
+  const na = Number(a);
+  const nb = Number(b);
+  if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
+  return String(a).localeCompare(String(b));
+}
+
+function cellClass({ readOnly, isPicked, isExpected }) {
+  const parts = [styles.cellBtn];
+  if (!readOnly) {
+    if (isPicked) parts.push(styles.cellPicked);
+  } else {
+    if (isPicked && isExpected) parts.push(styles.cellHit);
+    else if (isPicked && !isExpected) parts.push(styles.cellWrong);
+    else if (!isPicked && isExpected) parts.push(styles.cellMissed);
+  }
+  return parts.join(' ');
+}
+
+function cellGlyph({ isPicked, isExpected }) {
+  if (isPicked && isExpected) return '✓';
+  if (isPicked && !isExpected) return '✗';
+  if (!isPicked && isExpected) return '·';
+  return '';
+}
 
 export default MatchingEditor;

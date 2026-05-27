@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from bson import ObjectId
@@ -29,7 +29,7 @@ class UserRepository:
     async def mark_verified(self, user_id: ObjectId) -> None:
         await self.col.update_one(
             {"_id": user_id},
-            {"$set": {"is_verified": True, "updated_at": datetime.utcnow()}},
+            {"$set": {"is_verified": True, "updated_at": datetime.now(timezone.utc)}},
         )
 
     async def exists_email(self, email: str) -> bool:

@@ -13,14 +13,33 @@
  * ============================================================ */
 
 .shell {
+  position: relative;
   min-height: 100vh;
   color: var(--color-text-primary);
   font-family: var(--font-secondary);
-  background:
-    radial-gradient(900px 600px at 100% -10%, var(--color-glow-teal), transparent 60%),
-    radial-gradient(700px 500px at -10% 110%, var(--color-glow-cyan), transparent 60%);
-  background-attachment: fixed;
   background-color: var(--color-bg-page);
+  /* Local stacking context so .gridBg's z-index:-1 keeps it BEHIND the
+     sidebar/topbar/main content but in front of the body background. */
+  isolation: isolate;
+}
+
+/* Mirror of ExamShell.gridBg — same texture so the test-taking screen
+   and the rest of the app share the same backdrop. The radial mask fades
+   the grid at the corners so it doesn't compete with content. */
+.gridBg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-color: var(--color-bg-page);
+  background-image:
+    linear-gradient(to right, var(--color-panel-border) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--color-panel-border) 1px, transparent 1px);
+  background-size: 56px 56px;
+  background-position: -1px -1px;
+  mask-image: radial-gradient(circle at 50% 30%, black 0%, black 50%, transparent 95%);
+  -webkit-mask-image: radial-gradient(circle at 50% 30%, black 0%, black 50%, transparent 95%);
+  opacity: 0.55;
 }
 
 .contentArea {

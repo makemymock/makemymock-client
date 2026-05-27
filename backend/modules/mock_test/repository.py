@@ -8,8 +8,6 @@ All writes go through this layer; the engine never sees Motor.
 
 from __future__ import annotations
 
-import logging
-from datetime import datetime, timezone
 from typing import Any, Iterable, Optional
 
 from bson import ObjectId
@@ -40,9 +38,6 @@ from modules.mock_test.model import (
     new_topic_allocation_doc,
     now_utc,
 )
-
-logger = logging.getLogger(__name__)
-
 
 class MockTestRepository:
     """Wraps every Mongo collection the mock-test feature touches.
@@ -392,14 +387,6 @@ class MockTestRepository:
         self, user_id: ObjectId,
     ) -> list[dict]:
         cursor = self.attempts.find({"user_id": user_id})
-        return [doc async for doc in cursor]
-
-    async def list_user_responses(
-        self, user_id: ObjectId, session_ids: list[int],
-    ) -> list[dict]:
-        if not session_ids:
-            return []
-        cursor = self.responses.find({"session_id": {"$in": session_ids}})
         return [doc async for doc in cursor]
 
     # ---------- analytics aggregations ----------

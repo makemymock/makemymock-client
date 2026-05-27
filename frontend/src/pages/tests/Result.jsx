@@ -158,11 +158,9 @@ function resultToQuestion(r) {
     is_extra: false,
     passage_id: r.passage_id ?? null,
     passage_text: r.passage_text ?? null,
-    passage_image: r.passage_image ?? null,
     passage_sub_index: r.passage_sub_index ?? null,
     passage_sub_total: r.passage_sub_total ?? null,
     question_text: r.question_text || '',
-    question_image: r.question_image ?? null,
     options: r.options || [],
     left_column: r.left_column || [],
     right_column: r.right_column || [],
@@ -170,7 +168,7 @@ function resultToQuestion(r) {
 }
 
 const SolutionPanel = ({ result }) => {
-  const hasSolution = !!(result.solution_text || result.solution_image);
+  const hasSolution = !!result.solution_text;
   return (
     <section className={styles.solution}>
       <header className={styles.solutionHead}>
@@ -185,12 +183,7 @@ const SolutionPanel = ({ result }) => {
       </header>
 
       {hasSolution ? (
-        <>
-          {result.solution_text ? <MarkdownText text={result.solution_text} /> : null}
-          {result.solution_image ? (
-            <img src={result.solution_image} alt="" className={styles.solutionImg} />
-          ) : null}
-        </>
+        <MarkdownText text={result.solution_text} />
       ) : (
         <p className={styles.solutionEmpty}>
           No written solution available for this question.
