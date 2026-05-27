@@ -565,10 +565,11 @@ async def _polish_block_latex(content: str) -> Optional[str]:
     if not polished:
         return None
 
-    # Defensive sanity check — polish shouldn't double the size of the
-    # block. If it does, the LLM probably appended commentary despite
-    # the prompt; discard rather than ship a corrupted block.
-    if len(polished) > max(200, len(content) * 1.8):
+    # Defensive sanity check — polish that more than doubles the
+    # output is almost certainly the LLM appending commentary despite
+    # the prompt; discard. Set generously so legit math wrapping
+    # (which adds delimiters + unit annotations) isn't dropped.
+    if len(polished) > max(400, len(content) * 2.2):
         logger.debug(
             "LaTeX polish output unusually large (%d → %d chars); discarding",
             len(content), len(polished),

@@ -33,6 +33,18 @@ async function refreshAccessToken() {
   return response.data.access_token;
 }
 
+// Single-flight token refresh shared across the whole app. Exported so
+// non-axios callers (the SSE stream in solverxService) can hop on the
+// same in-flight refresh instead of racing the axios interceptor.
+export async function ensureFreshAccessToken() {
+  if (!refreshPromise) {
+    refreshPromise = refreshAccessToken().finally(() => {
+      refreshPromise = null;
+    });
+  }
+  return refreshPromise;
+}
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {

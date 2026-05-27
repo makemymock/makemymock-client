@@ -5,7 +5,7 @@
 // hand-rolled SSE parser. The non-streaming list/detail endpoints use
 // the regular axios instance so token refresh stays consistent.
 
-import api from './axiosInstance';
+import api, { ensureFreshAccessToken } from './axiosInstance';
 import { API_BASE_URL } from '../config';
 import { tokenStorage } from '../utils/token';
 
@@ -44,9 +44,11 @@ function makeSseParser(onEvent) {
   };
 }
 
-async function streamPost(path, body, { onEvent, signal } = {}) {
-  const token = tokenStorage.getAccessToken();
-  const res = await fetch(SSE_URL(path), {
+// Inner POST + read-stream. Returns the Response after first byte so
+// the caller can decide whether to retry (e.g. after a token refresh)
+// or proceed to drain.
+async function _fetchStream(path, body, token, signal) {
+  return fetch(SSE_URL(path), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -56,6 +58,26 @@ async function streamPost(path, body, { onEvent, signal } = {}) {
     body: JSON.stringify(body),
     signal,
   });
+}
+
+async function streamPost(path, body, { onEvent, signal } = {}) {
+  // First attempt with the current access token.
+  let token = tokenStorage.getAccessToken();
+  let res = await _fetchStream(path, body, token, signal);
+
+  // If the access token expired while the tab was idle, the streaming
+  // endpoint returns 401. Axios endpoints get a refresh-and-retry from
+  // the interceptor automatically; fetch-based streams need to do it
+  // themselves. One retry, exactly like the axios interceptor.
+  if (res.status === 401 && tokenStorage.getRefreshToken()) {
+    try {
+      token = await ensureFreshAccessToken();
+    } catch {
+      tokenStorage.clear();
+      throw new Error('Your session has expired. Please log in again.');
+    }
+    res = await _fetchStream(path, body, token, signal);
+  }
 
   if (!res.ok) {
     let text = '';
