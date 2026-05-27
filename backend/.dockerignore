@@ -1,0 +1,49 @@
+# Keep the Docker build context small and secret-free. Anything matched
+# here is not copied into the image even if the Dockerfile uses `COPY . .`
+
+# ----- Secrets — never bake .env into the image -----
+.env
+.env.*
+!.env.example
+
+# ----- Local credentials / service-account keys, in case any landed -----
+*.json.key
+*-credentials.json
+gcp-*.json
+service-account*.json
+
+# ----- Python caches & virtualenvs -----
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ----- Editor / OS noise -----
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ----- VCS -----
+.git/
+.gitignore
+.gitattributes
+
+# ----- Docs and dev-only files that don't belong in the runtime image -----
+*.md
+docs/
+tests/
+.dockerignore
+Dockerfile
+
+# ----- Notebook / experiment scratchpads, if any -----
+*.ipynb
+.ipynb_checkpoints/
