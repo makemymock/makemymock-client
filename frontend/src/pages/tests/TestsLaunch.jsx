@@ -183,7 +183,7 @@ const TestsLaunch = () => {
             ? 'Browse the question bank'
             : tab === 'notebook'
               ? 'Your notebook'
-              : 'Launch a personalised mock test'
+              : 'Personalised mock test'
       }
       subtitle={
         tab === 'history'
@@ -192,7 +192,7 @@ const TestsLaunch = () => {
             ? 'Filter the full question bank, see what you’ve attempted, and practise any question on its own.'
             : tab === 'notebook'
               ? 'Questions you saved to revise later. Filter them just like Browse and practise any one on its own.'
-              : 'Pick the topics you want to drill. The recommender picks how many questions per topic, the right difficulty mix, and the rotation between fresh and recyclable items.'
+              : 'Pick your topics — we set the question count, difficulty mix, and rotate fresh and recyclable items.'
       }
     >
       {/* Tab strip — launch / browse / notebook / past tests. On small
@@ -215,159 +215,159 @@ const TestsLaunch = () => {
       {tab === 'notebook' ? <BrowsePanel notebookMode /> : null}
 
       {tab === 'launch' ? (
-      <>
-      {loading ? <Loader /> : null}
-      {error ? <ErrorMessage message={error} /> : null}
-
-      {catalog && (
         <>
-          <div className={styles.summaryBar} data-tour="practice.summary">
-            <div className={styles.summary}>
-              <span className={styles.summaryNum}>{selectedTopics.size}</span>
-              <span className={styles.summaryLabel}>topics selected</span>
-              <span className={styles.summaryDot} aria-hidden="true" />
-              <span className={styles.summaryLabel}>of {totalTopics}</span>
-            </div>
+          {loading ? <Loader /> : null}
+          {error ? <ErrorMessage message={error} /> : null}
 
-            <div className={styles.sizeRow}>
-              <label className={styles.sizeLabel} htmlFor="totalQuestions">
-                Questions
-              </label>
-              <input
-                id="totalQuestions"
-                type="number"
-                inputMode="numeric"
-                min={MIN_SIZE}
-                max={MAX_SIZE}
-                step={1}
-                value={sizeInput}
-                // Strip anything that isn't a digit so the value stays a clean
-                // positive integer — no leading +, no decimals, no exponent.
-                onChange={(e) => setSizeInput(e.target.value.replace(/\D/g, ''))}
-                aria-invalid={!sizeValid}
-                className={`${styles.sizeInput} ${!sizeValid ? styles.sizeInputBad : ''}`}
-              />
-              <span className={styles.sizeHint}>
-                {MIN_SIZE}–{MAX_SIZE}
-              </span>
-            </div>
-          </div>
+          {catalog && (
+            <>
+              <div className={styles.summaryBar} data-tour="practice.summary">
+                <div className={styles.summary}>
+                  <span className={styles.summaryNum}>{selectedTopics.size}</span>
+                  <span className={styles.summaryLabel}>topics selected</span>
+                  <span className={styles.summaryDot} aria-hidden="true" />
+                  <span className={styles.summaryLabel}>of {totalTopics}</span>
+                </div>
 
-          {createError ? <ErrorMessage message={createError} /> : null}
+                <div className={styles.sizeRow}>
+                  <label className={styles.sizeLabel} htmlFor="totalQuestions">
+                    Questions
+                  </label>
+                  <input
+                    id="totalQuestions"
+                    type="number"
+                    inputMode="numeric"
+                    min={MIN_SIZE}
+                    max={MAX_SIZE}
+                    step={1}
+                    value={sizeInput}
+                    // Strip anything that isn't a digit so the value stays a clean
+                    // positive integer — no leading +, no decimals, no exponent.
+                    onChange={(e) => setSizeInput(e.target.value.replace(/\D/g, ''))}
+                    aria-invalid={!sizeValid}
+                    className={`${styles.sizeInput} ${!sizeValid ? styles.sizeInputBad : ''}`}
+                  />
+                  <span className={styles.sizeHint}>
+                    {MIN_SIZE}–{MAX_SIZE}
+                  </span>
+                </div>
+              </div>
 
-          {catalog.subjects.length === 0 ? (
-            <div className={styles.emptyState}>
-              <h3>No questions in the catalog yet.</h3>
-              <p>Once questions are added to the <code>questions</code> collection (bbd_db schema),
-              this catalog will populate automatically.</p>
-            </div>
-          ) : (
-            <div className={styles.subjects} data-tour="practice.subjects">
-              {catalog.subjects.map((subject) => {
-                const subjOpen = expandedSubjects.has(subject.id);
-                return (
-                <section key={subject.id} className={styles.subjectCard}>
-                  <button
-                    type="button"
-                    className={styles.subjectHead}
-                    aria-expanded={subjOpen}
-                    onClick={() => toggleSubject(subject.id)}
-                  >
-                    <span className={styles.chevron} aria-hidden="true">
-                      {subjOpen ? '▾' : '▸'}
-                    </span>
-                    <h2 className={styles.subjectName}>{subject.name}</h2>
-                    <span className={styles.subjectCount}>
-                      {subject.chapters.length} chapters
-                    </span>
-                  </button>
-                  {subjOpen ? (
-                  <div className={styles.chapters}>
-                    {subject.chapters.map((chapter) => {
-                      const state = chapterState(chapter);
-                      const chOpen = expandedChapters.has(chapter.id);
-                      return (
-                        <div key={chapter.id} className={styles.chapter}>
-                          {/* Header has TWO independent click targets: the
+              {createError ? <ErrorMessage message={createError} /> : null}
+
+              {catalog.subjects.length === 0 ? (
+                <div className={styles.emptyState}>
+                  <h3>No questions in the catalog yet.</h3>
+                  <p>Once questions are added to the <code>questions</code> collection (bbd_db schema),
+                    this catalog will populate automatically.</p>
+                </div>
+              ) : (
+                <div className={styles.subjects} data-tour="practice.subjects">
+                  {catalog.subjects.map((subject) => {
+                    const subjOpen = expandedSubjects.has(subject.id);
+                    return (
+                      <section key={subject.id} className={styles.subjectCard}>
+                        <button
+                          type="button"
+                          className={styles.subjectHead}
+                          aria-expanded={subjOpen}
+                          onClick={() => toggleSubject(subject.id)}
+                        >
+                          <span className={styles.chevron} aria-hidden="true">
+                            {subjOpen ? '▾' : '▸'}
+                          </span>
+                          <h2 className={styles.subjectName}>{subject.name}</h2>
+                          <span className={styles.subjectCount}>
+                            {subject.chapters.length} chapters
+                          </span>
+                        </button>
+                        {subjOpen ? (
+                          <div className={styles.chapters}>
+                            {subject.chapters.map((chapter) => {
+                              const state = chapterState(chapter);
+                              const chOpen = expandedChapters.has(chapter.id);
+                              return (
+                                <div key={chapter.id} className={styles.chapter}>
+                                  {/* Header has TWO independent click targets: the
                               checkbox toggles selection of all topics in the
                               chapter, the rest of the row toggles expansion.
                               Keeping them as separate siblings avoids the
                               click-bubbling tangle of a nested checkbox. */}
-                          <div className={styles.chapterHead}>
-                            <input
-                              type="checkbox"
-                              className={styles.chapterCheck}
-                              aria-label={`Select all topics in ${chapter.name}`}
-                              checked={state === 'all'}
-                              ref={(el) => {
-                                if (el) el.indeterminate = state === 'some';
-                              }}
-                              onChange={() => onChapterToggle(chapter)}
-                            />
-                            <button
-                              type="button"
-                              className={styles.chapterToggle}
-                              aria-expanded={chOpen}
-                              onClick={() => toggleChapter(chapter.id)}
-                            >
-                              <span className={styles.chevron} aria-hidden="true">
-                                {chOpen ? '▾' : '▸'}
-                              </span>
-                              <span className={styles.chapterName}>{chapter.name}</span>
-                              <span className={styles.chapterCount}>
-                                {chapter.topics.length} topics
-                              </span>
-                            </button>
+                                  <div className={styles.chapterHead}>
+                                    <input
+                                      type="checkbox"
+                                      className={styles.chapterCheck}
+                                      aria-label={`Select all topics in ${chapter.name}`}
+                                      checked={state === 'all'}
+                                      ref={(el) => {
+                                        if (el) el.indeterminate = state === 'some';
+                                      }}
+                                      onChange={() => onChapterToggle(chapter)}
+                                    />
+                                    <button
+                                      type="button"
+                                      className={styles.chapterToggle}
+                                      aria-expanded={chOpen}
+                                      onClick={() => toggleChapter(chapter.id)}
+                                    >
+                                      <span className={styles.chevron} aria-hidden="true">
+                                        {chOpen ? '▾' : '▸'}
+                                      </span>
+                                      <span className={styles.chapterName}>{chapter.name}</span>
+                                      <span className={styles.chapterCount}>
+                                        {chapter.topics.length} topics
+                                      </span>
+                                    </button>
+                                  </div>
+                                  {chOpen ? (
+                                    <div className={styles.topics}>
+                                      {chapter.topics.map((topic) => (
+                                        <label key={topic.id} className={`${styles.topic} ${selectedTopics.has(topic.id) ? styles.topicOn : ''}`}>
+                                          <input
+                                            type="checkbox"
+                                            className={styles.topicCheck}
+                                            checked={selectedTopics.has(topic.id)}
+                                            onChange={() => toggleTopic(topic.id)}
+                                          />
+                                          <span className={styles.topicName}>{topic.name}</span>
+                                          <span className={styles.topicQs}>{topic.question_count}</span>
+                                        </label>
+                                      ))}
+                                    </div>
+                                  ) : null}
+                                </div>
+                              );
+                            })}
                           </div>
-                          {chOpen ? (
-                          <div className={styles.topics}>
-                            {chapter.topics.map((topic) => (
-                              <label key={topic.id} className={`${styles.topic} ${selectedTopics.has(topic.id) ? styles.topicOn : ''}`}>
-                                <input
-                                  type="checkbox"
-                                  className={styles.topicCheck}
-                                  checked={selectedTopics.has(topic.id)}
-                                  onChange={() => toggleTopic(topic.id)}
-                                />
-                                <span className={styles.topicName}>{topic.name}</span>
-                                <span className={styles.topicQs}>{topic.question_count}</span>
-                              </label>
-                            ))}
-                          </div>
-                          ) : null}
-                        </div>
-                      );
-                    })}
-                  </div>
-                  ) : null}
-                </section>
-                );
-              })}
-            </div>
-          )}
+                        ) : null}
+                      </section>
+                    );
+                  })}
+                </div>
+              )}
 
-          <div className={styles.actions} data-tour="practice.generate">
-            <Button
-              variant="primary"
-              fullWidth={false}
-              loading={creating}
-              disabled={selectedTopics.size === 0 || !sizeValid || creating}
-              onClick={onCreate}
-            >
-              {sizeValid ? `Generate ${sizeNum}-question test` : 'Generate test'}
-            </Button>
-            <button
-              type="button"
-              className={styles.linkBtn}
-              onClick={() => setSelectedTopics(new Set())}
-              disabled={selectedTopics.size === 0}
-            >
-              Clear selection
-            </button>
-          </div>
+              <div className={styles.actions} data-tour="practice.generate">
+                <Button
+                  variant="primary"
+                  fullWidth={false}
+                  loading={creating}
+                  disabled={selectedTopics.size === 0 || !sizeValid || creating}
+                  onClick={onCreate}
+                >
+                  {sizeValid ? `Generate ${sizeNum}-question test` : 'Generate test'}
+                </Button>
+                <button
+                  type="button"
+                  className={styles.linkBtn}
+                  onClick={() => setSelectedTopics(new Set())}
+                  disabled={selectedTopics.size === 0}
+                >
+                  Clear selection
+                </button>
+              </div>
+            </>
+          )}
         </>
-      )}
-      </>
       ) : null}
     </ExamShell>
   );
@@ -423,9 +423,8 @@ const TestHistoryPanel = () => {
                 <div className={styles.historyHead}>
                   <span className={styles.historyId}>#{it.session_id}</span>
                   <span
-                    className={`${styles.historyStatus} ${
-                      completed ? styles.historyStatusOk : styles.historyStatusPending
-                    }`}
+                    className={`${styles.historyStatus} ${completed ? styles.historyStatusOk : styles.historyStatusPending
+                      }`}
                   >
                     {it.status}
                   </span>
