@@ -4,6 +4,7 @@ import { authService } from '../../services/authService';
 import { profileService } from '../../services/profileService';
 import { mockTestService } from '../../services/mockTestService';
 import { battleService } from '../../services/battleService';
+import { potdService } from '../../services/potdService';
 import { tokenStorage } from '../../utils/token';
 import { parseApiError } from '../../utils/validators';
 import Loader from '../../components/common/Loader/Loader';
@@ -182,7 +183,7 @@ const Dashboard = () => {
           )}
 
           <div className={styles.quickRow}>
-            <PotdBanner onOpen={() => setPotdOpen(true)} userId={user?.id} />
+            <PotdBanner onOpen={() => setPotdOpen(true)} />
             <NotebookCard
               count={notebookCount}
               onClick={() => navigate('/tests?tab=notebook')}
@@ -241,7 +242,6 @@ const Dashboard = () => {
 
       <PotdModal
         open={potdOpen}
-        userId={user?.id}
         onClose={() => setPotdOpen(false)}
       />
 
@@ -256,41 +256,49 @@ const Dashboard = () => {
 // ============================================================================
 
 // ---- Problem of the Day banner ----
-const PotdBanner = ({ onOpen, userId }) => {
-  // Read today's stored POTD entry to reflect "already done" vs. "ready".
-  // The modal owns the source of truth; this is just a hint for the CTA.
-  const todayKey = useMemo(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const PotdBanner = ({ onOpen }) => {
+  // Fetch the streak so the card can advertise momentum directly.
+  // The backend owns the streak math — this is just a read.
+  const [streak, setStreak] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const s = await potdService.getStreak();
+        if (!cancelled) setStreak(s);
+      } catch {
+        /* non-fatal — the banner still works without the chip */
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
-  const storageKey = `mmm_potd_${userId || 'anon'}_${todayKey}`;
-  const stored = (() => {
-    try {
-      const raw = localStorage.getItem(storageKey);
-      return raw ? JSON.parse(raw) : null;
-    } catch { return null; }
-  })();
-  const hasSessionToday = stored?.sessionId != null;
 
+  const current = streak?.current ?? 0;
   return (
-    <section className={styles.potdBanner} data-tour="dashboard.potd">
-      <div className={styles.potdLeft}>
+    <button
+      type="button"
+      className={styles.potdBanner}
+      data-tour="dashboard.potd"
+      onClick={onOpen}
+    >
+      <span className={styles.potdLeft}>
         <span className={styles.potdEmoji} aria-hidden="true">⚡</span>
-        <div className={styles.potdText}>
-          <p className={styles.potdEyebrow}>Daily Challenge</p>
-          <h2 className={styles.potdTitle}>Problem of the Day</h2>
-          <p className={styles.potdSub}>
-            {hasSessionToday
-              ? 'Pick up where you left off — review your challenge.'
+        <span className={styles.potdText}>
+          <span className={styles.potdEyebrow}>Daily Challenge</span>
+          <span className={styles.potdTitle}>Problem of the Day</span>
+          <span className={styles.potdSub}>
+            {current > 0
+              ? `🔥 ${current}-day streak. Keep it going.`
               : 'One question, picked to attack your weakest topic.'}
-          </p>
-        </div>
-      </div>
-      <button type="button" className={styles.potdBtn} onClick={onOpen}>
-        {hasSessionToday ? 'Open challenge' : 'Start now'}
-        <span aria-hidden="true" className={styles.potdBtnArrow}>→</span>
-      </button>
-    </section>
+          </span>
+        </span>
+      </span>
+      {/* Visual cue only — the whole card is the click target. */}
+      <span className={styles.potdBtn} aria-hidden="true">
+        {current > 0 ? 'Continue streak' : 'Start now'}
+        <span className={styles.potdBtnArrow}>→</span>
+      </span>
+    </button>
   );
 };
 
