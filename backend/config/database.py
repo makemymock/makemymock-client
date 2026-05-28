@@ -97,6 +97,22 @@ async def _ensure_indexes() -> None:
         unique=True,
     )
 
+    # POTD — one assignment + one engagement-state row per (user, date_ist).
+    # The streak / calendar reads filter by user_id then range over
+    # date_ist (ISO string ordering = chronological), so the compound
+    # indexes serve both lookups cleanly.
+    await mongo.db["potd_assignments"].create_index(
+        [("user_id", ASCENDING), ("date_ist", ASCENDING)],
+        unique=True,
+    )
+    await mongo.db["potd_user_state"].create_index(
+        [("user_id", ASCENDING), ("date_ist", ASCENDING)],
+        unique=True,
+    )
+    await mongo.db["potd_user_state"].create_index(
+        [("user_id", ASCENDING), ("status", ASCENDING)],
+    )
+
     await mongo.db["mock_test_sessions"].create_index([("user_id", ASCENDING)])
     await mongo.db["mock_test_sessions"].create_index(
         [("user_id", ASCENDING), ("created_at", -1)],

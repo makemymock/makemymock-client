@@ -691,6 +691,143 @@ class MockTestService:
                 response.solution = doc.get("solution") or doc.get("explanation") or ""
         return response
 
+    async def pick_potd_candidate(
+        self, user_oid: ObjectId, topic_id: int,
+    ) -> Optional[dict]:
+        """Pick a single question for POTD using the recommender engine
+        WITHOUT creating a mock-test session.
+
+        The engine is the right picker for "what should this user see next"
+        — it factors in cooldown / recency / difficulty mix. We feed it
+        exactly the same inputs `create_test` does, then take its first
+        pick and skip the persistence machinery.
+
+        Passages are excluded — POTD's one-question framing doesn't fit a
+        multi-part question. Returns the raw question doc + topic_id, or
+        None if the engine couldn't assemble a pick from the topic.
+        """
+        trip = await self.repo.lookup_topic_triple(topic_id)
+        if trip is None:
+            return None
+        raw_docs = await self.repo.fetch_questions_for_triples([trip])
+        if not raw_docs:
+            return None
+
+        # Build engine_questions, excluding passage-type docs entirely.
+        engine_questions: list[tuple[EngineQuestion, int]] = []
+        int_to_obj: dict[int, str] = {}
+        for doc in raw_docs:
+            qtype = (doc.get("questionType") or "single_correct").lower()
+            if qtype == "passage":
+                continue
+            obj_id = str(doc["_id"])
+            difficulty = (doc.get("difficulty") or "medium").lower()
+            int_id = await self.repo.get_or_create_question_int_id(obj_id)
+            int_to_obj[int_id] = obj_id
+            engine_questions.append((EngineQuestion(
+                id=int_id,
+                topic_ids=(topic_id,),
+                difficulty=difficulty,
+                question_type=qtype,
+            ), topic_id))
+
+        if not engine_questions:
+            return None
+        engine_questions.sort(key=lambda pair: (pair[1], pair[0].id))
+
+        # Same feeding-only attempt filter as `create_test` (engine-mirror
+        # fields when present; legacy rows fall back to user-visible).
+        attempt_docs = await self.db["user_topic_attempts"].find(
+            {"user_id": user_oid, "topic_id": topic_id},
+        ).to_list(length=None)
+        engine_attempts: list[EngineAttempt] = []
+        for ad in attempt_docs:
+            has_engine_fields = "e_attempted_at" in ad
+            if has_engine_fields:
+                if ad.get("e_attempted_at") is None:
+                    continue
+                e_is_correct = ad.get("e_is_correct")
+                if e_is_correct is None:
+                    continue
+                engine_attempts.append(EngineAttempt(
+                    user_id=user_oid,
+                    topic_id=int(ad["topic_id"]),
+                    question_id=int(ad["question_id"]),
+                    is_correct=bool(e_is_correct),
+                    difficulty=str(ad.get("e_difficulty") or "medium"),
+                    score_contribution=int(ad.get("e_score_contribution") or 0),
+                    attempted_at=ad["e_attempted_at"],
+                    correctness=ad.get("e_correctness"),
+                ))
+            else:
+                if ad.get("is_correct") is None:
+                    continue
+                engine_attempts.append(EngineAttempt(
+                    user_id=user_oid,
+                    topic_id=int(ad["topic_id"]),
+                    question_id=int(ad["question_id"]),
+                    is_correct=bool(ad.get("is_correct", False)),
+                    difficulty=str(ad.get("difficulty", "medium")),
+                    score_contribution=int(ad.get("score_contribution", 0)),
+                    attempted_at=ad.get("attempted_at") or datetime.now(timezone.utc),
+                    correctness=ad.get("correctness"),
+                ))
+
+        topic_chapter_map = await self.repo.topic_chapter_map([topic_id])
+        # PRACTICE_SESSION_ID is the sentinel for "no real session" — we
+        # don't drain the buffered repo so this id never gets persisted.
+        buffered = BufferedRepository(
+            user_id=user_oid,
+            preallocated_session_id=PRACTICE_SESSION_ID,
+            attempts_for_topics=engine_attempts,
+            attempts_for_user=[],
+            available_questions=engine_questions,
+            topic_chapters=topic_chapter_map,
+        )
+        try:
+            mock_test = engine_create_mock_test(
+                buffered,
+                user_id=user_oid,
+                topic_ids=[topic_id],
+                total_questions=1,
+                include_extra=False,
+                extra_count=0,
+                shuffle_seed=int(time.time()),
+            )
+        except Exception:
+            logger.exception("POTD engine pick failed for topic %s", topic_id)
+            return None
+        if not mock_test.questions:
+            return None
+        picked, _tid = mock_test.questions[0]
+        obj_id_str = int_to_obj.get(picked.id)
+        if obj_id_str is None:
+            return None
+        chosen_doc = next((d for d in raw_docs if str(d["_id"]) == obj_id_str), None)
+        if chosen_doc is None:
+            return None
+        return chosen_doc
+
+    async def get_catalog_raw(self) -> list[dict]:
+        """Flat list of (subject, chapter, topic, topic_id, question_count)
+        rows — used by POTD's random-fallback picker for users with no
+        attempts yet. Materialises topic ids on the way out so the caller
+        doesn't have to do another round-trip per topic."""
+        rows = await self.repo.list_all_catalog_topics()
+        out: list[dict] = []
+        for row in rows:
+            _sid, _cid, tid = await self.repo.get_or_create_topic_id(
+                row["subject"], row["chapter"], row["topic"],
+            )
+            out.append({
+                "topic_id": int(tid),
+                "subject": row["subject"],
+                "chapter": row["chapter"],
+                "topic": row["topic"],
+                "question_count": int(row["question_count"]),
+            })
+        return out
+
     async def view_solution(
         self, user_id: ObjectId, composite_id: str,
     ) -> BrowseSolutionResponse:
@@ -1817,19 +1954,18 @@ class MockTestService:
             engagement = min(50.0, battle_count * 5.0)
             b_score = min(100.0, engagement + win_rate * 50.0)
 
-        # ---- POTD (P) — distinct IST days w/ ≥ 1 single-question session ----
-        potd_days_30: set = set()
-        for s in sessions:
-            if int(s.get("total_questions") or 0) != 1:
-                continue
-            ts = s.get("completed_at") or s.get("created_at")
-            if not isinstance(ts, datetime):
-                continue
-            if ts.tzinfo is None:
-                ts = ts.replace(tzinfo=timezone.utc)
-            ts_ist = ts.astimezone(IST)
-            if ts_ist >= cutoff:
-                potd_days_30.add(ts_ist.date())
+        # ---- POTD (P) — distinct IST days the user actually SOLVED POTD.
+        # Pulled from the dedicated `potd_user_state` collection (where
+        # status='solved' is the strict signal), rather than counting any
+        # 1-question mock-test session like we used to. Same 30-day window
+        # and same 0–100 scaling — just a stricter "engaged" predicate.
+        from modules.potd.repository import PotdRepository  # local import: avoid cycle
+        cutoff_date_iso = cutoff.date().isoformat()
+        potd_repo = PotdRepository(self.db)
+        solved_iso_dates = await potd_repo.list_solved_dates_since(
+            user_oid, cutoff_date_iso,
+        )
+        potd_days_30 = {d for d in solved_iso_dates}
         p_score = min(100.0, len(potd_days_30) / 30.0 * 100.0)
 
         # ---- Weighted total ----
