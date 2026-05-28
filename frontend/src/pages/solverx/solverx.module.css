@@ -1059,3 +1059,101 @@
     padding: 6px 8px;
   }
 }
+
+/* ---------------------------------------------------------------- Delete modal */
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.modalCard {
+  background: var(--color-panel-bg);
+  border: 1px solid var(--color-panel-border);
+  border-radius: 18px;
+  padding: 28px 28px 22px;
+  max-width: 380px;
+  width: 100%;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+:root[data-theme='light'] .modalCard {
+  background: #ffffff;
+  border-color: rgba(71, 85, 105, 0.18);
+  box-shadow: 0 16px 44px rgba(15, 23, 42, 0.18);
+}
+
+.modalTitle {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.modalBody {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-text-muted);
+  line-height: 1.55;
+}
+
+.modalActions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
+.modalCancel {
+  background: var(--color-chip-bg);
+  border: 1px solid var(--color-panel-border);
+  color: var(--color-text-primary);
+  padding: 9px 20px;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.modalCancel:hover {
+  background: var(--color-action-primary-bg);
+}
+
+.modalDelete {
+  background: rgba(239, 68, 68, 0.18);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+  padding: 9px 20px;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.modalDelete:hover {
+  background: rgba(239, 68, 68, 0.30);
+  border-color: rgba(239, 68, 68, 0.6);
+}
+
+:root[data-theme='light'] .modalDelete {
+  color: #dc2626;
+}
+:root[data-theme='light'] .modalDelete:hover {
+  background: rgba(239, 68, 68, 0.14);
+  border-color: rgba(239, 68, 68, 0.5);
+}

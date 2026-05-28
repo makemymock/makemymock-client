@@ -16,6 +16,7 @@ __pycache__/
 venv/
 env/
 ENV/
+myenv/
 .python-version
 
 # ===== Packaging / build =====
