@@ -4,9 +4,6 @@ import Loader from '../../components/common/Loader/Loader';
 import ErrorMessage from '../../components/common/ErrorMessage/ErrorMessage';
 import { battleService } from '../../services/battleService';
 import { parseApiError } from '../../utils/validators';
-import Tour from '../../components/common/Tour/Tour';
-import { useTour } from '../../hooks/useTour';
-import { battleTourSteps } from '../../components/tours/battleSteps';
 import styles from './battleLaunch.module.css';
 
 const PERKS = [
@@ -27,7 +24,6 @@ const formatDate = (d) => {
 const BattleLaunch = () => {
   const navigate = useNavigate();
   const [tab, setTab] = useState('arena'); // 'arena' | 'history'
-  const tour = useTour('battle', battleTourSteps);
 
   return (
     <div className={styles.page}>
@@ -102,8 +98,6 @@ const BattleLaunch = () => {
           <BattleHistoryPanel onPlay={() => navigate('/battle/play')} />
         )}
       </main>
-
-      <Tour {...tour} open={tour.open && tab === 'arena'} />
     </div>
   );
 };

@@ -7,9 +7,6 @@ import ExamShell from '../../components/mockTest/ExamShell/ExamShell';
 import BrowsePanel from './BrowsePanel';
 import { mockTestService } from '../../services/mockTestService';
 import { parseApiError } from '../../utils/validators';
-import Tour from '../../components/common/Tour/Tour';
-import { useTour } from '../../hooks/useTour';
-import { practiceTourSteps } from '../../components/tours/practiceSteps';
 import styles from './testsLaunch.module.css';
 
 // Browse-only URL params, cleared when leaving the Browse tab so they don't
@@ -40,7 +37,6 @@ function flattenChapterTopicIds(chapter) {
 
 const TestsLaunch = () => {
   const navigate = useNavigate();
-  const tour = useTour('practice', practiceTourSteps);
   // Tab lives in the URL (?tab=) so Back from a Browse problem page restores
   // the right view. 'launch' is the default and carries no param.
   const [searchParams, setSearchParams] = useSearchParams();
@@ -220,7 +216,6 @@ const TestsLaunch = () => {
 
       {tab === 'launch' ? (
       <>
-      <Tour {...tour} open={tour.open && tab === 'launch' && !!catalog} />
       {loading ? <Loader /> : null}
       {error ? <ErrorMessage message={error} /> : null}
 

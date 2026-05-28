@@ -3,16 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import useTheme from '../../hooks/useTheme';
 import { authService } from '../../services/authService';
 import { tokenStorage } from '../../utils/token';
-import { TourProvider, useTourContext } from '../../context/TourContext';
 import styles from './AppLayout.module.css';
-
-const ROUTE_TO_SLUG = {
-  '/dashboard': { slug: 'dashboard', label: 'Dashboard' },
-  '/tests':     { slug: 'practice',  label: 'Practice'  },
-  '/solverx':   { slug: 'solverx',   label: 'SolverX'   },
-  '/battle':    { slug: 'battle',    label: 'Battle'    },
-  '/analytics': { slug: 'analytics', label: 'Analytics' },
-};
 
 // ---------- icons (inline SVG, no dependencies) ----------
 const IconHome = (p) => (
@@ -76,14 +67,6 @@ const IconMoon = (p) => (
     <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
   </svg>
 );
-const IconReplay = (p) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-       strokeLinecap="round" strokeLinejoin="round" {...p}>
-    <path d="M3 12a9 9 0 1 0 3-6.7" />
-    <polyline points="3 4 3 9 8 9" />
-  </svg>
-);
-
 // ---------- five-item navigation ----------
 const NAV_ITEMS = [
   { to: '/dashboard', label: 'Home',      Icon: IconHome,    end: true, tour: 'nav.dashboard' },
@@ -126,28 +109,26 @@ const AppLayout = () => {
   const user = tokenStorage.getUser();
 
   return (
-    <TourProvider>
-      <div className={styles.shell}>
-        {/* Quiet line-grid backdrop, matches the in-test ExamShell look so
-            the page texture stays consistent across all protected routes. */}
-        <div className={styles.gridBg} aria-hidden="true" />
-        <SideNav onLogout={handleLogout} />
+    <div className={styles.shell}>
+      {/* Quiet line-grid backdrop, matches the in-test ExamShell look so
+          the page texture stays consistent across all protected routes. */}
+      <div className={styles.gridBg} aria-hidden="true" />
+      <SideNav onLogout={handleLogout} />
 
-        <div className={styles.contentArea}>
-          <TopBar
-            user={user}
-            theme={theme}
-            onToggleTheme={toggleTheme}
-            onLogout={handleLogout}
-          />
-          <main className={`${styles.main} ${fullBleed ? styles.mainFullBleed : ''}`}>
-            <Outlet />
-          </main>
-        </div>
-
-        <BottomNav />
+      <div className={styles.contentArea}>
+        <TopBar
+          user={user}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+          onLogout={handleLogout}
+        />
+        <main className={`${styles.main} ${fullBleed ? styles.mainFullBleed : ''}`}>
+          <Outlet />
+        </main>
       </div>
-    </TourProvider>
+
+      <BottomNav />
+    </div>
   );
 };
 
@@ -209,14 +190,11 @@ const BottomNav = () => (
 const TopBar = ({ user, theme, onToggleTheme, onLogout }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const userAreaRef = useRef(null);
-  const location = useLocation();
-  const tourCtx = useTourContext();
   const isDark = theme === 'dark';
   const initials = (user?.username || '?').slice(0, 1).toUpperCase();
   const logoSrc = isDark
     ? '/logo_dark-removebg-preview.png'
     : '/logo_light-removebg-preview.png';
-  const here = ROUTE_TO_SLUG[location.pathname];
 
   // Close the profile menu on any click outside it or on Escape.
   useEffect(() => {
@@ -279,19 +257,6 @@ const TopBar = ({ user, theme, onToggleTheme, onLogout }) => {
           </button>
           {menuOpen ? (
             <div className={styles.userMenu} role="menu">
-              {here && tourCtx ? (
-                <button
-                  type="button"
-                  className={`${styles.userMenuItem} ${styles.userMenuItemNeutral}`}
-                  role="menuitem"
-                  onClick={() => {
-                    tourCtx.forceReplay(here.slug);
-                    setMenuOpen(false);
-                  }}
-                >
-                  <IconReplay className={styles.userMenuIcon} /> Replay {here.label} tour
-                </button>
-              ) : null}
               <button
                 type="button"
                 className={styles.userMenuItem}

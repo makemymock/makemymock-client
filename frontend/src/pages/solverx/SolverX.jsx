@@ -2,9 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import MessageBlock from '../../components/solverx/MessageBlock';
 import { solverxService } from '../../services/solverxService';
 import { parseApiError } from '../../utils/validators';
-import Tour from '../../components/common/Tour/Tour';
-import { useTour } from '../../hooks/useTour';
-import { solverxTourSteps } from '../../components/tours/solverxSteps';
 import styles from './solverx.module.css';
 
 // Top-level mode the student is in. `pill` is the short label shown in
@@ -36,7 +33,6 @@ const COMPLEXITY_BY_MODE = {
 const DEFAULT_COMPLEXITY = { solve: 'guided', theory: 'deep' };
 
 const SolverX = () => {
-  const tour = useTour('solverx', solverxTourSteps);
   const [mode, setMode] = useState('solve');
   const [complexity, setComplexity] = useState(DEFAULT_COMPLEXITY.solve);
 
@@ -437,22 +433,6 @@ const SolverX = () => {
     setStreaming(null);
   };
 
-  // Sync the conversations sidebar to whatever the tour is currently
-  // explaining: open it while we're on a sidebar step (so it's visible
-  // on mobile, where it defaults to closed), close it on every other
-  // step so it doesn't cover the chat / composer area.
-  const [tourTarget, setTourTarget] = useState(null);
-  const handleTourStepChange = useCallback((step) => {
-    setTourTarget(step?.target ?? null);
-  }, []);
-  useEffect(() => {
-    if (!tour.open) return;
-    const isSidebarStep =
-      tourTarget === '[data-tour="solverx.new-chat"]' ||
-      tourTarget === '[data-tour="solverx.conv-list"]';
-    setSidebarOpen(isSidebarStep);
-  }, [tour.open, tourTarget]);
-
   const placeholderHint = useMemo(() => {
     if (mode === 'theory') {
       return 'Ask a concept — e.g. "Why is the integral of 1/x the natural log?"';
@@ -762,8 +742,6 @@ const SolverX = () => {
           </div>
         </footer>
       </main>
-
-      <Tour {...tour} onStepChange={handleTourStepChange} />
     </div>
   );
 };
