@@ -12,7 +12,8 @@ QUESTIONS_PER_BATTLE = 5
 SECONDS_PER_QUESTION = 15.0
 QUEUE_TIMEOUT_SECONDS = 15.0   # how long a solo player waits for an opponent
 REVEAL_PAUSE_SECONDS = 3.0     # pause between question result and next question
-COUNTDOWN_SECONDS = 3          # "3, 2, 1, GO" before round 1
+COUNTDOWN_SECONDS = 5          # "5, 4, 3, 2, 1, GO" before round 1 — longer to ramp tension
+COUNTDOWN_GO_PAUSE_SECONDS = 0.7   # how long "GO!" stays on screen before the first question
 
 # ---------- Scoring ----------
 BASE_POINTS_CORRECT = 100

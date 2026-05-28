@@ -130,6 +130,8 @@
   }
 }
 
+/* Dark-theme defaults are the bright "arena" accents; light-theme drops
+   saturation so the win/loss/draw badges read clearly on a white card. */
 .rowWin  { border-left-color: #6fd9bd; }
 .rowLoss { border-left-color: #ff7a59; }
 .rowDraw { border-left-color: #a39bff; }
@@ -144,9 +146,16 @@
   .rowResult { font-size: 12px; letter-spacing: 2px; }
 }
 
-.rowWin .rowResult  { color: #6fd9bd; }
-.rowLoss .rowResult { color: #ff7a59; }
-.rowDraw .rowResult { color: #a39bff; }
+.rowWin .rowResult  { color: #1ebd97; }
+.rowLoss .rowResult { color: #ff6a45; }
+.rowDraw .rowResult { color: #7d70ff; }
+
+:global([data-theme='light']) .rowWin  { border-left-color: #15803d; }
+:global([data-theme='light']) .rowLoss { border-left-color: #c2410c; }
+:global([data-theme='light']) .rowDraw { border-left-color: #5b4dd6; }
+:global([data-theme='light']) .rowWin  .rowResult { color: #15803d; }
+:global([data-theme='light']) .rowLoss .rowResult { color: #c2410c; }
+:global([data-theme='light']) .rowDraw .rowResult { color: #5b4dd6; }
 
 .rowMid { min-width: 0; }
 
@@ -295,7 +304,7 @@
 .lede {
   margin: 0;
   font-size: clamp(15px, 1.4vw, 18px);
-  color: rgba(246, 248, 236, 0.8);
+  color: var(--color-text-secondary);
   line-height: 1.55;
   max-width: 540px;
 }
@@ -358,7 +367,7 @@
 .secondaryButton {
   align-self: flex-start;
   background: transparent;
-  color: rgba(246, 248, 236, 0.7);
+  color: var(--color-text-muted);
   border: none;
   font-family: inherit;
   font-size: 14px;
@@ -367,7 +376,7 @@
 }
 
 .secondaryButton:hover {
-  color: #f7c66b;
+  color: var(--color-accent);
 }
 
 .perks {
@@ -381,8 +390,8 @@
 }
 
 .perk {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--color-panel-bg);
+  border: 1px solid var(--color-panel-border);
   border-radius: 16px;
   padding: 18px;
   backdrop-filter: blur(6px);
@@ -393,12 +402,12 @@
   font-size: 14px;
   letter-spacing: 1px;
   text-transform: uppercase;
-  color: #6fd9bd;
+  color: var(--color-accent);
 }
 
 .perk p {
   margin: 0;
   font-size: 14px;
-  color: rgba(246, 248, 236, 0.75);
+  color: var(--color-text-secondary);
   line-height: 1.5;
 }
