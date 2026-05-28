@@ -16,6 +16,7 @@ import BattleLaunch from '../pages/battle/BattleLaunch';
 import BattleArena from '../pages/battle/BattleArena';
 import BattleHistory from '../pages/battle/BattleHistory';
 import SolverX from '../pages/solverx/SolverX';
+import Recommender from '../pages/recommender/Recommender';
 import AppLayout from '../components/layout/AppLayout';
 import ProtectedRoute from './ProtectedRoute';
 import { tokenStorage } from '../utils/token';
@@ -83,6 +84,7 @@ const AppRoutes = () => {
         <Route path="/battle/play" element={<BattleArena />} />
         <Route path="/battle/history" element={<BattleHistory />} />
         <Route path="/solverx" element={<SolverX />} />
+        <Route path="/recommender" element={<Recommender />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

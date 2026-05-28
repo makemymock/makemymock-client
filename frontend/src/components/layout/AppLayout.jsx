@@ -47,6 +47,14 @@ const IconChart = (p) => (
     <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
   </svg>
 );
+const IconBrain = (p) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+       strokeLinecap="round" strokeLinejoin="round" {...p}>
+    <path d="M9.5 2a2.5 2.5 0 0 1 5 0"/>
+    <path d="M9 2.5C5.134 3.28 2 6.8 2 11a7 7 0 0 0 7 7h6a7 7 0 0 0 7-7c0-4.2-3.134-7.72-7-8.5"/>
+    <path d="M12 11v4"/><path d="M9.5 9.5a2.5 2.5 0 0 1 5 0"/>
+  </svg>
+);
 const IconLogout = (p) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
        strokeLinecap="round" strokeLinejoin="round" {...p}>
@@ -70,11 +78,12 @@ const IconMoon = (p) => (
 
 // ---------- five-item navigation ----------
 const NAV_ITEMS = [
-  { to: '/dashboard', label: 'Home',      Icon: IconHome,    end: true },
-  { to: '/tests',     label: 'Practice',  Icon: IconTest },
-  { to: '/solverx',   label: 'SolverX',   Icon: IconSpark },
-  { to: '/battle',    label: 'Battle',    Icon: IconSwords },
-  { to: '/analytics', label: 'Analytics', Icon: IconChart },
+  { to: '/dashboard',   label: 'Home',       Icon: IconHome,  end: true },
+  { to: '/tests',       label: 'Practice',   Icon: IconTest },
+  { to: '/solverx',     label: 'SolverX',    Icon: IconSpark },
+  { to: '/battle',      label: 'Battle',     Icon: IconSwords },
+  { to: '/analytics',   label: 'Analytics',  Icon: IconChart },
+  { to: '/recommender', label: 'AI Cockpit', Icon: IconBrain },
 ];
 
 // Routes that own the whole viewport (no sidebar, no topbar, no bottom

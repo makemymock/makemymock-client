@@ -51,10 +51,8 @@ const SolverX = () => {
   });
   const [conversations, setConversations] = useState([]);
   const [activeConvId, setActiveConvId] = useState(null);
-  // Two-stage delete confirmation: first click arms a conversation
-  // (icon turns red + label flips to "Confirm"), second click runs the
-  // delete. Clicking anywhere else dismisses the armed state.
-  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  // Delete confirmation modal: stores the id of the conversation pending deletion.
+  const [deleteModalConvId, setDeleteModalConvId] = useState(null);
 
   // The transcript of (user/assistant) turns currently displayed.
   const [turns, setTurns] = useState([]);
@@ -173,21 +171,17 @@ const SolverX = () => {
     setSidebarOpen(false);
   };
 
-  // Two-stage delete: first click arms the row (sets confirmDeleteId);
-  // second click on the same row commits. Clicking any other delete
-  // button just re-arms to that row; an auto-timeout disarms after 4s.
-  const armOrConfirmDelete = useCallback(async (convId, e) => {
+  const openDeleteModal = useCallback((convId, e) => {
     e.stopPropagation();
-    if (confirmDeleteId !== convId) {
-      setConfirmDeleteId(convId);
-      return;
-    }
-    setConfirmDeleteId(null);
+    setDeleteModalConvId(convId);
+  }, []);
+
+  const confirmDelete = useCallback(async () => {
+    const convId = deleteModalConvId;
+    setDeleteModalConvId(null);
     try {
       await solverxService.deleteConversation(convId);
       setConversations((prev) => prev.filter((c) => c.id !== convId));
-      // If the user just nuked the conversation they're viewing,
-      // reset back to a blank slate.
       if (activeConvId === convId) {
         streamCtrlRef.current?.abort();
         streamCtrlRef.current = null;
@@ -198,15 +192,7 @@ const SolverX = () => {
     } catch (err) {
       setError(parseApiError(err, 'Could not delete that conversation.'));
     }
-  }, [confirmDeleteId, activeConvId]);
-
-  // Auto-disarm the confirm state after a short window so an
-  // accidentally-armed row doesn't sit there forever.
-  useEffect(() => {
-    if (!confirmDeleteId) return undefined;
-    const t = window.setTimeout(() => setConfirmDeleteId(null), 4000);
-    return () => window.clearTimeout(t);
-  }, [confirmDeleteId]);
+  }, [deleteModalConvId, activeConvId]);
 
   // ---- Image attach helpers ----
 
@@ -420,7 +406,7 @@ const SolverX = () => {
   };
 
   const onKeyDown = (e) => {
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       send();
     }
@@ -477,11 +463,10 @@ const SolverX = () => {
               <p className={styles.convEmpty}>No conversations yet.</p>
             ) : (
               conversations.map((c) => {
-                const isArmed = confirmDeleteId === c.id;
                 return (
                   <div
                     key={c.id}
-                    className={`${styles.convRow} ${activeConvId === c.id ? styles.convRowActive : ''} ${isArmed ? styles.convRowArmed : ''}`}
+                    className={`${styles.convRow} ${activeConvId === c.id ? styles.convRowActive : ''}`}
                   >
                     <button
                       type="button"
@@ -497,22 +482,18 @@ const SolverX = () => {
                     </button>
                     <button
                       type="button"
-                      className={`${styles.convDelete} ${isArmed ? styles.convDeleteArmed : ''}`}
-                      onClick={(e) => armOrConfirmDelete(c.id, e)}
-                      aria-label={isArmed ? 'Confirm delete conversation' : 'Delete conversation'}
-                      title={isArmed ? 'Click again to confirm' : 'Delete conversation'}
+                      className={styles.convDelete}
+                      onClick={(e) => openDeleteModal(c.id, e)}
+                      aria-label="Delete conversation"
+                      title="Delete conversation"
                     >
-                      {isArmed ? (
-                        <span className={styles.convDeleteText}>Confirm</span>
-                      ) : (
-                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none"
-                             stroke="currentColor" strokeWidth="2" strokeLinecap="round"
-                             strokeLinejoin="round" aria-hidden="true">
-                          <path d="M3 6h18" />
-                          <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                        </svg>
-                      )}
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none"
+                           stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+                           strokeLinejoin="round" aria-hidden="true">
+                        <path d="M3 6h18" />
+                        <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                      </svg>
                     </button>
                   </div>
                 );
@@ -735,6 +716,32 @@ const SolverX = () => {
           </div>
         </footer>
       </main>
+
+      {/* Delete confirmation modal */}
+      {deleteModalConvId ? (
+        <div className={styles.modalOverlay} role="dialog" aria-modal="true" aria-labelledby="deleteModalTitle">
+          <div className={styles.modalCard}>
+            <h3 id="deleteModalTitle" className={styles.modalTitle}>Delete conversation?</h3>
+            <p className={styles.modalBody}>This conversation and all its messages will be permanently deleted.</p>
+            <div className={styles.modalActions}>
+              <button
+                type="button"
+                className={styles.modalCancel}
+                onClick={() => setDeleteModalConvId(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={styles.modalDelete}
+                onClick={confirmDelete}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 };
@@ -889,23 +896,24 @@ const AssistantStreamingView = ({ streaming }) => (
 
 const AssistantFinalView = ({ assistant }) => {
   const blocks = assistant.blocks || [];
-  let stepCount = 0;
+  const stepIndices = blocks.map((b, i) =>
+    b.type === 'step'
+      ? blocks.slice(0, i + 1).filter((x) => x.type === 'step').length
+      : null,
+  );
   return (
     <div className={styles.assistant}>
       {assistant.topic ? <TopicPills topic={assistant.topic} /> : null}
       {assistant.insights?.length ? <InsightList items={assistant.insights} /> : null}
 
       <div className={styles.blocks}>
-        {blocks.map((b, i) => {
-          if (b.type === 'step') stepCount += 1;
-          return (
-            <MessageBlock
-              key={i}
-              block={b}
-              index={b.type === 'step' ? stepCount : null}
-            />
-          );
-        })}
+        {blocks.map((b, i) => (
+          <MessageBlock
+            key={i}
+            block={b}
+            index={stepIndices[i]}
+          />
+        ))}
       </div>
     </div>
   );

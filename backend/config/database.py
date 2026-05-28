@@ -2,7 +2,7 @@ import logging
 from typing import Optional
 
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
-from pymongo import ASCENDING
+from pymongo import ASCENDING, DESCENDING
 
 from config.settings import settings
 
@@ -14,7 +14,13 @@ class MongoDB:
     db: Optional[AsyncIOMotorDatabase] = None
 
 
+class PyQMongoDB:
+    client: Optional[AsyncIOMotorClient] = None
+    db: Optional[AsyncIOMotorDatabase] = None
+
+
 mongo = MongoDB()
+pyq_mongo = PyQMongoDB()
 
 
 async def connect_to_mongo() -> None:
@@ -42,6 +48,29 @@ async def connect_to_mongo() -> None:
 
     await _ensure_indexes()
 
+    # Connect to the PYQ cluster (separate credentials/host).
+    if settings.PYQ_MONGO_URI:
+        try:
+            pyq_mongo.client = AsyncIOMotorClient(
+                settings.PYQ_MONGO_URI,
+                maxPoolSize=20,
+                minPoolSize=2,
+                serverSelectionTimeoutMS=5000,
+                tz_aware=True,
+            )
+            pyq_mongo.db = pyq_mongo.client[settings.JEE_QUESTIONS_DB_NAME]
+            await pyq_mongo.client.admin.command("ping")
+            await pyq_mongo.db["jee_mains_pyqs"].create_index(
+                [("subject", 1), ("chapter", 1), ("topic", 1)],
+            )
+            logger.info("PYQ MongoDB connection established.")
+        except Exception as exc:
+            logger.warning("PYQ MongoDB connection failed: %s — question catalog unavailable.", exc)
+            pyq_mongo.client = None
+            pyq_mongo.db = None
+    else:
+        logger.warning("PYQ_MONGO_URI not set; question catalog unavailable.")
+
 
 async def close_mongo_connection() -> None:
     if mongo.client is not None:
@@ -49,6 +78,10 @@ async def close_mongo_connection() -> None:
         mongo.client.close()
         mongo.client = None
         mongo.db = None
+    if pyq_mongo.client is not None:
+        pyq_mongo.client.close()
+        pyq_mongo.client = None
+        pyq_mongo.db = None
 
 
 async def _ensure_indexes() -> None:
@@ -157,8 +190,72 @@ async def _ensure_indexes() -> None:
         [("conversation_id", ASCENDING), ("created_at", ASCENDING)],
     )
 
+    # ---------- JEE Recommender ----------
+
+    # student_topic_state — 156 docs per student; unique on (student_id, topic_id)
+    # so a double-initialize call is a no-op rather than a data corruption.
+    await mongo.db["student_topic_state"].create_index(
+        [("student_id", ASCENDING), ("topic_id", ASCENDING)],
+        unique=True,
+    )
+    # Chapter rollup: used by tool_get_unlocked_topics when filtering by chapter.
+    await mongo.db["student_topic_state"].create_index(
+        [("student_id", ASCENDING), ("chapter", ASCENDING)],
+    )
+    # SM-2 due-review query: find all topics due for review today.
+    await mongo.db["student_topic_state"].create_index(
+        [("student_id", ASCENDING), ("next_review_date", ASCENDING)],
+    )
+
+    # student_personality — one doc per student; unique on student_id.
+    await mongo.db["student_personality"].create_index(
+        [("student_id", ASCENDING)],
+        unique=True,
+    )
+
+    # student_question_history — raw event log.
+    # Primary: time-ordered history for error-cluster computation.
+    await mongo.db["student_question_history"].create_index(
+        [("student_id", ASCENDING), ("timestamp", DESCENDING)],
+    )
+    # Seen-question lookup: used by Question Selector to exclude correct repeats.
+    await mongo.db["student_question_history"].create_index(
+        [("student_id", ASCENDING), ("question_id", ASCENDING)],
+    )
+    # Session-scoped: session summary generation filters by session_id.
+    await mongo.db["student_question_history"].create_index(
+        [("student_id", ASCENDING), ("session_id", ASCENDING)],
+    )
+
+    # session_summaries — Level-1 memory (≈200 tokens each).
+    # Session Planner reads last-3 sorted by recency.
+    await mongo.db["session_summaries"].create_index(
+        [("student_id", ASCENDING), ("created_at", DESCENDING)],
+    )
+    # Diagnosis Agent fetches by session_id after session_end trigger.
+    await mongo.db["session_summaries"].create_index(
+        [("session_id", ASCENDING)],
+        unique=True,
+        sparse=True,
+    )
+
+    # topic_trend_scores — 156 docs, recomputed weekly.
+    # Unique on topic_id so upsert-replace is always consistent.
+    await mongo.db["topic_trend_scores"].create_index(
+        [("topic_id", ASCENDING)],
+        unique=True,
+    )
+    # get_trend_top_topics sorts by p_appears descending.
+    await mongo.db["topic_trend_scores"].create_index(
+        [("p_appears", DESCENDING)],
+    )
+
 
 def get_database() -> AsyncIOMotorDatabase:
     if mongo.db is None:
         raise RuntimeError("MongoDB has not been initialized. Call connect_to_mongo().")
     return mongo.db
+
+
+def get_pyq_database() -> Optional[AsyncIOMotorDatabase]:
+    return pyq_mongo.db

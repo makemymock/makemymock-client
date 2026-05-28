@@ -80,3 +80,34 @@ class ProfileAlreadyExists(AppException):
 class ProfileNotFound(AppException):
     def __init__(self, detail: str = "Profile not found."):
         super().__init__(detail, status.HTTP_404_NOT_FOUND)
+
+
+# ---- Recommender ----
+class StudentNotInitialized(AppException):
+    def __init__(self, detail: str = "Student topic states not initialized. Call /recommender/student/{id}/initialize first."):
+        super().__init__(detail, status.HTTP_404_NOT_FOUND)
+
+
+class StudentAlreadyInitialized(AppException):
+    def __init__(self, detail: str = "Student topic states already initialized."):
+        super().__init__(detail, status.HTTP_409_CONFLICT)
+
+
+class SessionNotFound(AppException):
+    def __init__(self, detail: str = "Recommender session not found."):
+        super().__init__(detail, status.HTTP_404_NOT_FOUND)
+
+
+class NoUnlockedTopics(AppException):
+    def __init__(self, detail: str = "No unlocked topics available for this student yet."):
+        super().__init__(detail, status.HTTP_422_UNPROCESSABLE_ENTITY)
+
+
+class RecommenderAgentError(AppException):
+    def __init__(self, detail: str = "Agent call failed. Check Groq API key and model availability."):
+        super().__init__(detail, status.HTTP_502_BAD_GATEWAY)
+
+
+class TrendDataMissing(AppException):
+    def __init__(self, detail: str = "Trend scores not yet computed. Run /recommender/admin/run-trend-update first."):
+        super().__init__(detail, status.HTTP_404_NOT_FOUND)

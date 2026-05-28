@@ -14,6 +14,45 @@ from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pymongo import ReturnDocument, UpdateOne
 
+# ---------- PYQ normalisation ----------
+
+_PYQ_COLLECTION = "jee_mains_pyqs"
+_PYQ_TYPE_MAP = {"mcq": "single_correct", "mcqm": "multi_correct", "integer": "integer"}
+_PYQ_TYPE_REVERSE = {"single_correct": "mcq", "multi_correct": "mcqm", "integer": "integer"}
+# bbd_db filter keys that differ from PYQ field names
+_PYQ_FILTER_KEY_MAP = {"questionType": "type", "questionText": "question"}
+
+
+def _normalize_pyq_doc(doc: dict) -> dict:
+    """Translate a jee_mains_pyqs doc to the bbd_db field shape the service expects."""
+    if not doc:
+        return doc
+    out = dict(doc)
+    out["questionText"] = out.get("question", "")
+    out["questionType"] = _PYQ_TYPE_MAP.get(out.get("type", "mcq"), "single_correct")
+    for opt in out.get("options") or []:
+        ident = opt.get("identifier", "")
+        if ident in ("A", "B", "C", "D"):
+            out[f"option{ident}"] = opt.get("content", "")
+    out["correctOptions"] = out.get("correct_options") or []
+    if out["questionType"] == "integer":
+        out["integerAnswer"] = out.get("answer")
+    out["solution"] = out.get("explanation", "")
+    return out
+
+
+def _translate_pyq_filter(filt: dict) -> dict:
+    """Remap bbd_db-style filter keys to PYQ field names before querying."""
+    out: dict = {}
+    for k, v in filt.items():
+        if k == "questionType":
+            out["type"] = _PYQ_TYPE_REVERSE.get(v, v) if isinstance(v, str) else v
+        elif k == "questionText":
+            out["question"] = v
+        else:
+            out[k] = v
+    return out
+
 from modules.mock_test.constants import (
     ATTEMPTS_COLLECTION,
     CHAPTER_ID_MAP_COLLECTION,
@@ -50,9 +89,15 @@ class MockTestRepository:
     service builds a `BufferedRepository` and shuttles data in/out.
     """
 
-    def __init__(self, db: AsyncIOMotorDatabase):
+    def __init__(
+        self,
+        db: AsyncIOMotorDatabase,
+        pyq_db: Optional[AsyncIOMotorDatabase] = None,
+    ):
         self.db = db
-        self.questions = db[QUESTIONS_COLLECTION]
+        self._is_pyq = pyq_db is not None
+        self.questions = (pyq_db[_PYQ_COLLECTION] if pyq_db is not None
+                          else db[QUESTIONS_COLLECTION])
         self.sessions = db[SESSIONS_COLLECTION]
         self.topics_col = db[TOPICS_COLLECTION]
         self.responses = db[RESPONSES_COLLECTION]
@@ -223,7 +268,10 @@ class MockTestRepository:
             for (s, c, t) in triples
         ]
         cursor = self.questions.find({"$or": or_clauses}).sort("_id", 1)
-        return [doc async for doc in cursor]
+        docs = [doc async for doc in cursor]
+        if self._is_pyq:
+            docs = [_normalize_pyq_doc(d) for d in docs]
+        return docs
 
     async def fetch_question_docs_by_obj_ids(
         self, obj_ids: Iterable[str],
@@ -234,33 +282,46 @@ class MockTestRepository:
         out: dict[str, dict] = {}
         cursor = self.questions.find({"_id": {"$in": ids}})
         async for doc in cursor:
-            out[str(doc["_id"])] = doc
+            normalized = _normalize_pyq_doc(doc) if self._is_pyq else doc
+            out[str(doc["_id"])] = normalized
         return out
 
     async def list_all_catalog_topics(self) -> dict[str, Any]:
         """Aggregate the questions collection into a subject→chapter→topic
         tree with question counts."""
-        pipeline = [
-            {"$project": {
-                "subject": 1, "chapter": 1, "topic": 1,
-                "questionType": 1,
-                "subCount": {
-                    "$cond": [
-                        {"$eq": [{"$ifNull": ["$questionType", "single_correct"]}, "passage"]},
-                        {"$size": {"$ifNull": ["$passageData.subQuestions", []]}},
-                        1,
-                    ]
-                },
-            }},
-            {"$group": {
-                "_id": {
-                    "subject": "$subject",
-                    "chapter": "$chapter",
-                    "topic": "$topic",
-                },
-                "question_count": {"$sum": "$subCount"},
-            }},
-        ]
+        if self._is_pyq:
+            pipeline = [
+                {"$group": {
+                    "_id": {
+                        "subject": "$subject",
+                        "chapter": "$chapter",
+                        "topic": "$topic",
+                    },
+                    "question_count": {"$sum": 1},
+                }},
+            ]
+        else:
+            pipeline = [
+                {"$project": {
+                    "subject": 1, "chapter": 1, "topic": 1,
+                    "questionType": 1,
+                    "subCount": {
+                        "$cond": [
+                            {"$eq": [{"$ifNull": ["$questionType", "single_correct"]}, "passage"]},
+                            {"$size": {"$ifNull": ["$passageData.subQuestions", []]}},
+                            1,
+                        ]
+                    },
+                }},
+                {"$group": {
+                    "_id": {
+                        "subject": "$subject",
+                        "chapter": "$chapter",
+                        "topic": "$topic",
+                    },
+                    "question_count": {"$sum": "$subCount"},
+                }},
+            ]
         results = []
         async for row in self.questions.aggregate(pipeline):
             key = row["_id"]
@@ -275,23 +336,31 @@ class MockTestRepository:
     # ---------- browse (practice catalog) ----------
 
     async def count_browse(self, filt: dict) -> int:
-        return await self.questions.count_documents(filt)
+        q = _translate_pyq_filter(filt) if self._is_pyq else filt
+        return await self.questions.count_documents(q)
 
     async def find_browse(
         self, filt: dict, *, skip: int, limit: int,
     ) -> list[dict]:
         """Page of questions matching `filt`, ordered by `_id` for a stable
         prev/next sequence across requests."""
+        q = _translate_pyq_filter(filt) if self._is_pyq else filt
         cursor = (
-            self.questions.find(filt)
+            self.questions.find(q)
             .sort("_id", 1)
             .skip(max(0, skip))
             .limit(max(1, limit))
         )
-        return [doc async for doc in cursor]
+        docs = [doc async for doc in cursor]
+        if self._is_pyq:
+            docs = [_normalize_pyq_doc(d) for d in docs]
+        return docs
 
     async def get_question_by_obj_id(self, obj_id: str) -> Optional[dict]:
-        return await self.questions.find_one({"_id": ObjectId(obj_id)})
+        doc = await self.questions.find_one({"_id": ObjectId(obj_id)})
+        if doc and self._is_pyq:
+            doc = _normalize_pyq_doc(doc)
+        return doc
 
     async def qid_entries_for_obj_ids(
         self, obj_ids: Iterable[str],

@@ -21,3 +21,7 @@ python-multipart
 # permitted", which kills every SolverX Vertex AI call. Pip's
 # resolver under `>=1.0.0` happily picks 1.2.0, so be explicit.
 google-genai>=1.20.0,<2.0
+# Groq SDK — used by the JEE recommender's agentic layer (Session Planner,
+# Question Selector, Diagnosis Agent, Trend Intelligence Agent). AsyncGroq
+# is the async entrypoint; tool-use (function calling) is supported natively.
+groq>=0.11.0
