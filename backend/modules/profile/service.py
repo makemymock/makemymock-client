@@ -4,7 +4,8 @@ from typing import Any
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from core.exceptions import ProfileAlreadyExists, ProfileNotFound
+from core.exceptions import InvalidTourSlug, ProfileAlreadyExists, ProfileNotFound
+from modules.profile.constants import VALID_TOUR_SLUGS
 from modules.profile.model import new_profile_doc
 from modules.profile.repository import ProfileRepository
 from modules.profile.schema import (
@@ -37,6 +38,7 @@ class ProfileService:
             preferred_language=doc["preferred_language"],
             phone_number=doc["phone_number"],
             gender=doc["gender"],
+            tours_completed=doc.get("tours_completed", []),
             created_at=doc["created_at"],
             updated_at=doc.get("updated_at", doc["created_at"]),
         )
@@ -80,6 +82,14 @@ class ProfileService:
                 raise ProfileNotFound()
             return self._to_response(doc)
         doc = await self.repo.update(user_id, updates)
+        if doc is None:
+            raise ProfileNotFound()
+        return self._to_response(doc)
+
+    async def complete_tour(self, user_id: ObjectId, slug: str) -> ProfileResponse:
+        if slug not in VALID_TOUR_SLUGS:
+            raise InvalidTourSlug()
+        doc = await self.repo.add_tour_completed(user_id, slug)
         if doc is None:
             raise ProfileNotFound()
         return self._to_response(doc)

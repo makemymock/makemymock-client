@@ -15,4 +15,11 @@ export const profileService = {
     const { data } = await api.put('/profile/update', partial);
     return data;
   },
+
+  async completeTour(slug) {
+    const { data } = await api.post(
+      `/profile/tours/${encodeURIComponent(slug)}/complete`
+    );
+    return data;
+  },
 };

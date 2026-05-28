@@ -26,3 +26,15 @@ class ProfileRepository:
             {"$set": updates},
             return_document=True,
         )
+
+    async def add_tour_completed(
+        self, user_id: ObjectId, slug: str
+    ) -> Optional[dict[str, Any]]:
+        return await self.col.find_one_and_update(
+            {"user_id": user_id},
+            {
+                "$addToSet": {"tours_completed": slug},
+                "$set": {"updated_at": datetime.now(timezone.utc)},
+            },
+            return_document=True,
+        )

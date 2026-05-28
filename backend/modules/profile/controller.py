@@ -48,3 +48,16 @@ async def update_profile(
     db: DBDep,
 ) -> ProfileResponse:
     return await ProfileService(db).update(current_user["_id"], payload)
+
+
+@router.post(
+    "/tours/{tour_slug}/complete",
+    response_model=ProfileResponse,
+    summary="Mark a product tour as completed for the current user",
+)
+async def complete_tour(
+    tour_slug: str,
+    current_user: CurrentVerifiedUser,
+    db: DBDep,
+) -> ProfileResponse:
+    return await ProfileService(db).complete_tour(current_user["_id"], tour_slug)

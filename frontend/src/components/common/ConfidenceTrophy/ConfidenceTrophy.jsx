@@ -58,7 +58,7 @@ const formatPct = (n) => `${Math.round(n)}%`;
  *                tight slots like the dashboard hero card.
  *   className  — optional extra class for the wrapper.
  */
-const ConfidenceTrophy = ({ data, compact = false, className = '' }) => {
+const ConfidenceTrophy = ({ data, compact = false, className = '', dataTour }) => {
   const [showDetail, setShowDetail] = useState(false);
 
   const view = useMemo(() => {
@@ -82,7 +82,10 @@ const ConfidenceTrophy = ({ data, compact = false, className = '' }) => {
 
   if (!view) {
     return (
-      <section className={`${styles.card} ${styles.skeleton} ${className}`}>
+      <section
+        className={`${styles.card} ${styles.skeleton} ${className}`}
+        data-tour={dataTour}
+      >
         <p className={styles.skeletonText}>Loading confidence…</p>
       </section>
     );
@@ -95,6 +98,7 @@ const ConfidenceTrophy = ({ data, compact = false, className = '' }) => {
     <section
       className={`${styles.card} ${tierClass} ${compact ? styles.cardCompact : ''} ${className}`}
       aria-label={`Confidence score ${Math.round(score)} out of 100, trophy ${tierName}`}
+      data-tour={dataTour}
     >
       <div className={styles.head}>
         <div className={styles.iconWrap}>

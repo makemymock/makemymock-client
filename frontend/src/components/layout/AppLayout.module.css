@@ -236,6 +236,13 @@
 
 .userMenuItem:hover { background: var(--color-chip-bg); }
 
+/* Neutral variant — used for menu rows that aren't destructive (e.g.
+   "Replay tour"). Overrides the red colour of `.userMenuItem`, which
+   was originally tuned for the Sign-out row. */
+.userMenuItemNeutral {
+  color: var(--dash-text-strong);
+}
+
 .userMenuIcon { width: 16px; height: 16px; }
 
 /* ============================================================

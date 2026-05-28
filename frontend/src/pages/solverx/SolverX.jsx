@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import MessageBlock from '../../components/solverx/MessageBlock';
 import { solverxService } from '../../services/solverxService';
 import { parseApiError } from '../../utils/validators';
+import Tour from '../../components/common/Tour/Tour';
+import { useTour } from '../../hooks/useTour';
+import { solverxTourSteps } from '../../components/tours/solverxSteps';
 import styles from './solverx.module.css';
 
 // Top-level mode the student is in. `pill` is the short label shown in
@@ -33,6 +36,7 @@ const COMPLEXITY_BY_MODE = {
 const DEFAULT_COMPLEXITY = { solve: 'guided', theory: 'deep' };
 
 const SolverX = () => {
+  const tour = useTour('solverx', solverxTourSteps);
   const [mode, setMode] = useState('solve');
   const [complexity, setComplexity] = useState(DEFAULT_COMPLEXITY.solve);
 
@@ -433,6 +437,22 @@ const SolverX = () => {
     setStreaming(null);
   };
 
+  // Sync the conversations sidebar to whatever the tour is currently
+  // explaining: open it while we're on a sidebar step (so it's visible
+  // on mobile, where it defaults to closed), close it on every other
+  // step so it doesn't cover the chat / composer area.
+  const [tourTarget, setTourTarget] = useState(null);
+  const handleTourStepChange = useCallback((step) => {
+    setTourTarget(step?.target ?? null);
+  }, []);
+  useEffect(() => {
+    if (!tour.open) return;
+    const isSidebarStep =
+      tourTarget === '[data-tour="solverx.new-chat"]' ||
+      tourTarget === '[data-tour="solverx.conv-list"]';
+    setSidebarOpen(isSidebarStep);
+  }, [tour.open, tourTarget]);
+
   const placeholderHint = useMemo(() => {
     if (mode === 'theory') {
       return 'Ask a concept — e.g. "Why is the integral of 1/x the natural log?"';
@@ -456,6 +476,7 @@ const SolverX = () => {
       <aside
         className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ''}`}
         aria-hidden={sidebarOpen ? 'false' : 'true'}
+        data-tour="solverx.conv-list"
       >
         {/* The inner wrapper keeps content at a fixed 300px so the
             panel can collapse to zero width without re-flowing the
@@ -468,7 +489,12 @@ const SolverX = () => {
             </div>
           </header>
 
-          <button type="button" className={styles.newChatBtn} onClick={startNewConversation}>
+          <button
+            type="button"
+            className={styles.newChatBtn}
+            onClick={startNewConversation}
+            data-tour="solverx.new-chat"
+          >
             + New chat
           </button>
 
@@ -545,7 +571,7 @@ const SolverX = () => {
         ) : null}
 
         {/* Composer */}
-        <footer className={styles.composer}>
+        <footer className={styles.composer} data-tour="solverx.composer">
           {attachedImage ? (
             <div className={styles.attachedRow}>
               <img
@@ -693,6 +719,7 @@ const SolverX = () => {
                 value={mode}
                 onChange={handleModeChange}
                 disabled={submitting}
+                dataTour="solverx.mode-pills"
                 icon={(
                   <svg viewBox="0 0 24 24" width="14" height="14" fill="none"
                        stroke="currentColor" strokeWidth="2" strokeLinecap="round"
@@ -735,6 +762,8 @@ const SolverX = () => {
           </div>
         </footer>
       </main>
+
+      <Tour {...tour} onStepChange={handleTourStepChange} />
     </div>
   );
 };
@@ -745,7 +774,7 @@ const SolverX = () => {
 
 // Compact ChatGPT-style picker — shows the current selection as a
 // rounded pill; click opens a small menu above with full label + sub.
-const PickerPill = ({ ariaLabel, options, value, onChange, disabled, icon }) => {
+const PickerPill = ({ ariaLabel, options, value, onChange, disabled, icon, dataTour }) => {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
 
@@ -768,7 +797,7 @@ const PickerPill = ({ ariaLabel, options, value, onChange, disabled, icon }) => 
   const current = options.find((o) => o.key === value) || options[0];
 
   return (
-    <div className={styles.pickerWrap} ref={wrapRef}>
+    <div className={styles.pickerWrap} ref={wrapRef} data-tour={dataTour}>
       <button
         type="button"
         className={`${styles.pickerBtn} ${open ? styles.pickerBtnOn : ''}`}

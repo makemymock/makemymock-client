@@ -1,9 +1,18 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import useTheme from '../../hooks/useTheme';
 import { authService } from '../../services/authService';
 import { tokenStorage } from '../../utils/token';
+import { TourProvider, useTourContext } from '../../context/TourContext';
 import styles from './AppLayout.module.css';
+
+const ROUTE_TO_SLUG = {
+  '/dashboard': { slug: 'dashboard', label: 'Dashboard' },
+  '/tests':     { slug: 'practice',  label: 'Practice'  },
+  '/solverx':   { slug: 'solverx',   label: 'SolverX'   },
+  '/battle':    { slug: 'battle',    label: 'Battle'    },
+  '/analytics': { slug: 'analytics', label: 'Analytics' },
+};
 
 // ---------- icons (inline SVG, no dependencies) ----------
 const IconHome = (p) => (
@@ -67,14 +76,21 @@ const IconMoon = (p) => (
     <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
   </svg>
 );
+const IconReplay = (p) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+       strokeLinecap="round" strokeLinejoin="round" {...p}>
+    <path d="M3 12a9 9 0 1 0 3-6.7" />
+    <polyline points="3 4 3 9 8 9" />
+  </svg>
+);
 
 // ---------- five-item navigation ----------
 const NAV_ITEMS = [
-  { to: '/dashboard', label: 'Home',      Icon: IconHome,    end: true },
-  { to: '/tests',     label: 'Practice',  Icon: IconTest },
-  { to: '/solverx',   label: 'SolverX',   Icon: IconSpark },
-  { to: '/battle',    label: 'Battle',    Icon: IconSwords },
-  { to: '/analytics', label: 'Analytics', Icon: IconChart },
+  { to: '/dashboard', label: 'Home',      Icon: IconHome,    end: true, tour: 'nav.dashboard' },
+  { to: '/tests',     label: 'Practice',  Icon: IconTest,    tour: 'nav.practice' },
+  { to: '/solverx',   label: 'SolverX',   Icon: IconSpark,   tour: 'nav.solverx' },
+  { to: '/battle',    label: 'Battle',    Icon: IconSwords,  tour: 'nav.battle' },
+  { to: '/analytics', label: 'Analytics', Icon: IconChart,   tour: 'nav.analytics' },
 ];
 
 // Routes that own the whole viewport (no sidebar, no topbar, no bottom
@@ -110,26 +126,28 @@ const AppLayout = () => {
   const user = tokenStorage.getUser();
 
   return (
-    <div className={styles.shell}>
-      {/* Quiet line-grid backdrop, matches the in-test ExamShell look so
-          the page texture stays consistent across all protected routes. */}
-      <div className={styles.gridBg} aria-hidden="true" />
-      <SideNav onLogout={handleLogout} />
+    <TourProvider>
+      <div className={styles.shell}>
+        {/* Quiet line-grid backdrop, matches the in-test ExamShell look so
+            the page texture stays consistent across all protected routes. */}
+        <div className={styles.gridBg} aria-hidden="true" />
+        <SideNav onLogout={handleLogout} />
 
-      <div className={styles.contentArea}>
-        <TopBar
-          user={user}
-          theme={theme}
-          onToggleTheme={toggleTheme}
-          onLogout={handleLogout}
-        />
-        <main className={`${styles.main} ${fullBleed ? styles.mainFullBleed : ''}`}>
-          <Outlet />
-        </main>
+        <div className={styles.contentArea}>
+          <TopBar
+            user={user}
+            theme={theme}
+            onToggleTheme={toggleTheme}
+            onLogout={handleLogout}
+          />
+          <main className={`${styles.main} ${fullBleed ? styles.mainFullBleed : ''}`}>
+            <Outlet />
+          </main>
+        </div>
+
+        <BottomNav />
       </div>
-
-      <BottomNav />
-    </div>
+    </TourProvider>
   );
 };
 
@@ -140,11 +158,12 @@ const AppLayout = () => {
 const SideNav = ({ onLogout }) => (
   <nav className={styles.sideNav} aria-label="Primary">
     <ul className={styles.sideNavList}>
-      {NAV_ITEMS.map(({ to, label, Icon, end }) => (
+      {NAV_ITEMS.map(({ to, label, Icon, end, tour }) => (
         <li key={to}>
           <NavLink
             to={to}
             end={end}
+            data-tour={tour}
             className={({ isActive }) =>
               `${styles.sideNavItem} ${isActive ? styles.sideNavItemActive : ''}`
             }
@@ -170,11 +189,12 @@ const SideNav = ({ onLogout }) => (
 
 const BottomNav = () => (
   <nav className={styles.bottomNav} aria-label="Primary">
-    {NAV_ITEMS.map(({ to, label, Icon, end }) => (
+    {NAV_ITEMS.map(({ to, label, Icon, end, tour }) => (
       <NavLink
         key={to}
         to={to}
         end={end}
+        data-tour={tour}
         className={({ isActive }) =>
           `${styles.bottomNavItem} ${isActive ? styles.bottomNavItemActive : ''}`
         }
@@ -188,11 +208,36 @@ const BottomNav = () => (
 
 const TopBar = ({ user, theme, onToggleTheme, onLogout }) => {
   const [menuOpen, setMenuOpen] = useState(false);
+  const userAreaRef = useRef(null);
+  const location = useLocation();
+  const tourCtx = useTourContext();
   const isDark = theme === 'dark';
   const initials = (user?.username || '?').slice(0, 1).toUpperCase();
   const logoSrc = isDark
     ? '/logo_dark-removebg-preview.png'
     : '/logo_light-removebg-preview.png';
+  const here = ROUTE_TO_SLUG[location.pathname];
+
+  // Close the profile menu on any click outside it or on Escape.
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const onPointerDown = (e) => {
+      if (userAreaRef.current && !userAreaRef.current.contains(e.target)) {
+        setMenuOpen(false);
+      }
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('touchstart', onPointerDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('touchstart', onPointerDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpen]);
 
   return (
     <header className={styles.topBar}>
@@ -218,7 +263,7 @@ const TopBar = ({ user, theme, onToggleTheme, onLogout }) => {
                   : <IconMoon className={styles.themeIcon} />}
         </button>
 
-        <div className={styles.userArea}>
+        <div className={styles.userArea} ref={userAreaRef}>
           <button
             type="button"
             className={styles.userChip}
@@ -234,6 +279,19 @@ const TopBar = ({ user, theme, onToggleTheme, onLogout }) => {
           </button>
           {menuOpen ? (
             <div className={styles.userMenu} role="menu">
+              {here && tourCtx ? (
+                <button
+                  type="button"
+                  className={`${styles.userMenuItem} ${styles.userMenuItemNeutral}`}
+                  role="menuitem"
+                  onClick={() => {
+                    tourCtx.forceReplay(here.slug);
+                    setMenuOpen(false);
+                  }}
+                >
+                  <IconReplay className={styles.userMenuIcon} /> Replay {here.label} tour
+                </button>
+              ) : null}
               <button
                 type="button"
                 className={styles.userMenuItem}

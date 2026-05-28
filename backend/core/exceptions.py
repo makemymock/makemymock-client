@@ -80,3 +80,8 @@ class ProfileAlreadyExists(AppException):
 class ProfileNotFound(AppException):
     def __init__(self, detail: str = "Profile not found."):
         super().__init__(detail, status.HTTP_404_NOT_FOUND)
+
+
+class InvalidTourSlug(AppException):
+    def __init__(self, detail: str = "Invalid tour identifier."):
+        super().__init__(detail, status.HTTP_400_BAD_REQUEST)

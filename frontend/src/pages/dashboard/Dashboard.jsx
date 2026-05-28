@@ -11,6 +11,9 @@ import ErrorMessage from '../../components/common/ErrorMessage/ErrorMessage';
 import Heatmap from '../../components/common/Heatmap/Heatmap';
 import ConfidenceTrophy from '../../components/common/ConfidenceTrophy/ConfidenceTrophy';
 import PotdModal from '../../components/dashboard/PotdModal/PotdModal';
+import Tour from '../../components/common/Tour/Tour';
+import { useTour } from '../../hooks/useTour';
+import { dashboardTourSteps } from '../../components/tours/dashboardSteps';
 import styles from './dashboard.module.css';
 
 const TARGET_EXAM_LABEL = {
@@ -78,6 +81,7 @@ const formatRelative = (iso) => {
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const tour = useTour('dashboard', dashboardTourSteps);
 
   const [user, setUser] = useState(() => tokenStorage.getUser());
   const [profile, setProfile] = useState(null);
@@ -171,7 +175,7 @@ const Dashboard = () => {
           {confidence ? (
             <section className={styles.topRow}>
               <HeroCard user={user} profile={profile} />
-              <ConfidenceTrophy data={confidence} />
+              <ConfidenceTrophy data={confidence} dataTour="dashboard.confidence" />
             </section>
           ) : (
             <HeroCard user={user} profile={profile} />
@@ -182,6 +186,7 @@ const Dashboard = () => {
             <NotebookCard
               count={notebookCount}
               onClick={() => navigate('/tests?tab=notebook')}
+              dataTour="dashboard.notebook"
             />
           </div>
 
@@ -216,7 +221,11 @@ const Dashboard = () => {
           {/* Main two-column body: the big performance card on the left, a
               dense side column (heatmap + pending + battles) on the right. */}
           <section className={styles.grid}>
-            <PerformanceCard overview={overview} pendingCount={stats.pending.length} />
+            <PerformanceCard
+              overview={overview}
+              pendingCount={stats.pending.length}
+              dataTour="dashboard.performance"
+            />
             <SidePanel
               heatmap={heatmap}
               pending={stats.pending}
@@ -224,6 +233,7 @@ const Dashboard = () => {
               onResume={(sid) => navigate(`/tests/${sid}`)}
               onNewTest={() => navigate('/tests')}
               onBattle={() => navigate('/battle')}
+              dataTour="dashboard.side-panel"
             />
           </section>
         </>
@@ -234,6 +244,8 @@ const Dashboard = () => {
         userId={user?.id}
         onClose={() => setPotdOpen(false)}
       />
+
+      <Tour {...tour} open={tour.open && !loading && !error} />
     </>
   );
 };
@@ -261,7 +273,7 @@ const PotdBanner = ({ onOpen, userId }) => {
   const hasSessionToday = stored?.sessionId != null;
 
   return (
-    <section className={styles.potdBanner}>
+    <section className={styles.potdBanner} data-tour="dashboard.potd">
       <div className={styles.potdLeft}>
         <span className={styles.potdEmoji} aria-hidden="true">⚡</span>
         <div className={styles.potdText}>
@@ -283,8 +295,8 @@ const PotdBanner = ({ onOpen, userId }) => {
 };
 
 // ---- Notebook quick-access (revise-later) ----
-const NotebookCard = ({ count, onClick }) => (
-  <button type="button" className={styles.notebookCard} onClick={onClick}>
+const NotebookCard = ({ count, onClick, dataTour }) => (
+  <button type="button" className={styles.notebookCard} onClick={onClick} data-tour={dataTour}>
     <span className={styles.notebookIcon} aria-hidden="true">🔖</span>
     <span className={styles.notebookMeta}>
       <span className={styles.notebookTitle}>Notebook</span>
@@ -332,15 +344,15 @@ const StatCard = ({ accent, label, sub, value, rightTop, Icon }) => (
   </article>
 );
 
-const PerformanceCard = ({ overview, pendingCount }) => {
+const PerformanceCard = ({ overview, pendingCount, dataTour }) => {
   if (!overview || overview.total_tests === 0) {
     return (
-      <section className={styles.perfCard}>
+      <section className={styles.perfCard} data-tour={dataTour}>
         <header className={styles.cardHeader}>
           <h2 className={styles.cardTitle}>Performance Overview</h2>
           <p className={styles.cardSubtitle}>Track your learning journey</p>
         </header>
-        <div className={styles.emptyState}>
+        <div className={styles.emptyState} data-tour="dashboard.focus-areas">
           <p>No mock tests completed yet.</p>
           <p className={styles.emptyStateHint}>
             Take your first test to start seeing your accuracy, weak topics, and progress here.
@@ -355,7 +367,7 @@ const PerformanceCard = ({ overview, pendingCount }) => {
   const totalQ = overview.total_questions || 0;
 
   return (
-    <section className={styles.perfCard}>
+    <section className={styles.perfCard} data-tour={dataTour}>
       <header className={styles.cardHeader}>
         <div>
           <h2 className={styles.cardTitle}>Performance Overview</h2>
@@ -402,6 +414,7 @@ const PerformanceCard = ({ overview, pendingCount }) => {
           accent="warn"
           empty="Not enough data yet."
           topics={(overview.weakest_topics || []).slice(0, 3)}
+          dataTour="dashboard.focus-areas"
         />
         <TopicList
           title="Your strengths"
@@ -414,8 +427,11 @@ const PerformanceCard = ({ overview, pendingCount }) => {
   );
 };
 
-const TopicList = ({ title, accent, topics, empty }) => (
-  <div className={`${styles.topicList} ${styles[`topicList_${accent}`] || ''}`}>
+const TopicList = ({ title, accent, topics, empty, dataTour }) => (
+  <div
+    className={`${styles.topicList} ${styles[`topicList_${accent}`] || ''}`}
+    data-tour={dataTour}
+  >
     <p className={styles.topicListTitle}>{title}</p>
     {topics.length === 0 ? (
       <p className={styles.emptyHint}>{empty}</p>
@@ -469,8 +485,8 @@ const AccuracyDonut = ({ value }) => {
   );
 };
 
-const SidePanel = ({ heatmap, pending, battles, onResume, onNewTest, onBattle }) => (
-  <aside className={styles.sidePanel}>
+const SidePanel = ({ heatmap, pending, battles, onResume, onNewTest, onBattle, dataTour }) => (
+  <aside className={styles.sidePanel} data-tour={dataTour}>
     <Heatmap
       days={heatmap?.days || []}
       maxCount={heatmap?.max_count || 0}

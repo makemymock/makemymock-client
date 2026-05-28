@@ -4,6 +4,9 @@ import Loader from '../../components/common/Loader/Loader';
 import ErrorMessage from '../../components/common/ErrorMessage/ErrorMessage';
 import { battleService } from '../../services/battleService';
 import { parseApiError } from '../../utils/validators';
+import Tour from '../../components/common/Tour/Tour';
+import { useTour } from '../../hooks/useTour';
+import { battleTourSteps } from '../../components/tours/battleSteps';
 import styles from './battleLaunch.module.css';
 
 const PERKS = [
@@ -24,12 +27,13 @@ const formatDate = (d) => {
 const BattleLaunch = () => {
   const navigate = useNavigate();
   const [tab, setTab] = useState('arena'); // 'arena' | 'history'
+  const tour = useTour('battle', battleTourSteps);
 
   return (
     <div className={styles.page}>
       {/* Tab strip — sidebar navigation handles cross-feature moves;
           this strip switches between launching and reviewing battles. */}
-      <div role="tablist" aria-label="Battle view" className={styles.tabStrip}>
+      <div role="tablist" aria-label="Battle view" className={styles.tabStrip} data-tour="battle.tabs">
         <button
           type="button"
           role="tab"
@@ -70,6 +74,7 @@ const BattleLaunch = () => {
                 type="button"
                 className={styles.playButton}
                 onClick={() => navigate('/battle/play')}
+                data-tour="battle.play"
               >
                 <span className={styles.playLabel}>PLAY</span>
                 <span className={styles.playSub}>find me an opponent</span>
@@ -84,7 +89,7 @@ const BattleLaunch = () => {
               </button>
             </section>
 
-            <section className={styles.perks}>
+            <section className={styles.perks} data-tour="battle.perks">
               {PERKS.map((perk) => (
                 <article key={perk.title} className={styles.perk}>
                   <h3>{perk.title}</h3>
@@ -97,6 +102,8 @@ const BattleLaunch = () => {
           <BattleHistoryPanel onPlay={() => navigate('/battle/play')} />
         )}
       </main>
+
+      <Tour {...tour} open={tour.open && tab === 'arena'} />
     </div>
   );
 };
