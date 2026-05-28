@@ -215,8 +215,9 @@ const Dashboard = () => {
             />
           </section>
 
-          {/* Main two-column body: the big performance card on the left, a
-              dense side column (heatmap + pending + battles) on the right. */}
+          {/* Stacked layout: Performance fills the row, then an activity
+              row beneath splits into Heatmap + Pending tests + Recent
+              battles, each taking a column on desktop. */}
           <section className={styles.grid}>
             <PerformanceCard
               overview={overview}

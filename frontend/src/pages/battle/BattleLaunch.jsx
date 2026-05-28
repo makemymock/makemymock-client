@@ -135,7 +135,7 @@ const BattleHistoryPanel = ({ onPlay }) => {
   const drawCount = items.filter((i) => i.result === 'draw').length;
 
   return (
-    <>
+    <div className={styles.historyWrap}>
       <section className={styles.summary}>
         <div className={styles.summaryStat}>
           <p className={styles.statLabel}>Wins</p>
@@ -189,7 +189,7 @@ const BattleHistoryPanel = ({ onPlay }) => {
           ))}
         </ul>
       )}
-    </>
+    </div>
   );
 };
 

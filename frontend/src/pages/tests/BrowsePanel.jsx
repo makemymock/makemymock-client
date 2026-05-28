@@ -26,13 +26,13 @@ const TYPES = [
 ];
 
 const STATUSES = [
-  { value: '', label: 'All' },
+  { value: '', label: 'All attempts' },
   { value: 'true', label: 'Attempted' },
   { value: 'false', label: 'Not attempted' },
 ];
 
 const MARKED_STATUSES = [
-  { value: '', label: 'All' },
+  { value: '', label: 'All marks' },
   { value: 'true', label: 'Marked' },
   { value: 'false', label: 'Not marked' },
 ];
@@ -87,12 +87,13 @@ const BrowsePanel = ({ notebookMode = false }) => {
   // Search box is debounced into the URL.
   const [searchInput, setSearchInput] = useState(searchParams.get('q') || '');
 
-  // Patch the URL, always keeping tab=browse, resetting to page 1 unless the
-  // change IS the page.
+  // Patch the URL, preserving the active tab (browse / notebook) so a
+  // filter change inside Notebook doesn't bounce the user back to Browse.
+  // Resets the page param unless the change IS the page.
   const patch = (changes, { resetPage = true } = {}) => {
     setSearchParams((prev) => {
       const p = new URLSearchParams(prev);
-      p.set('tab', 'browse');
+      p.set('tab', notebookMode ? 'notebook' : 'browse');
       for (const [k, v] of Object.entries(changes)) {
         if (v === '' || v === null || v === undefined) p.delete(k);
         else p.set(k, v);
@@ -186,6 +187,10 @@ const BrowsePanel = ({ notebookMode = false }) => {
           />
         </div>
 
+        {/* Unified filter grid — all six (or seven, when not in notebook
+            mode) dropdowns share one auto-fit grid so they wrap cleanly
+            on every viewport. Replaces the old "3 selects + 4 chip
+            groups" mixed layout that didn't scale well on mobile. */}
         <div className={styles.selectRow}>
           <select
             className={styles.select}
@@ -218,30 +223,51 @@ const BrowsePanel = ({ notebookMode = false }) => {
             <option value="">All topics</option>
             {topics.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
           </select>
-        </div>
 
-        <div className={styles.chipGroups}>
-          <ChipGroup
-            options={DIFFICULTIES}
+          <select
+            className={styles.select}
             value={difficulty}
-            onChange={(v) => patch({ difficulty: v })}
-          />
-          <ChipGroup
-            options={TYPES}
+            onChange={(e) => patch({ difficulty: e.target.value })}
+            aria-label="Difficulty"
+          >
+            {DIFFICULTIES.map((o) => (
+              <option key={o.value || 'all'} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+
+          <select
+            className={styles.select}
             value={qtype}
-            onChange={(v) => patch({ qtype: v })}
-          />
-          <ChipGroup
-            options={STATUSES}
+            onChange={(e) => patch({ qtype: e.target.value })}
+            aria-label="Question type"
+          >
+            {TYPES.map((o) => (
+              <option key={o.value || 'all'} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+
+          <select
+            className={styles.select}
             value={attempted}
-            onChange={(v) => patch({ attempted: v })}
-          />
+            onChange={(e) => patch({ attempted: e.target.value })}
+            aria-label="Attempted"
+          >
+            {STATUSES.map((o) => (
+              <option key={o.value || 'all'} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+
           {!notebookMode ? (
-            <ChipGroup
-              options={MARKED_STATUSES}
+            <select
+              className={styles.select}
               value={markedParam}
-              onChange={(v) => patch({ marked: v })}
-            />
+              onChange={(e) => patch({ marked: e.target.value })}
+              aria-label="Marked"
+            >
+              {MARKED_STATUSES.map((o) => (
+                <option key={o.value || 'all'} value={o.value}>{o.label}</option>
+              ))}
+            </select>
           ) : null}
         </div>
       </div>
@@ -345,21 +371,5 @@ const BrowsePanel = ({ notebookMode = false }) => {
     </div>
   );
 };
-
-const ChipGroup = ({ options, value, onChange }) => (
-  <div className={styles.chips} role="group">
-    {options.map((o) => (
-      <button
-        key={o.value || 'all'}
-        type="button"
-        className={`${styles.chip} ${value === o.value ? styles.chipOn : ''}`}
-        aria-pressed={value === o.value}
-        onClick={() => onChange(o.value)}
-      >
-        {o.label}
-      </button>
-    ))}
-  </div>
-);
 
 export default BrowsePanel;

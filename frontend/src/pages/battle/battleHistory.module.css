@@ -84,7 +84,9 @@
 }
 
 .main {
-  max-width: 760px;
+  /* Widened from 760px so the two-column battle list (kicks in at 960px)
+     has room to breathe without sprawling across a 1920px laptop. */
+  max-width: 1100px;
   margin: 0 auto;
   padding: clamp(20px, 4vw, 48px);
   display: flex;
@@ -150,9 +152,19 @@
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr;
   gap: 8px;
+}
+
+/* On laptop+, show two battles per row so each card doesn't stretch
+   across half the screen with a huge empty middle. Single column on
+   phones / narrow tablets keeps things scannable. */
+@media (min-width: 720px) {
+  .list {
+    grid-template-columns: 1fr 1fr;
+    column-gap: 12px;
+  }
 }
 
 .row {

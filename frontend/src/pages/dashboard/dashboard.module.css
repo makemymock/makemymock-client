@@ -719,14 +719,23 @@
 
 .statCardIcon { width: 20px; height: 20px; }
 
+/* Right-side meta — promoted from tiny corner text to a proper stretched
+   panel with a subtle divider. Fills the previously empty right half of
+   each stat card on wide screens. */
 .statCardRightTop {
   flex: 0 0 auto;
-  align-self: flex-start;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--dash-text-muted);
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-left: 14px;
+  border-left: 1px solid var(--dash-card-border);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--dash-text-strong);
   text-align: right;
   white-space: nowrap;
+  min-width: 90px;
 }
 
 .statCardValue {
@@ -752,16 +761,14 @@
   color: var(--dash-text-muted);
 }
 
-/* ----- Grid (Performance + Side panel) ----- */
+/* ----- Grid wrapper kept for the gap rhythm; rows are now stacked.
+   Performance card takes the full row; the activity row beneath it
+   splits into heatmap + pending + battles across the same full width. */
 
 .grid {
   display: grid;
   grid-template-columns: 1fr;
   gap: clamp(12px, 2vw, 18px);
-}
-
-@media (min-width: 1080px) {
-  .grid { grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); }
 }
 
 /* Top row — Welcome + Confidence trophy. Both are light on content, so on
@@ -1051,11 +1058,21 @@
  * Side panel — Pending tests + Recent battles
  * ============================================================ */
 
+/* Activity row — Heatmap + Pending tests + Recent battles share a full
+   row. Stacks on phones, splits into three columns on desktop. Heatmap
+   gets a little more room because its calendar is wider. */
 .sidePanel {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr;
   gap: clamp(12px, 2vw, 18px);
   min-width: 0;
+}
+
+@media (min-width: 900px) {
+  .sidePanel {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+  }
 }
 
 .sidePanelCard {

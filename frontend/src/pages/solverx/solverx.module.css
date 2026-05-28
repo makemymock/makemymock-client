@@ -710,8 +710,11 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  background: var(--color-chip-bg);
-  border: 1px solid var(--color-panel-border);
+  /* Solid panel-bg gives the pill enough contrast against the composer
+     background — the previous chip-bg was nearly the same colour and
+     made the pill blend in. */
+  background: var(--color-panel-bg);
+  border: 1.5px solid var(--color-border-strong);
   color: var(--color-text-primary);
   padding: 7px 12px 7px 11px;
   border-radius: 999px;
@@ -719,19 +722,20 @@
   font: inherit;
   font-size: 14px;
   font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .pickerBtn:hover:not(:disabled),
 .pickerBtnOn {
-  background: rgba(20, 184, 166, 0.12);
-  border-color: rgba(20, 184, 166, 0.4);
+  background: rgba(20, 184, 166, 0.22);
+  border-color: rgba(20, 184, 166, 0.75);
 }
 
 :root[data-theme='light'] .pickerBtn:hover:not(:disabled),
 :root[data-theme='light'] .pickerBtnOn {
-  background: rgba(13, 150, 120, 0.10);
-  border-color: rgba(13, 150, 120, 0.45);
+  background: rgba(13, 150, 120, 0.18);
+  border-color: rgba(13, 150, 120, 0.65);
 }
 
 .pickerBtn:disabled {

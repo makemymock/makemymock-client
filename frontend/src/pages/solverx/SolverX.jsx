@@ -8,8 +8,8 @@ import styles from './solverx.module.css';
 // the composer pill picker (ChatGPT-style), `label`/`sub` populate the
 // expanded menu rows.
 const MODES = [
-  { key: 'solve',  pill: 'Solve',  label: 'Solve a question',   sub: 'Step-by-step reasoning'   },
-  { key: 'theory', pill: 'Theory', label: 'Understand a theory', sub: 'Tutor-style explanation' },
+  { key: 'solve',  pill: 'Solve',  label: 'Solve a question',   sub: 'Step-by-step answer' },
+  { key: 'theory', pill: 'Theory', label: 'Understand a theory', sub: 'Concept explained'  },
 ];
 
 // Complexity options are mode-dependent. Solve uses Guided/Deep
@@ -18,12 +18,12 @@ const MODES = [
 // (`guided`, `easy`, `deep`) and routes by (mode, complexity).
 const COMPLEXITY_BY_MODE = {
   solve: [
-    { key: 'guided', pill: 'Guided', label: 'Guided Solve',   sub: 'Fast single-pass solver' },
-    { key: 'deep',   pill: 'Deep',   label: 'Deep Reasoning', sub: 'Multi-agent, thorough'   },
+    { key: 'guided', pill: 'Guided', label: 'Guided Solve',   sub: 'Quick answer'          },
+    { key: 'deep',   pill: 'Deep',   label: 'Deep Reasoning', sub: 'Detailed walkthrough'  },
   ],
   theory: [
-    { key: 'easy',   pill: 'Easy',   label: 'Easy explanation', sub: 'Concise, just the idea'  },
-    { key: 'deep',   pill: 'Deep',   label: 'Deep explanation', sub: 'Intuition + derivation + example' },
+    { key: 'easy',   pill: 'Easy',   label: 'Easy explanation', sub: 'Brief overview' },
+    { key: 'deep',   pill: 'Deep',   label: 'Deep explanation', sub: 'Full breakdown' },
   ],
 };
 
@@ -829,14 +829,14 @@ const PickerPill = ({ ariaLabel, options, value, onChange, disabled, icon, dataT
 
 const EmptyState = ({ mode }) => (
   <div className={styles.empty}>
-    <span className={styles.emptyBadge}>SolverX · multi-agent</span>
+    <span className={styles.emptyBadge}>SolverX</span>
     <h2 className={styles.emptyTitle}>
       {mode === 'theory' ? 'Ask a concept.' : 'Drop your toughest question.'}
     </h2>
     <p className={styles.emptySub}>
       {mode === 'theory'
-        ? 'A tutor that breaks ideas down with intuition, examples, and the formal definition.'
-        : 'Step-by-step reasoning that flags traps and lands a clean final answer.'}
+        ? 'Breaks ideas down with intuition and examples.'
+        : 'Step-by-step reasoning to a clear answer.'}
     </p>
     <div className={styles.emptyChips}>
       <span className={styles.emptyChip}>

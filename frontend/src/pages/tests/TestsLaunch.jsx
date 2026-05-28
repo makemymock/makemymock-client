@@ -201,10 +201,10 @@ const TestsLaunch = () => {
           visible scrollbar isn't needed to hint at the overflow. */}
       <TabStrip
         tabs={[
-          { key: 'launch', label: 'Launch a test' },
+          { key: 'launch', label: 'Mock' },
           { key: 'browse', label: 'Browse' },
           { key: 'notebook', label: 'Notebook' },
-          { key: 'history', label: 'Past tests' },
+          { key: 'history', label: 'History' },
         ]}
         active={tab}
         onChange={setTab}
@@ -406,7 +406,7 @@ const TestHistoryPanel = () => {
     return (
       <section className={styles.historyEmpty}>
         <h3>No tests yet</h3>
-        <p>Launch your first test from the <strong>Launch a test</strong> tab — it'll show up here.</p>
+        <p>Launch your first test from the <strong>Mock</strong> tab — it'll show up here.</p>
       </section>
     );
   }
