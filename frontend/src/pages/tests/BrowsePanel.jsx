@@ -48,16 +48,17 @@ function prettyType(t) {
   }
 }
 
-// Status glyph + label for a row, with attempted taking precedence over viewed.
+// Status glyph + label for a row. The label is the "previous attempt"
+// snapshot — the page itself always re-opens as a fresh attempt so the
+// student can try again. Recommender mechanics aren't surfaced.
 function rowStatus(item) {
   if (item.attempted && item.performance) {
     const s = item.performance.status;
-    if (s === 'correct') return { cls: 'stCorrect', glyph: '✓', label: 'Solved' };
-    if (s === 'partial') return { cls: 'stPartial', glyph: '◐', label: 'Partial' };
-    return { cls: 'stWrong', glyph: '✗', label: 'Wrong' };
+    if (s === 'correct') return { cls: 'stCorrect', glyph: '✓', label: 'Attempted ✓' };
+    if (s === 'partial') return { cls: 'stPartial', glyph: '◐', label: 'Attempted ◐' };
+    return { cls: 'stWrong', glyph: '✗', label: 'Attempted ✗' };
   }
-  if (item.viewed) return { cls: 'stViewed', glyph: '👁', label: 'Viewed' };
-  return { cls: 'stTodo', glyph: '○', label: 'Todo' };
+  return { cls: 'stTodo', glyph: '○', label: 'Not attempted' };
 }
 
 const BrowsePanel = ({ notebookMode = false }) => {

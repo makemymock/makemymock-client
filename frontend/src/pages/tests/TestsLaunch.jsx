@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import Button from '../../components/common/Button/Button';
 import Loader from '../../components/common/Loader/Loader';
@@ -199,46 +199,20 @@ const TestsLaunch = () => {
               : 'Pick the topics you want to drill. The recommender picks how many questions per topic, the right difficulty mix, and the rotation between fresh and recyclable items.'
       }
     >
-      {/* Tab strip — launch vs. history. History is embedded here per
-          product brief; the /history route still works for deep links. */}
-      <div role="tablist" aria-label="Tests view" className={styles.tabStrip}>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === 'launch'}
-          className={`${styles.tabBtn} ${tab === 'launch' ? styles.tabBtnOn : ''}`}
-          onClick={() => setTab('launch')}
-        >
-          Launch a test
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === 'browse'}
-          className={`${styles.tabBtn} ${tab === 'browse' ? styles.tabBtnOn : ''}`}
-          onClick={() => setTab('browse')}
-        >
-          Browse
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === 'notebook'}
-          className={`${styles.tabBtn} ${tab === 'notebook' ? styles.tabBtnOn : ''}`}
-          onClick={() => setTab('notebook')}
-        >
-          Notebook
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === 'history'}
-          className={`${styles.tabBtn} ${tab === 'history' ? styles.tabBtnOn : ''}`}
-          onClick={() => setTab('history')}
-        >
-          Past tests
-        </button>
-      </div>
+      {/* Tab strip — launch / browse / notebook / past tests. On small
+          screens the strip becomes a horizontal scroller that fills the
+          viewport; edge shadows appear when there's more to scroll, so a
+          visible scrollbar isn't needed to hint at the overflow. */}
+      <TabStrip
+        tabs={[
+          { key: 'launch', label: 'Launch a test' },
+          { key: 'browse', label: 'Browse' },
+          { key: 'notebook', label: 'Notebook' },
+          { key: 'history', label: 'Past tests' },
+        ]}
+        active={tab}
+        onChange={setTab}
+      />
 
       {tab === 'history' ? <TestHistoryPanel /> : null}
       {tab === 'browse' ? <BrowsePanel /> : null}
@@ -446,57 +420,107 @@ const TestHistoryPanel = () => {
     <ul className={styles.historyList}>
       {items.map((it) => {
         const completed = it.status === 'completed';
+        const href = completed ? `/tests/${it.session_id}/result` : `/tests/${it.session_id}`;
         return (
-          <li key={it.session_id} className={styles.historyItem}>
-            <div className={styles.historyMain}>
-              <div className={styles.historyHead}>
-                <span className={styles.historyId}>#{it.session_id}</span>
-                <span
-                  className={`${styles.historyStatus} ${
-                    completed ? styles.historyStatusOk : styles.historyStatusPending
-                  }`}
-                >
-                  {it.status}
-                </span>
-              </div>
-              <div className={styles.historyMeta}>
-                {it.total_questions} questions · started {formatDate(it.created_at)}
-                {completed && it.completed_at ? ` · finished ${formatDate(it.completed_at)}` : ''}
-              </div>
-            </div>
-
-            {completed ? (
-              <div className={styles.historyScoreCol}>
-                <div className={styles.historyScore}>
-                  {it.score != null ? Number(it.score).toFixed(2) : '—'}
+          <li key={it.session_id}>
+            <Link to={href} className={styles.historyItem}>
+              <div className={styles.historyMain}>
+                <div className={styles.historyHead}>
+                  <span className={styles.historyId}>#{it.session_id}</span>
+                  <span
+                    className={`${styles.historyStatus} ${
+                      completed ? styles.historyStatusOk : styles.historyStatusPending
+                    }`}
+                  >
+                    {it.status}
+                  </span>
                 </div>
-                <div className={styles.historyScoreSub}>
-                  {it.correct ?? 0}✓ · {it.partial ?? 0}~ · {it.incorrect ?? 0}✗
+                <div className={styles.historyMeta}>
+                  {it.total_questions} questions · started {formatDate(it.created_at)}
+                  {completed && it.completed_at ? ` · finished ${formatDate(it.completed_at)}` : ''}
                 </div>
               </div>
-            ) : null}
 
-            <div className={styles.historyActions}>
               {completed ? (
-                <Link
-                  to={`/tests/${it.session_id}/result`}
-                  className={styles.historyAction}
-                >
-                  View result
-                </Link>
-              ) : (
-                <Link
-                  to={`/tests/${it.session_id}`}
-                  className={`${styles.historyAction} ${styles.historyActionPrimary}`}
-                >
-                  Resume
-                </Link>
-              )}
-            </div>
+                <div className={styles.historyScoreCol}>
+                  <div className={styles.historyScore}>
+                    {it.score != null ? Number(it.score).toFixed(2) : '—'}
+                  </div>
+                  <div className={styles.historyScoreSub}>
+                    {it.correct ?? 0}✓ · {it.partial ?? 0}~ · {it.incorrect ?? 0}✗
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Visual cue only — the whole row is the click target. */}
+              <span className={styles.historyActions} aria-hidden="true">
+                <span className={`${styles.historyAction} ${!completed ? styles.historyActionPrimary : ''}`}>
+                  {completed ? 'View result' : 'Resume'}
+                </span>
+              </span>
+            </Link>
           </li>
         );
       })}
     </ul>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Tab strip with horizontal-scroll-on-overflow + edge shadow indicators.
+//
+// On narrow screens the pill can grow wider than the viewport — instead of
+// wrapping (which doubles its height) or showing a scrollbar (which looks
+// off on a pill), we let it scroll horizontally and surface "more content
+// here" via subtle dark gradients on the appropriate edge. The JS keeps the
+// shadow opacity in sync with the actual scroll position.
+// ---------------------------------------------------------------------------
+
+const TabStrip = ({ tabs, active, onChange }) => {
+  const scrollRef = useRef(null);
+  const [shadows, setShadows] = useState({ left: false, right: false });
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return undefined;
+    const update = () => {
+      setShadows({
+        left: el.scrollLeft > 1,
+        right: el.scrollLeft + el.clientWidth < el.scrollWidth - 1,
+      });
+    };
+    update();
+    el.addEventListener('scroll', update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener('scroll', update);
+      ro.disconnect();
+    };
+  }, []);
+
+  return (
+    <div
+      className={`${styles.tabStripOuter} ${shadows.left ? styles.shadowLeft : ''} ${shadows.right ? styles.shadowRight : ''}`}
+      data-tour="practice.tabs"
+    >
+      <div ref={scrollRef} className={styles.tabStripWrap}>
+        <div role="tablist" aria-label="Tests view" className={styles.tabStrip}>
+          {tabs.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              role="tab"
+              aria-selected={active === t.key}
+              className={`${styles.tabBtn} ${active === t.key ? styles.tabBtnOn : ''}`}
+              onClick={() => onChange(t.key)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 };
 

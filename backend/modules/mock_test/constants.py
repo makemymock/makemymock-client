@@ -38,3 +38,11 @@ COUNTER_SUBJECT = "subject_int_id"
 
 # ---------- Timer policy ----------
 SECONDS_PER_QUESTION = 90  # 1.5 minutes per question
+
+# ---------- Recommender feed cooldown ----------
+# When a user touches a question (attempts it anywhere, or reveals its
+# solution in Browse), the next attempt within this window grades the
+# answer for the student but does NOT update recommender priorities.
+# Keeps fresh signal honest: students who just saw the answer can't
+# inflate their priority/decay metrics by re-attempting.
+RECOMMENDER_COOLDOWN_HOURS = 24

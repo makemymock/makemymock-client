@@ -8,6 +8,7 @@
 }
 
 .item {
+  /* Applied to a <Link> — whole row is the click target. */
   display: grid;
   gap: 12px;
   grid-template-columns: 1fr;
@@ -18,6 +19,20 @@
   padding: 16px clamp(14px, 3vw, 22px);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.item:hover {
+  border-color: var(--color-border-strong);
+  background: var(--color-panel-bg-soft);
+}
+
+.item:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
 @media (min-width: 720px) {

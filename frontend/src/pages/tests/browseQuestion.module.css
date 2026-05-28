@@ -180,23 +180,36 @@
 .muted { color: var(--color-text-muted); }
 
 /* ---------- drawer ----------
-   Floating overlay: pulled out of the flex flow so opening it sits ON TOP of
-   the question content instead of squeezing it. */
+   Side panel sliding in from the right. Closed state holds it just off the
+   right edge with pointer-events:none so it can't accidentally swallow
+   clicks; opening adds .drawerOpen which transitions it into view. */
 .drawer {
   position: fixed;
-  top: 84px;
-  right: 24px;
-  width: 320px;
-  max-width: calc(100vw - 32px);
-  max-height: calc(100vh - 108px);
-  z-index: 40;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 360px;
+  max-width: 92vw;
+  z-index: 50;
   display: flex;
   flex-direction: column;
   background: var(--surface-opaque);
-  border: 1px solid var(--color-panel-border);
-  border-radius: 14px;
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+  border-left: 1px solid var(--color-panel-border);
+  box-shadow: -12px 0 36px rgba(0, 0, 0, 0.45);
   overflow: hidden;
+
+  opacity: 0;
+  transform: translateX(100%);
+  pointer-events: none;
+  transition:
+    transform 0.22s cubic-bezier(0.22, 0.61, 0.36, 1),
+    opacity 0.18s ease;
+}
+
+.drawerOpen {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
 }
 .drawerHead {
   display: flex;
@@ -261,13 +274,10 @@
 }
 
 @media (max-width: 560px) {
-  /* On narrow screens the overlay spans the width, still floating on top. */
+  /* On narrow screens the side panel covers the full screen — it still
+     slides in from the right, just at full width. */
   .drawer {
-    top: 64px;
-    right: 12px;
-    left: 12px;
-    width: auto;
+    width: 100%;
     max-width: none;
-    max-height: calc(100vh - 88px);
   }
 }

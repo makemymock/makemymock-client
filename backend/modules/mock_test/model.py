@@ -129,14 +129,33 @@ def new_attempt_doc(
     attempted_at: datetime,
     session_id: int,
 ) -> dict[str, Any]:
+    """Full "feeding" attempt row.
+
+    The `e_*` fields mirror the user-visible fields at feed-time so the
+    recommender only ever reads honest signal: subsequent non-feeding
+    cooldown attempts overwrite the user-visible fields (so badges show
+    the latest result) but leave the `e_*` fields untouched.
+    """
     return {
         "user_id": user_id,
         "question_id": question_id,
         "topic_id": topic_id,
+        # User-visible "latest attempt" fields — overwritten by every attempt.
         "is_correct": bool(is_correct),
         "correctness": correctness,
         "difficulty": difficulty,
         "score_contribution": int(score_contribution),
         "attempted_at": attempted_at,
         "session_id": session_id,
+        # Engine-only mirror — updated only on feeding attempts. Engine
+        # priority computation reads these so cooldown attempts can't
+        # contaminate recommender signal.
+        "e_is_correct": bool(is_correct),
+        "e_correctness": correctness,
+        "e_difficulty": difficulty,
+        "e_score_contribution": int(score_contribution),
+        "e_attempted_at": attempted_at,
+        "e_session_id": session_id,
+        # Cooldown clock — bumped on any event (attempt or solution view).
+        "last_event_at": attempted_at,
     }
