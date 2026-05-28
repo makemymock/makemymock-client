@@ -14,21 +14,44 @@ frontend/
 ├── src/
 │   ├── assets/                  # Static images / icons imported by components
 │   ├── components/              # Reusable UI — never page-specific
-│   │   ├── common/              # Generic primitives (Button, InputField, Loader, ErrorMessage)
-│   │   └── auth/                # Auth-flow specific (AuthLayout, OTPModal, PasswordInput)
+│   │   ├── common/              # Primitives + charts (Button, InputField, SelectField,
+│   │   │                        #   Loader, ErrorMessage, StatCard, BarChart, LineChart,
+│   │   │                        #   DonutChart, Heatmap, ConfidenceTrophy, DashboardFab,
+│   │   │                        #   MarkdownText, ThemeToggle, ThemeToggleFab)
+│   │   ├── auth/                # AuthLayout, OTPModal, PasswordInput
+│   │   ├── layout/              # AppLayout (sidebar + outlet; FULLSCREEN_RE bypasses
+│   │   │                        #   the chrome for active tests, battles, SolverX)
+│   │   ├── landing/              # Marketing hero / FAQ / footer sections
+│   │   ├── dashboard/           # PotdModal
+│   │   ├── mockTest/            # ExamShell, QuestionViewer, QuestionPalette,
+│   │   │                        #   MatchingEditor, SubmitDialog, Timer
+│   │   └── solverx/             # MessageBlock
 │   ├── pages/                   # One folder per route, owns its own .module.css
-│   │   ├── login/
-│   │   ├── signup/
-│   │   └── dashboard/
+│   │   ├── landing/             # / (public)
+│   │   ├── signup/  login/      # public auth
+│   │   ├── profile/             # /profile/setup (protected, pre-shell)
+│   │   ├── dashboard/  history/
+│   │   ├── tests/               # TestsLaunch, TakeTest, Result, BrowseQuestion
+│   │   ├── analytics/           # Analytics, ChapterAnalytics, TopicAnalytics
+│   │   ├── battle/              # BattleLaunch, BattleArena, BattleHistory
+│   │   └── solverx/             # SolverX chat surface
 │   ├── routes/                  # Router config + route guards
 │   │   ├── AppRoutes.jsx
 │   │   └── ProtectedRoute.jsx
 │   ├── services/                # All network I/O. Components NEVER call axios directly.
 │   │   ├── axiosInstance.js
-│   │   └── authService.js
+│   │   ├── authService.js
+│   │   ├── profileService.js
+│   │   ├── mockTestService.js
+│   │   ├── potdService.js
+│   │   ├── battleService.js
+│   │   └── solverxService.js
+│   ├── hooks/                   # useTheme (light/dark)
+│   ├── context/                 # Reserved — empty today
 │   ├── utils/                   # Pure, framework-free helpers
-│   │   ├── token.js
-│   │   └── validators.js
+│   │   ├── token.js             # mmm_* localStorage keys
+│   │   ├── validators.js
+│   │   └── examDraft.js         # In-progress test answers persisted to localStorage
 │   ├── App.jsx                  # BrowserRouter + AppRoutes
 │   ├── App.css                  # Focus styles + small app-level globals
 │   ├── main.jsx                 # ReactDOM root (Vite entry)
@@ -64,8 +87,15 @@ Reusable, presentational primitives. **Never know about routes, services, or bus
 |---|---|
 | `Button` | CTA. Variants: `primary` (gradient), `outline` (pill), `ghost`. Supports `loading`, `disabled`, `fullWidth`. |
 | `InputField` | Labeled text input with error slot, `useId`-based a11y wiring, and a `rightAdornment` slot. |
+| `SelectField` | Labeled dropdown with the same a11y wiring as `InputField`. |
 | `Loader` | Spinner. `fullscreen` prop for overlay mode. |
 | `ErrorMessage` | Tinted error pill. Renders nothing when `message` is empty. |
+| `StatCard` | Headline + value + sub-label for dashboard/analytics tiles. |
+| `BarChart` / `LineChart` / `DonutChart` / `Heatmap` | SVG-based analytics charts. |
+| `ConfidenceTrophy` | Gamified Confidence Score badge (trophy tier + score). |
+| `DashboardFab` / `ThemeToggleFab` | Floating action buttons surfaced on most pages. |
+| `ThemeToggle` | Light/dark switch wired to `hooks/useTheme.js`. |
+| `MarkdownText` | Renders Markdown + GFM + KaTeX (used by SolverX, solutions). |
 
 ### `components/auth/`
 Reusable components that are specific to the auth flow but still presentational where possible.
@@ -76,14 +106,42 @@ Reusable components that are specific to the auth flow but still presentational 
 | `PasswordInput` | Wraps `InputField` and adds an eye-icon show/hide toggle. |
 | `OTPModal` | 6-digit OTP entry. Owns its own state: autotab, backspace, paste, expiry countdown, resend, Enter-to-submit. Calls `authService.verifyOtp` / `resendOtp` and reports back via `onVerified`. |
 
+### `components/layout/`
+- `AppLayout` — global shell rendered as the parent of every protected route. Sidebar nav + `<Outlet>`. The `FULLSCREEN_RE` constant strips the chrome for active mock tests (`/tests/:sessionId`), live battles (`/battle/play`), and SolverX (`/solverx`) so those screens take the full viewport.
+
+### `components/dashboard/`, `components/landing/`, `components/mockTest/`, `components/solverx/`
+Feature-scoped components that are too page-specific for `common/` but get reused across multiple files in the same feature.
+
+- `dashboard/` — `PotdModal` (today's Problem of the Day).
+- `landing/` — `HeroSection`, `FAQSection`, `FAQ`-style cards, footer, etc.
+- `mockTest/` — `ExamShell`, `QuestionViewer`, `QuestionPalette`, `MatchingEditor`, `SubmitDialog`, `Timer`.
+- `solverx/` — `MessageBlock` (SSE-streamed message bubble with markdown + KaTeX).
+
+### `hooks/`
+- `useTheme.js` — light/dark mode state + localStorage persistence. Wraps `<html data-theme>` flips.
+
+### `context/`
+Reserved for future `Context` providers. Empty today — cross-page state is localStorage or refetch.
+
 ### `pages/<route>/`
-One folder per route. **Pages own their CSS module** (lowercase: `login.module.css`, `signup.module.css`, `dashboard.module.css`). Pages compose `common/` + `auth/` components, call services, manage form state, and navigate.
+One folder per route. **Pages own their CSS module** (lowercase: `login.module.css`, `dashboard.module.css`, etc.). Pages compose `common/` + feature components, call services, manage form state, and navigate.
 
 | Page | Route | Responsibilities |
 |---|---|---|
-| `Signup` | `/signup` | Username/Email/Password/Confirm form → `authService.signup` → opens `OTPModal` → on verify, navigates to `/dashboard`. |
+| `Landing` | `/` | Marketing landing surface (hero, features, FAQ, footer). |
+| `Signup` | `/signup` | Username/Email/Password/Confirm → `authService.signup` → opens `OTPModal` → on verify, navigates to `/dashboard`. |
 | `Login` | `/login` | Email/Password form → `authService.login` → navigates to `state.from` or `/dashboard`. |
-| `Dashboard` | `/dashboard` *(protected)* | Calls `authService.me()` on mount, shows user, logout button. |
+| `ProfileSetup` | `/profile/setup` *(protected, pre-shell)* | Collects target exam, year, etc. Renders **outside** `AppLayout` because the user has no profile yet. |
+| `Dashboard` | `/dashboard` *(protected)* | Greeting, Confidence Score trophy, POTD modal trigger, recent activity tiles. |
+| `TestsLaunch` | `/tests` *(protected)* | Subject → chapter → topic picker, test config, kickoff via `mockTestService.createTest`. |
+| `BrowseQuestion` | `/tests/browse/:questionId` *(protected)* | Browse-mode practice on a single catalog question. |
+| `TakeTest` | `/tests/:sessionId` *(protected, fullscreen)* | Active mock test — palette, timer, autosave drafts via `utils/examDraft.js`. |
+| `Result` | `/tests/:sessionId/result` *(protected)* | Score, breakdown, question-by-question review. |
+| `Analytics` | `/analytics` *(protected)* | Overview + topic + chapter analytics, activity heatmap. |
+| `ChapterAnalytics` / `TopicAnalytics` | `/analytics/chapter/:id` + `/analytics/topic/:id` *(protected)* | Drill-down views. |
+| `History` | `/history` *(protected)* | List of past mock tests. |
+| `BattleLaunch` / `BattleArena` / `BattleHistory` | `/battle`, `/battle/play`, `/battle/history` *(protected)* | Queue UI, fullscreen live WebSocket arena, past replays. |
+| `SolverX` | `/solverx` *(protected, fullscreen)* | Chat surface with SSE-streamed Solve / Theory modes + conversation sidebar. |
 
 ### `routes/`
 - `AppRoutes.jsx` — central `<Routes>` config. Root `/` redirects based on auth state. Public auth pages are wrapped in `<RedirectIfAuthed>` so a logged-in user can't see them. Protected pages are wrapped in `<ProtectedRoute>`.
