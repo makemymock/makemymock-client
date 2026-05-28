@@ -148,8 +148,6 @@
   margin: 0;
   max-width: 760px;
   color: var(--color-text-muted);
-  /* Patrick Hand SC reads about a size smaller than a sans-serif at the
-     same px — so secondary body copy needs ~17px to feel comfortable. */
   font-size: 17px;
   line-height: 1.55;
 }

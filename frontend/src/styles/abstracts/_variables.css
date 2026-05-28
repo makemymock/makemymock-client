@@ -5,13 +5,19 @@
   color: #f8fafc;
   background: #09090f;
 
-  /* Both font tokens resolve to the handwritten brand font so every
-     component picks it up — labels, buttons, stat cards, headings. The
-     readable sans-serif fallback is kept on the question-rendering
-     surface (MarkdownText) and on monospace contexts (code, timer). */
-  --font-primary: 'Patrick Hand', cursive;
-  --font-secondary: 'Patrick Hand', cursive,
-                    'Jost', 'Avenir Next', sans-serif;
+  /* Two-token type system:
+       --font-primary   → Plus Jakarta Sans for general UI, body, labels,
+                          buttons, headings. Friendly geometric sans
+                          that reads as a professional product.
+       --font-secondary → Space Grotesk for stats, scores, big numbers,
+                          and the brand wordmark. Has the "data display"
+                          character that complements the body text.
+     Monospace surfaces (code blocks, timer) stay on JetBrains Mono via
+     the App.css rules. */
+  --font-primary: 'Plus Jakarta Sans', system-ui, -apple-system,
+                  BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-secondary: 'Space Grotesk', 'Plus Jakarta Sans', system-ui,
+                    sans-serif;
 
   --color-bg-page: #09090f;
   --color-text-primary: #f8fafc;
