@@ -11,16 +11,6 @@ import Heatmap from '../../components/common/Heatmap/Heatmap';
 import ConfidenceTrophy from '../../components/common/ConfidenceTrophy/ConfidenceTrophy';
 import { mockTestService } from '../../services/mockTestService';
 import { parseApiError } from '../../utils/validators';
-import Tour from '../../components/common/Tour/Tour';
-import { useTour } from '../../hooks/useTour';
-import { analyticsTourSteps } from '../../components/tours/analyticsSteps';
-import {
-  DUMMY_OVERVIEW,
-  DUMMY_CHAPTERS,
-  DUMMY_TOPICS,
-  DUMMY_HEATMAP,
-  DUMMY_CONFIDENCE,
-} from '../../components/tours/analyticsDummyData';
 import styles from './analytics.module.css';
 
 const prettyType = (t) => {
@@ -41,8 +31,6 @@ const prettyType = (t) => {
 };
 
 const Analytics = () => {
-  const tour = useTour('analytics', analyticsTourSteps);
-
   const [overview, setOverview] = useState(null);
   const [chapters, setChapters] = useState(null);
   const [topics, setTopics] = useState(null);
@@ -79,15 +67,11 @@ const Analytics = () => {
     };
   }, []);
 
-  // While the Analytics tour is running, swap in dummy data so brand-new
-  // users (with no test history yet) see the page in action. The page
-  // reverts to its real state the moment the tour closes.
-  const showcase = tour.open;
-  const overviewV   = showcase ? DUMMY_OVERVIEW   : overview;
-  const chaptersV   = showcase ? DUMMY_CHAPTERS   : chapters;
-  const topicsV     = showcase ? DUMMY_TOPICS     : topics;
-  const heatmapV    = showcase ? DUMMY_HEATMAP    : heatmap;
-  const confidenceV = showcase ? DUMMY_CONFIDENCE : confidence;
+  const overviewV   = overview;
+  const chaptersV   = chapters;
+  const topicsV     = topics;
+  const heatmapV    = heatmap;
+  const confidenceV = confidence;
 
   const accuracyTrendSeries = useMemo(() => {
     if (!overviewV) return [];
@@ -126,7 +110,7 @@ const Analytics = () => {
     ).length;
   }, [topicsV]);
 
-  if (loading && !showcase) {
+  if (loading) {
     return (
       <ExamShell chromeless title="Loading analytics…">
         <Loader />
@@ -134,7 +118,7 @@ const Analytics = () => {
     );
   }
 
-  if (error && !showcase) {
+  if (error) {
     return (
       <ExamShell chromeless title="Analytics">
         <ErrorMessage message={error} />
@@ -142,7 +126,7 @@ const Analytics = () => {
     );
   }
 
-  const empty = !showcase && (overviewV?.total_tests || 0) === 0;
+  const empty = (overviewV?.total_tests || 0) === 0;
 
   return (
     <ExamShell chromeless
@@ -411,7 +395,6 @@ const Analytics = () => {
           </div>
         </>
       )}
-      <Tour {...tour} />
     </ExamShell>
   );
 };

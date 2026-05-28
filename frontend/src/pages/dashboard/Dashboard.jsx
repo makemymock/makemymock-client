@@ -12,9 +12,6 @@ import ErrorMessage from '../../components/common/ErrorMessage/ErrorMessage';
 import Heatmap from '../../components/common/Heatmap/Heatmap';
 import ConfidenceTrophy from '../../components/common/ConfidenceTrophy/ConfidenceTrophy';
 import PotdModal from '../../components/dashboard/PotdModal/PotdModal';
-import Tour from '../../components/common/Tour/Tour';
-import { useTour } from '../../hooks/useTour';
-import { dashboardTourSteps } from '../../components/tours/dashboardSteps';
 import styles from './dashboard.module.css';
 
 const TARGET_EXAM_LABEL = {
@@ -82,7 +79,6 @@ const formatRelative = (iso) => {
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const tour = useTour('dashboard', dashboardTourSteps);
 
   const [user, setUser] = useState(() => tokenStorage.getUser());
   const [profile, setProfile] = useState(null);
@@ -244,8 +240,6 @@ const Dashboard = () => {
         open={potdOpen}
         onClose={() => setPotdOpen(false)}
       />
-
-      <Tour {...tour} open={tour.open && !loading && !error} />
     </>
   );
 };
