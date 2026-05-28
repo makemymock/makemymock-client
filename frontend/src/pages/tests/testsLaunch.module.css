@@ -296,9 +296,11 @@
   border-radius: 999px;
 }
 
+/* Inline action row at the end of the topic-selection block. Previously
+   sticky-pinned to the bottom of the viewport — felt floaty / always
+   in the way. Now scrolls naturally with the page and sits after the
+   last chapter card, where users finish their selection. */
 .actions {
-  position: sticky;
-  bottom: 12px;
   margin-top: 24px;
   display: flex;
   flex-wrap: wrap;
@@ -308,8 +310,6 @@
   background: var(--surface-opaque);
   border: 1px solid var(--color-panel-border);
   border-radius: 18px;
-  z-index: 5;
-  box-shadow: 0 -4px 18px rgba(0, 0, 0, 0.22);
 }
 
 .linkBtn {
