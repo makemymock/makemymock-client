@@ -407,11 +407,17 @@ const QuestionView = ({
   // Crown the leader so it's immediately obvious who's ahead.
   const youLead = yourScore > opponentScore;
   const oppLead = opponentScore > yourScore;
-  // Tier the timer drama: warning at <8s, critical at <4s.
+  // Tier the timer drama against the question's total budget: warning at
+  // the final quarter, critical at the last five seconds. Scaling by the
+  // question's own `time_limit_seconds` keeps tuning sane if the round
+  // duration changes — the thresholds always sit at the end of the timer.
+  const totalSec = question?.time_limit_seconds ?? 0;
+  const warnAt = Math.max(8, totalSec * 0.25);
+  const criticalAt = 5;
   const timerTier =
     timeLeft === null ? ''
-      : timeLeft < 4 ? styles.timerCritical
-        : timeLeft < 8 ? styles.timerWarn
+      : timeLeft < criticalAt ? styles.timerCritical
+        : timeLeft < warnAt ? styles.timerWarn
           : '';
   // Render question-position pips so progress through the round is glanceable.
   const pips = Array.from({ length: total }, (_, i) => i);
@@ -458,7 +464,7 @@ const QuestionView = ({
       <div className={`${styles.timerTrack} ${timerTier}`}>
         <div
           className={`${styles.timerFill} ${
-            timeLeft !== null && timeLeft < 4 ? styles.timerLow : ''
+            timeLeft !== null && timeLeft < criticalAt ? styles.timerLow : ''
           }`}
           style={{ width: `${pctRemaining}%` }}
         />
