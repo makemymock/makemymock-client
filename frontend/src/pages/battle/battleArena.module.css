@@ -19,6 +19,131 @@
 }
 
 /* ============================================================
+ * Light-mode overrides — .page and its inner cards
+ * ============================================================ */
+
+:global([data-theme='light']) .page {
+  background:
+    radial-gradient(900px 500px at 80% -10%, rgba(13, 150, 120, 0.10), transparent 60%),
+    radial-gradient(700px 400px at -10% 110%, rgba(245, 196, 81, 0.12), transparent 60%),
+    #f6f7fb;
+  color: #101828;
+}
+
+:global([data-theme='light']) .centeredCard {
+  background: rgba(255, 255, 255, 0.82);
+  border-color: rgba(71, 85, 105, 0.18);
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.14);
+}
+
+:global([data-theme='light']) .cardSubtitle {
+  color: rgba(16, 24, 40, 0.65);
+}
+
+:global([data-theme='light']) .ghostButton,
+:global([data-theme='light']) .ghostAction {
+  color: rgba(16, 24, 40, 0.6);
+}
+
+:global([data-theme='light']) .ghostButton:hover,
+:global([data-theme='light']) .ghostAction:hover {
+  color: #0d9678;
+}
+
+:global([data-theme='light']) .spinner {
+  border-color: rgba(16, 24, 40, 0.15);
+  border-top-color: #0d9678;
+}
+
+:global([data-theme='light']) .pulseRing > div {
+  border-color: #0d9678;
+}
+
+:global([data-theme='light']) .questionBody {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(71, 85, 105, 0.16);
+}
+
+:global([data-theme='light']) .questionPrompt {
+  color: #101828;
+}
+
+:global([data-theme='light']) .option {
+  background: rgba(255, 255, 255, 0.55);
+  border-color: rgba(71, 85, 105, 0.18);
+  color: #101828;
+}
+
+:global([data-theme='light']) .option:hover:not(:disabled) {
+  background: rgba(13, 150, 120, 0.08);
+}
+
+:global([data-theme='light']) .optionKey {
+  background: rgba(16, 24, 40, 0.08);
+}
+
+:global([data-theme='light']) .scoreCard {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(71, 85, 105, 0.16);
+}
+
+:global([data-theme='light']) .scoreName,
+:global([data-theme='light']) .scoreValue {
+  color: #101828;
+}
+
+:global([data-theme='light']) .questionPos {
+  color: rgba(16, 24, 40, 0.55);
+}
+
+:global([data-theme='light']) .thinkingChip,
+:global([data-theme='light']) .thinkingChipOpp {
+  background: rgba(16, 24, 40, 0.06);
+  color: rgba(16, 24, 40, 0.65);
+}
+
+:global([data-theme='light']) .arena {
+  color: #101828;
+}
+
+:global([data-theme='light']) .completePage {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(71, 85, 105, 0.16);
+}
+
+:global([data-theme='light']) .completeScoreCard {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(71, 85, 105, 0.16);
+}
+
+:global([data-theme='light']) .completeScoreLabel,
+:global([data-theme='light']) .completeScoreSub {
+  color: rgba(16, 24, 40, 0.6);
+}
+
+:global([data-theme='light']) .completeVs {
+  color: rgba(16, 24, 40, 0.45);
+}
+
+:global([data-theme='light']) .secondaryAction {
+  background: rgba(16, 24, 40, 0.07);
+  color: #101828;
+  border-color: rgba(71, 85, 105, 0.24);
+}
+
+:global([data-theme='light']) .secondaryAction:hover {
+  background: rgba(16, 24, 40, 0.12);
+}
+
+:global([data-theme='light']) .timerTrack {
+  background: rgba(16, 24, 40, 0.10);
+}
+
+:global([data-theme='light']) .timerLabel {
+  color: #f6f7fb;
+}
+
+/* ============================================================
  * Generic centered card (connecting / queue / matched / countdown / result)
  * ============================================================ */
 
