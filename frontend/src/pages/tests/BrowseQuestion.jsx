@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import Loader from '../../components/common/Loader/Loader';
 import ErrorMessage from '../../components/common/ErrorMessage/ErrorMessage';
@@ -25,19 +25,10 @@ function buildFilters(sp) {
   };
 }
 
-// Fetch the full ordered filtered list (paged at the API cap of 100) so the
-// navigation panel and prev/next have the complete neighbour sequence.
-async function fetchFilteredList(filters) {
-  const all = [];
-  let page = 1;
-  while (page <= 20) {
-    const res = await mockTestService.browseQuestions({ ...filters, page, page_size: 100 });
-    all.push(...res.items);
-    if (all.length >= res.total || res.items.length === 0) break;
-    page += 1;
-  }
-  return all;
-}
+// Page size for the navigation drawer. The list paginates on scroll so the
+// drawer can open instantly with page 1 instead of waiting on the whole
+// filtered set.
+const NAV_PAGE_SIZE = 50;
 
 function isAnswerEmpty(qtype, answer) {
   if (!answer) return true;
@@ -88,7 +79,15 @@ const BrowseQuestion = () => {
   const [listOpen, setListOpen] = useState(false);
   const [marked, setMarked] = useState(false);
   const [markBusy, setMarkBusy] = useState(false);
+  // Navigation list — paginated. Page 1 fetches eagerly so prev/next have
+  // immediate context; further pages load on scroll inside the drawer (or
+  // when the user presses Next at the boundary).
   const [navList, setNavList] = useState([]);
+  const [navTotal, setNavTotal] = useState(0);
+  const [navPage, setNavPage] = useState(0);
+  const [navHasMore, setNavHasMore] = useState(false);
+  const [navLoading, setNavLoading] = useState(true);
+  const [navLoadingMore, setNavLoadingMore] = useState(false);
 
   // The side panel chrome is always mounted so CSS transitions cover both
   // the slide-in and slide-out smoothly. Its item list (one MarkdownText
@@ -97,6 +96,16 @@ const BrowseQuestion = () => {
   const drawerRef = useRef(null);
   const listButtonRef = useRef(null);
   const [listEverOpened, setListEverOpened] = useState(false);
+  // Items render is held back by one paint after the first open. Mounting
+  // 50 MarkdownText items (markdown + KaTeX parsing) blocks the main
+  // thread; without this defer the panel can't slide in until that work
+  // finishes, making the click feel unresponsive.
+  const [drawerItemsReady, setDrawerItemsReady] = useState(false);
+  useEffect(() => {
+    if (!listEverOpened || drawerItemsReady) return undefined;
+    const raf = requestAnimationFrame(() => setDrawerItemsReady(true));
+    return () => cancelAnimationFrame(raf);
+  }, [listEverOpened, drawerItemsReady]);
   useEffect(() => {
     if (!listOpen) return undefined;
     const handler = (e) => {
@@ -111,20 +120,93 @@ const BrowseQuestion = () => {
   const filterKey = searchParams.toString();
   const backHref = `/tests?${filterKey}`;
 
-  // Load the filtered navigation list once per filter set.
+  // Load page 1 of the filtered nav list immediately on filter change. The
+  // drawer can open before this finishes — it shows a loader inside until
+  // the first page arrives.
   useEffect(() => {
     let cancelled = false;
+    setNavList([]);
+    setNavTotal(0);
+    setNavPage(0);
+    setNavHasMore(false);
+    setNavLoading(true);
     (async () => {
       try {
-        const items = await fetchFilteredList(buildFilters(searchParams));
-        if (!cancelled) setNavList(items);
+        const res = await mockTestService.browseQuestions({
+          ...buildFilters(searchParams),
+          page: 1,
+          page_size: NAV_PAGE_SIZE,
+        });
+        if (cancelled) return;
+        setNavList(res.items);
+        setNavTotal(res.total);
+        setNavPage(1);
+        setNavHasMore(res.items.length > 0 && res.items.length < res.total);
       } catch {
-        if (!cancelled) setNavList([]);
+        if (!cancelled) {
+          setNavList([]);
+          setNavHasMore(false);
+        }
+      } finally {
+        if (!cancelled) setNavLoading(false);
       }
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterKey]);
+
+  // Fetch the next nav page and append. Returns the newly fetched items so
+  // callers (e.g. the Next button at boundary) can act on them immediately
+  // instead of waiting for the state update to flush.
+  const loadMoreNav = useCallback(async () => {
+    if (navLoading || navLoadingMore || !navHasMore) return [];
+    setNavLoadingMore(true);
+    try {
+      const nextPage = navPage + 1;
+      const res = await mockTestService.browseQuestions({
+        ...buildFilters(searchParams),
+        page: nextPage,
+        page_size: NAV_PAGE_SIZE,
+      });
+      setNavList((prev) => {
+        const merged = [...prev, ...res.items];
+        setNavHasMore(merged.length < res.total);
+        return merged;
+      });
+      setNavTotal(res.total);
+      setNavPage(nextPage);
+      return res.items;
+    } catch {
+      // Stay on the current page — the sentinel will retry on the next
+      // intersection if the user keeps scrolling.
+      return [];
+    } finally {
+      setNavLoadingMore(false);
+    }
+  }, [navLoading, navLoadingMore, navHasMore, navPage, searchParams]);
+
+  // IntersectionObserver on a sentinel at the end of the drawer list.
+  // Only attached when the drawer is open, items are mounted, and there's
+  // more to load. `drawerItemsReady` is critical here — the sentinel <li>
+  // doesn't exist until items mount one frame after open, so without it
+  // in the deps the effect would run too early (sentinelRef.current=null)
+  // and never re-run to attach the observer.
+  const sentinelRef = useRef(null);
+  useEffect(() => {
+    if (!listOpen || !drawerItemsReady || !navHasMore) return undefined;
+    const node = sentinelRef.current;
+    if (!node) return undefined;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) loadMoreNav();
+      },
+      // root is the scrolling element (.drawerList), not the outer drawer
+      // (which is overflow:hidden and doesn't scroll itself).
+      { root: node.parentElement, rootMargin: '160px' },
+    );
+    obs.observe(node);
+    return () => obs.disconnect();
+  }, [listOpen, drawerItemsReady, navHasMore, loadMoreNav]);
 
   // Load the question detail whenever the id changes. The page always opens
   // fresh — the prior outcome shows only as a small badge so the student can
@@ -161,6 +243,19 @@ const BrowseQuestion = () => {
   const nextId = navIndex >= 0 && navIndex < navList.length - 1 ? navList[navIndex + 1]?.question_id : null;
 
   const go = (id) => { if (id) navigate(`/tests/browse/${id}?${filterKey}`); };
+
+  // At the boundary of what's loaded, auto-fetch the next page and jump to
+  // its first item so prev/next keeps working past page-size without
+  // forcing the user to open the drawer and scroll.
+  const onNext = async () => {
+    if (nextId) { go(nextId); return; }
+    if (!navHasMore || navLoadingMore || navLoading) return;
+    const fresh = await loadMoreNav();
+    if (fresh.length > 0) go(fresh[0].question_id);
+  };
+  // If the current question isn't in the loaded page (navIndex == -1), we
+  // can't meaningfully step prev/next — the user opens the drawer to seek.
+  const nextDisabled = navIndex < 0 || ((!nextId && !navHasMore) || navLoadingMore);
 
   const qtype = detail?.question_type;
   // The page is "revealed" once the user has either answered correctly OR
@@ -281,9 +376,9 @@ const BrowseQuestion = () => {
         <div className={styles.nav}>
           <button type="button" className={styles.navBtn} disabled={!prevId} onClick={() => go(prevId)}>‹ Prev</button>
           <span className={styles.navPos}>
-            {navIndex >= 0 ? `${navIndex + 1} / ${navList.length}` : '—'}
+            {navIndex >= 0 ? `${navIndex + 1} / ${navTotal || navList.length}` : '—'}
           </span>
-          <button type="button" className={styles.navBtn} disabled={!nextId} onClick={() => go(nextId)}>Next ›</button>
+          <button type="button" className={styles.navBtn} disabled={nextDisabled} onClick={onNext}>Next ›</button>
           <button
             ref={listButtonRef}
             type="button"
@@ -339,7 +434,7 @@ const BrowseQuestion = () => {
               right_column: detail.right_column,
             }}
             index={navIndex >= 0 ? navIndex : 0}
-            total={navList.length || 1}
+            total={navTotal || navList.length || 1}
             answer={answer}
             onChange={setAnswer}
             readOnly={revealed}
@@ -414,27 +509,44 @@ const BrowseQuestion = () => {
           aria-hidden={!listOpen}
         >
           <div className={styles.drawerHead}>
-            <span>{navList.length} in this filter</span>
+            <span>
+              {navTotal > 0
+                ? `${navList.length} of ${navTotal} loaded`
+                : navLoading ? 'Loading…' : '0 in this filter'}
+            </span>
             <button type="button" className={styles.drawerClose} onClick={() => setListOpen(false)} aria-label="Close list">×</button>
           </div>
           {listEverOpened ? (
-            <ul className={styles.drawerList}>
-              {navList.map((it, i) => (
-                <li key={it.question_id}>
-                  <button
-                    type="button"
-                    className={`${styles.drawerItem} ${it.question_id === questionId ? styles.drawerItemOn : ''}`}
-                    onClick={() => { go(it.question_id); setListOpen(false); }}
-                  >
-                    <span className={styles.drawerNum}>{i + 1}</span>
-                    <span className={styles.drawerText}>
-                      <MarkdownText text={it.question_text} inline />
-                    </span>
-                    <span className={styles.drawerDot} data-status={drawerStatus(it)} />
-                  </button>
-                </li>
-              ))}
-            </ul>
+            !drawerItemsReady || (navLoading && navList.length === 0) ? (
+              <div className={styles.drawerLoading}>
+                <Loader compact />
+              </div>
+            ) : navList.length === 0 ? (
+              <div className={styles.drawerEmpty}>No questions match these filters.</div>
+            ) : (
+              <ul className={styles.drawerList}>
+                {navList.map((it, i) => (
+                  <li key={it.question_id}>
+                    <button
+                      type="button"
+                      className={`${styles.drawerItem} ${it.question_id === questionId ? styles.drawerItemOn : ''}`}
+                      onClick={() => { go(it.question_id); setListOpen(false); }}
+                    >
+                      <span className={styles.drawerNum}>{i + 1}</span>
+                      <span className={styles.drawerText}>
+                        <MarkdownText text={it.question_text} inline />
+                      </span>
+                      <span className={styles.drawerDot} data-status={drawerStatus(it)} />
+                    </button>
+                  </li>
+                ))}
+                {navHasMore ? (
+                  <li ref={sentinelRef} className={styles.drawerSentinel}>
+                    {navLoadingMore ? <Loader compact /> : null}
+                  </li>
+                ) : null}
+              </ul>
+            )
           ) : null}
         </aside>
       </div>
