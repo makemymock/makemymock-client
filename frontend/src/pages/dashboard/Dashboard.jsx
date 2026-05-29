@@ -318,10 +318,14 @@ const HeroCard = ({ user, profile }) => {
   const cls = profile?.class_grade
     ? (profile.class_grade === 'dropper' ? 'Dropper' : `Class ${profile.class_grade}`)
     : null;
+  // Prefer the user's real first name from the profile; fall back to the
+  // signup handle only while the profile is still loading.
+  const firstName = profile?.full_name?.trim().split(/\s+/)[0];
+  const greeting = firstName || user?.username || 'there';
   return (
     <section className={styles.hero}>
       <p className={styles.heroEyebrow}>Welcome back</p>
-      <h1 className={styles.heroTitle}>Hi, {user?.username || 'there'} 👋</h1>
+      <h1 className={styles.heroTitle}>Hi, {greeting} 👋</h1>
       <div className={styles.heroMeta}>
         {exam ? <span className={styles.metaTag}>🎯 {exam}</span> : null}
         {cls ? <span className={styles.metaTag}>🎓 {cls}</span> : null}

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import useTheme from '../../hooks/useTheme';
 import { authService } from '../../services/authService';
 import { tokenStorage } from '../../utils/token';
@@ -48,6 +48,13 @@ const IconLogout = (p) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
        strokeLinecap="round" strokeLinejoin="round" {...p}>
     <path d="M10 17l5-5-5-5" /><path d="M15 12H4" /><path d="M21 4v16" />
+  </svg>
+);
+const IconUser = (p) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+       strokeLinecap="round" strokeLinejoin="round" {...p}>
+    <circle cx="12" cy="8" r="4" />
+    <path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8" />
   </svg>
 );
 const IconSun = (p) => (
@@ -280,6 +287,14 @@ const TopBar = ({ user, theme, onToggleTheme, onLogout }) => {
           </button>
           {menuOpen ? (
             <div className={styles.userMenu} role="menu">
+              <Link
+                to="/profile"
+                className={`${styles.userMenuItem} ${styles.userMenuItemNeutral}`}
+                onClick={() => setMenuOpen(false)}
+                role="menuitem"
+              >
+                <IconUser className={styles.userMenuIcon} /> Profile
+              </Link>
               <button
                 type="button"
                 className={styles.userMenuItem}

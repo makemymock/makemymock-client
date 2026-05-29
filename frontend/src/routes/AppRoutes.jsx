@@ -4,6 +4,7 @@ import Signup from '../pages/signup/Signup';
 import Login from '../pages/login/Login';
 import Dashboard from '../pages/dashboard/Dashboard';
 import ProfileSetup from '../pages/profile/ProfileSetup';
+import UserProfile from '../pages/profile/UserProfile';
 import TestsLaunch from '../pages/tests/TestsLaunch';
 import TakeTest from '../pages/tests/TakeTest';
 import Result from '../pages/tests/Result';
@@ -75,6 +76,7 @@ const AppRoutes = () => {
         }
       >
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/profile" element={<UserProfile />} />
         <Route path="/tests" element={<TestsLaunch />} />
         <Route path="/tests/browse/:questionId" element={<BrowseQuestion />} />
         <Route path="/tests/:sessionId" element={<TakeTest />} />

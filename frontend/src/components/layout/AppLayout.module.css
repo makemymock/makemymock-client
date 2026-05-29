@@ -232,6 +232,9 @@
   font-weight: 500;
   cursor: pointer;
   color: var(--dash-logout-color);
+  /* Strip the default link underline so this class is shared between
+     <button> (sign-out) and <Link> (Profile). */
+  text-decoration: none;
 }
 
 .userMenuItem:hover { background: var(--color-chip-bg); }
