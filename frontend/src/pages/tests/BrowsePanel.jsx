@@ -31,12 +31,6 @@ const STATUSES = [
   { value: 'false', label: 'Not attempted' },
 ];
 
-const MARKED_STATUSES = [
-  { value: '', label: 'All marks' },
-  { value: 'true', label: 'Marked' },
-  { value: 'false', label: 'Not marked' },
-];
-
 function prettyType(t) {
   switch (t) {
     case 'single_correct': return 'Single';
@@ -78,10 +72,10 @@ const BrowsePanel = ({ notebookMode = false }) => {
   const difficulty = searchParams.get('difficulty') || '';
   const qtype = searchParams.get('qtype') || '';
   const attempted = searchParams.get('attempted') || '';
-  // In notebook mode the list is always the marked set; otherwise it follows
-  // the Marked chip in the URL.
-  const markedParam = searchParams.get('marked') || '';
-  const marked = notebookMode ? 'true' : markedParam;
+  // Browse no longer surfaces a Marked filter — the Notebook tab IS the
+  // marked-questions view, so a separate filter here would be redundant.
+  // Notebook mode still pins `marked=true` on every query to the API.
+  const marked = notebookMode ? 'true' : '';
   const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1);
 
   // Search box is debounced into the URL.
@@ -173,6 +167,25 @@ const BrowsePanel = ({ notebookMode = false }) => {
     navigate(`/tests/browse/${id}?${p.toString()}`);
   };
 
+  // Notebook-only — drop a question out of the saved set. Optimistically
+  // removes the row from the visible list so the action feels immediate;
+  // a background refetch reconciles totals + pagination.
+  const removeFromNotebook = async (id, e) => {
+    e?.stopPropagation();
+    setData((prev) => prev && ({
+      ...prev,
+      items: prev.items.filter((it) => it.question_id !== id),
+      total: Math.max(0, (prev.total || 0) - 1),
+    }));
+    try {
+      await mockTestService.removeFromNotebook(id);
+    } catch (err) {
+      // If the API call fails, refetch to put the row back in its
+      // correct place (and surface the error to the user).
+      setError(parseApiError(err, 'Could not remove from notebook.'));
+    }
+  };
+
   return (
     <div className={styles.wrap}>
       <div className={styles.filters}>
@@ -256,33 +269,18 @@ const BrowsePanel = ({ notebookMode = false }) => {
               <option key={o.value || 'all'} value={o.value}>{o.label}</option>
             ))}
           </select>
-
-          {!notebookMode ? (
-            <select
-              className={styles.select}
-              value={markedParam}
-              onChange={(e) => patch({ marked: e.target.value })}
-              aria-label="Marked"
-            >
-              {MARKED_STATUSES.map((o) => (
-                <option key={o.value || 'all'} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-          ) : null}
         </div>
       </div>
 
       <div className={styles.resultBar}>
         <span>{total} question{total === 1 ? '' : 's'}{notebookMode ? ' in your notebook' : ''}</span>
-        {(subject || chapter || topic || difficulty || qtype || attempted || q || (!notebookMode && markedParam)) ? (
+        {(subject || chapter || topic || difficulty || qtype || attempted || q) ? (
           <button
             type="button"
             className={styles.clearBtn}
             onClick={() => {
               setSearchInput('');
-              const reset = { subject: '', chapter: '', topic: '', difficulty: '', qtype: '', attempted: '', q: '' };
-              if (!notebookMode) reset.marked = '';
-              patch(reset);
+              patch({ subject: '', chapter: '', topic: '', difficulty: '', qtype: '', attempted: '', q: '' });
             }}
           >
             Clear filters
@@ -314,10 +312,21 @@ const BrowsePanel = ({ notebookMode = false }) => {
               const st = rowStatus(item);
               return (
                 <li key={item.question_id}>
-                  <button
-                    type="button"
+                  {/* Row is `<div role="button">` rather than `<button>` so
+                      the inner Remove control in notebook mode is valid
+                      (nested <button>s are invalid HTML). Keyboard accessibility
+                      is preserved via the Enter/Space handler. */}
+                  <div
+                    role="button"
+                    tabIndex={0}
                     className={styles.row}
                     onClick={() => openQuestion(item.question_id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        openQuestion(item.question_id);
+                      }
+                    }}
                   >
                     <span className={`${styles.status} ${styles[st.cls]}`} title={st.label} aria-label={st.label}>
                       {st.glyph}
@@ -338,8 +347,19 @@ const BrowsePanel = ({ notebookMode = false }) => {
                       <span className={`${styles.tag} ${styles[`diff_${(item.difficulty || 'medium').toLowerCase()}`]}`}>
                         {item.difficulty}
                       </span>
+                      {notebookMode ? (
+                        <button
+                          type="button"
+                          className={styles.removeBtn}
+                          aria-label="Remove from notebook"
+                          title="Remove from notebook"
+                          onClick={(e) => removeFromNotebook(item.question_id, e)}
+                        >
+                          ✕
+                        </button>
+                      ) : null}
                     </span>
-                  </button>
+                  </div>
                 </li>
               );
             })}
