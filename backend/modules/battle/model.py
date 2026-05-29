@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import secrets
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from bson import ObjectId
@@ -11,6 +12,45 @@ from bson import ObjectId
 
 def now_utc() -> datetime:
     return datetime.now(timezone.utc)
+
+
+# Invite codes use an unambiguous alphabet — no 0/O/1/I/L — so a friend
+# typing the code by hand on a phone doesn't fat-finger lookalikes. 6
+# chars × 32-char alphabet = ~1 billion combinations, plenty for the
+# short-lived invites we're issuing.
+_INVITE_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
+INVITE_CODE_LENGTH = 6
+INVITE_TTL_MINUTES = 10
+
+
+def make_invite_code() -> str:
+    """Generate a fresh invite code. Caller is responsible for retrying
+    on the (extremely unlikely) collision against the unique index."""
+    return "".join(secrets.choice(_INVITE_ALPHABET) for _ in range(INVITE_CODE_LENGTH))
+
+
+def new_battle_invite_doc(
+    *,
+    code: str,
+    inviter_user_id: ObjectId,
+    inviter_username: str,
+) -> dict:
+    """One pending invite. Status transitions: pending → accepted | cancelled
+    | expired. `expires_at` is also the TTL key, so Mongo evicts old docs
+    automatically — no cron job needed."""
+    now = now_utc()
+    return {
+        "code": code,
+        "inviter_user_id": inviter_user_id,
+        "inviter_username": inviter_username,
+        "invitee_user_id": None,
+        "invitee_username": None,
+        "status": "pending",
+        "battle_id": None,
+        "created_at": now,
+        "expires_at": now + timedelta(minutes=INVITE_TTL_MINUTES),
+        "accepted_at": None,
+    }
 
 
 def new_battle_doc(

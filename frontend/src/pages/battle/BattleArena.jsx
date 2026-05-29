@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { battleService } from '../../services/battleService';
 import { authService } from '../../services/authService';
 import { tokenStorage } from '../../utils/token';
@@ -21,6 +21,11 @@ const PHASE = {
 
 const BattleArena = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  // When set, this is a private battle-a-friend session — both sides
+  // connect with the same code and the matchmaker pairs them
+  // directly (no public queue).
+  const inviteCode = searchParams.get('invite') || '';
   const wsRef = useRef(null);
   const [phase, setPhase] = useState(PHASE.CONNECTING);
   // The logged-in user's own username — read from local session so the score
@@ -138,7 +143,7 @@ const BattleArena = () => {
       }
       if (cancelled) return;
 
-      ws = battleService.openSocket();
+      ws = battleService.openSocket(inviteCode || undefined);
       wsRef.current = ws;
 
       ws.onmessage = (ev) => {

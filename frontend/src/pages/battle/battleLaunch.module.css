@@ -399,6 +399,41 @@
   color: var(--color-accent);
 }
 
+/* "Battle a friend" — outlined, sits directly below the big PLAY
+   button so it reads as the secondary path of the same CTA pair. */
+.friendButton {
+  align-self: flex-start;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  margin-top: 12px;
+  padding: 12px 22px;
+  border-radius: 14px;
+  border: 1.5px solid var(--color-accent);
+  background: rgba(20, 184, 166, 0.10);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  font: inherit;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.friendButton:hover {
+  background: rgba(20, 184, 166, 0.20);
+  transform: translateY(-1px);
+}
+
+.friendLabel {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+.friendSub {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
 .perks {
   display: grid;
   grid-template-columns: 1fr;

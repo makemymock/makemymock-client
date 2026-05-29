@@ -36,7 +36,7 @@ import logging
 from typing import Optional
 
 from bson import ObjectId
-from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, Query, Response, WebSocket, WebSocketDisconnect, status
 
 from core.dependencies import CurrentVerifiedUser, DBDep
 from core.exceptions import AppException, InvalidToken
@@ -47,15 +47,19 @@ from modules.battle.constants import (
     WS_CLOSE_INTERNAL,
     WS_CLOSE_UNAUTHORIZED,
 )
+from modules.battle.invite_service import BattleInviteService
 from modules.battle.matchmaker import manager
-from modules.battle.repository import BattleRepository
+from modules.battle.repository import BattleInviteRepository, BattleRepository
 from modules.battle.schema import (
+    AcceptInviteResponse,
     BattleDetailResponse,
     BattleHistoryItem,
     BattleHistoryResponse,
     BattleOption,
     BattlePlayerSummary,
     BattleRoundDetail,
+    CreateInviteResponse,
+    InviteInfoResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -161,6 +165,69 @@ def _split_perspective(doc: dict, user_oid: ObjectId) -> tuple[
 
 
 # ---------------------------------------------------------------------------
+# REST — battle-a-friend invites
+#
+# Three endpoints for inviter / friend lifecycle. The actual battle pair-up
+# happens over the same `/battle/ws` WebSocket below — both sides connect
+# with `?invite_code=...` and matchmaker.claim_invite pairs them.
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/invites",
+    response_model=CreateInviteResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create an invite to battle a specific friend",
+)
+async def create_invite(
+    db: DBDep,
+    user: CurrentVerifiedUser,
+) -> CreateInviteResponse:
+    return await BattleInviteService(db).create(user)
+
+
+@router.get(
+    "/invites/{code}",
+    response_model=InviteInfoResponse,
+    summary="Look up an invite (used by the friend's join page)",
+)
+async def get_invite(
+    code: str,
+    db: DBDep,
+    user: CurrentVerifiedUser,
+) -> InviteInfoResponse:
+    return await BattleInviteService(db).get_info(code, user)
+
+
+@router.post(
+    "/invites/{code}/precheck",
+    response_model=AcceptInviteResponse,
+    summary="Verify an invite is still claimable before opening the WS",
+)
+async def precheck_invite(
+    code: str,
+    db: DBDep,
+    user: CurrentVerifiedUser,
+) -> AcceptInviteResponse:
+    return await BattleInviteService(db).precheck_accept(code, user)
+
+
+@router.delete(
+    "/invites/{code}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+    summary="Cancel an invite you created",
+)
+async def cancel_invite(
+    code: str,
+    db: DBDep,
+    user: CurrentVerifiedUser,
+) -> Response:
+    await BattleInviteService(db).cancel(code, user)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# ---------------------------------------------------------------------------
 # WebSocket — matchmaking + live battle
 # ---------------------------------------------------------------------------
 
@@ -169,6 +236,14 @@ async def battle_ws(
     websocket: WebSocket,
     db: DBDep,
     token: str = Query(..., description="JWT access token"),
+    invite_code: Optional[str] = Query(
+        None,
+        description=(
+            "Set on both sides of a battle-a-friend session. The first "
+            "WS to connect with this code becomes the host (parked); "
+            "the second pairs with it and the battle starts."
+        ),
+    ),
 ):
     # Accept first so we can send a JSON `error` message back on auth /
     # duplicate-slot failures. Pre-accept close gives the browser an opaque
@@ -197,14 +272,23 @@ async def battle_ws(
 
     try:
         await websocket.send_json({"type": "queued"})
-        battle = await manager.enqueue(
-            user, websocket,
-            timeout=QUEUE_TIMEOUT_SECONDS,
-            db=db,
-        )
+        if invite_code:
+            battle = await manager.claim_invite(
+                user, websocket,
+                code=invite_code,
+                timeout=QUEUE_TIMEOUT_SECONDS,
+                db=db,
+                invite_repo=BattleInviteRepository(db),
+            )
+        else:
+            battle = await manager.enqueue(
+                user, websocket,
+                timeout=QUEUE_TIMEOUT_SECONDS,
+                db=db,
+            )
         if battle is None:
-            # Released by enqueue's timeout cleanup path is fine — we own
-            # the slot release below.
+            # Released by enqueue/claim_invite's timeout cleanup path is
+            # fine — we own the slot release below.
             try:
                 await websocket.send_json({"type": "queue_timeout"})
             finally:

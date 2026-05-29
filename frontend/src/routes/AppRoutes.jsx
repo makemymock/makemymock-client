@@ -14,6 +14,7 @@ import TopicAnalytics from '../pages/analytics/TopicAnalytics';
 import History from '../pages/history/History';
 import BattleArena from '../pages/battle/BattleArena';
 import BattleHistory from '../pages/battle/BattleHistory';
+import BattleJoin from '../pages/battle/BattleJoin';
 import Compete from '../pages/compete/Compete';
 import ContestLobby from '../pages/compete/ContestLobby';
 import ContestPlay from '../pages/compete/ContestPlay';
@@ -89,6 +90,7 @@ const AppRoutes = () => {
         <Route path="/battle" element={<Navigate to="/compete?tab=battle" replace />} />
         <Route path="/battle/play" element={<BattleArena />} />
         <Route path="/battle/history" element={<BattleHistory />} />
+        <Route path="/battle/join/:code" element={<BattleJoin />} />
         {/* Contest — lobby + fullscreen play + result. */}
         <Route path="/contest/:contestId" element={<ContestLobby />} />
         <Route path="/contest/:contestId/play" element={<ContestPlay />} />

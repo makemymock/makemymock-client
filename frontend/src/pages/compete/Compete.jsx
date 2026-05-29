@@ -7,6 +7,7 @@ import { contestService } from '../../services/contestService';
 import { battleService } from '../../services/battleService';
 import { tokenStorage } from '../../utils/token';
 import { parseApiError } from '../../utils/validators';
+import InviteModal from '../battle/InviteModal';
 import styles from './compete.module.css';
 
 const TABS = [
@@ -44,6 +45,10 @@ const BattleTab = () => {
   const navigate = useNavigate();
   const [history, setHistory] = useState(null);
   const [error, setError] = useState('');
+  // Battle-a-friend modal. Lives at the Compete level (not inside an
+  // anchored "open invite" handler) so the modal overlays the whole
+  // tab body.
+  const [inviteOpen, setInviteOpen] = useState(false);
   useEffect(() => {
     battleService
       .fetchHistory()
@@ -73,6 +78,14 @@ const BattleTab = () => {
             </button>
             <button
               type="button"
+              className={styles.friendCta}
+              onClick={() => setInviteOpen(true)}
+            >
+              Battle a friend
+              <span className={styles.ctaSub}>share a link & play together</span>
+            </button>
+            <button
+              type="button"
               className={styles.ghostCta}
               onClick={() => navigate('/battle/history')}
             >
@@ -85,6 +98,13 @@ const BattleTab = () => {
           <span className={styles.badgeText}>BATTLE</span>
         </div>
       </section>
+
+      {inviteOpen ? (
+        <InviteModal
+          onClose={() => setInviteOpen(false)}
+          onStart={(code) => navigate(`/battle/play?invite=${encodeURIComponent(code)}`)}
+        />
+      ) : null}
 
       <section className={styles.card}>
         <header className={styles.cardHeader}>

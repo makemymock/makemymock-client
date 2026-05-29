@@ -261,6 +261,30 @@
 }
 .ghostCta:hover { background: rgba(255, 255, 255, 0.12); }
 
+/* Battle-a-friend CTA — same shape as the primary "Play" button so
+   they read as a pair, but outlined instead of filled so users
+   instinctively pick Play first when they don't have a specific
+   friend in mind. */
+.friendCta {
+  appearance: none;
+  font: inherit;
+  cursor: pointer;
+  border: 1.5px solid rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  font-weight: 800;
+  padding: 12px 22px;
+  border-radius: 12px;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  letter-spacing: 0.4px;
+  transition: background 0.15s ease;
+}
+.friendCta:hover { background: rgba(255, 255, 255, 0.18); }
+.friendCta .ctaSub { color: rgba(255, 255, 255, 0.75); }
+
 .heroBadge {
   display: inline-flex;
   flex-direction: column;

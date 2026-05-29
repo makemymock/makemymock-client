@@ -163,6 +163,22 @@ async def _ensure_indexes() -> None:
         [("player_b.user_id", ASCENDING), ("completed_at", -1)],
     )
 
+    # ---------- Battle invites (battle-a-friend) ----------
+    # `code` is the public token — unique so two pending invites can't
+    # collide. `expires_at` doubles as a TTL key so Mongo auto-evicts
+    # invites after their 10-min window (status is still updated to
+    # `expired` at lookup time for any stragglers that read between
+    # expiry and eviction).
+    await mongo.db["battle_invites"].create_index(
+        [("code", ASCENDING)], unique=True,
+    )
+    await mongo.db["battle_invites"].create_index(
+        "expires_at", expireAfterSeconds=0,
+    )
+    await mongo.db["battle_invites"].create_index(
+        [("inviter_user_id", ASCENDING), ("status", ASCENDING)],
+    )
+
     # ---------- SolverX ----------
     # Conversations are per-user, sorted by recency in the sidebar.
     await mongo.db["solverx_conversations"].create_index(

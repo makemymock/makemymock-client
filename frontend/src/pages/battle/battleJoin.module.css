@@ -1,0 +1,108 @@
+/* ========================================================
+ * Battle join landing — what the friend sees after clicking
+ * an invite link. Same vibe as BattleLaunch's hero but tighter.
+ * ======================================================== */
+
+.page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(20px, 5vw, 60px);
+  background: var(--color-bg-page);
+  flex-direction: column;
+  gap: 16px;
+}
+
+.card {
+  width: min(520px, 100%);
+  background: var(--color-panel-bg);
+  border: 1px solid var(--color-panel-border);
+  border-radius: 22px;
+  padding: clamp(20px, 4vw, 32px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.32);
+}
+
+.eyebrow {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--color-accent);
+  font-weight: 700;
+}
+
+.title {
+  margin: 4px 0 0;
+  font-size: clamp(24px, 4vw, 32px);
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--color-text-primary);
+}
+
+.inviter {
+  background: linear-gradient(135deg, var(--color-brand-grad-from), var(--color-brand-grad-to));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.subtitle {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.primary {
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 12px 22px;
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(135deg, var(--color-brand-grad-from), var(--color-brand-grad-to));
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.primary:hover { filter: brightness(1.06); }
+.primary:disabled { opacity: 0.6; cursor: wait; }
+
+.secondary {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 12px 20px;
+  border-radius: 999px;
+  border: 1px solid var(--color-panel-border);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.secondary:hover { color: var(--color-text-primary); }
+.secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.codeLine {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  letter-spacing: 1px;
+}
+
+.codeLine strong {
+  color: var(--color-text-primary);
+  font-weight: 700;
+  letter-spacing: 2px;
+}

@@ -4,6 +4,7 @@ import Loader from '../../components/common/Loader/Loader';
 import ErrorMessage from '../../components/common/ErrorMessage/ErrorMessage';
 import { battleService } from '../../services/battleService';
 import { parseApiError } from '../../utils/validators';
+import InviteModal from './InviteModal';
 import styles from './battleLaunch.module.css';
 
 const PERKS = [
@@ -24,6 +25,7 @@ const formatDate = (d) => {
 const BattleLaunch = () => {
   const navigate = useNavigate();
   const [tab, setTab] = useState('arena'); // 'arena' | 'history'
+  const [inviteOpen, setInviteOpen] = useState(false);
 
   return (
     <div className={styles.page}>
@@ -78,6 +80,15 @@ const BattleLaunch = () => {
 
               <button
                 type="button"
+                className={styles.friendButton}
+                onClick={() => setInviteOpen(true)}
+              >
+                <span className={styles.friendLabel}>Battle a friend</span>
+                <span className={styles.friendSub}>share a link & play together</span>
+              </button>
+
+              <button
+                type="button"
                 className={styles.secondaryButton}
                 onClick={() => setTab('history')}
               >
@@ -98,6 +109,13 @@ const BattleLaunch = () => {
           <BattleHistoryPanel onPlay={() => navigate('/battle/play')} />
         )}
       </main>
+
+      {inviteOpen ? (
+        <InviteModal
+          onClose={() => setInviteOpen(false)}
+          onStart={(code) => navigate(`/battle/play?invite=${encodeURIComponent(code)}`)}
+        />
+      ) : null}
     </div>
   );
 };
