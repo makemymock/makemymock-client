@@ -2,7 +2,7 @@ import logging
 from typing import Optional
 
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
-from pymongo import ASCENDING
+from pymongo import ASCENDING, DESCENDING
 
 from config.settings import settings
 
@@ -206,6 +206,20 @@ async def _ensure_indexes() -> None:
     await mongo.db["contest_responses"].create_index(
         [("contest_id", ASCENDING), ("user_id", ASCENDING),
          ("display_order", ASCENDING)],
+    )
+
+    # ---- Admin observability ----
+    # `usage_events` — append-only log of cost-bearing or otherwise
+    # interesting actions (currently Vertex AI calls). Indexed by time
+    # for the time-series admin charts and by user for per-user
+    # aggregations. Source field lets us add new event types later
+    # (e.g. mock_test_start, battle_join) without schema changes.
+    await mongo.db["usage_events"].create_index([("ts", DESCENDING)])
+    await mongo.db["usage_events"].create_index(
+        [("user_id", ASCENDING), ("ts", DESCENDING)],
+    )
+    await mongo.db["usage_events"].create_index(
+        [("source", ASCENDING), ("ts", DESCENDING)],
     )
 
 

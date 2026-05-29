@@ -39,6 +39,7 @@ from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from config.settings import settings
+from core.usage_events import usage_context
 from modules.solverx.constants import (
     MODE_SOLVE,
     MODE_THEORY,
@@ -900,15 +901,21 @@ class SolverXService:
         conversation_id: Optional[str],
         image_data_url: Optional[str] = None,
     ) -> AsyncIterator[str]:
-        async for evt in self._dispatch(
-            user_oid=user_oid,
-            question_text=question_text,
-            complexity_mode=complexity_mode,
-            conversation_id=conversation_id,
-            mode=MODE_SOLVE,
-            image_data_url=image_data_url,
+        async with usage_context(
+            self.db,
+            user_id=user_oid,
+            source="solverx",
+            extra={"mode": MODE_SOLVE, "complexity": complexity_mode},
         ):
-            yield evt
+            async for evt in self._dispatch(
+                user_oid=user_oid,
+                question_text=question_text,
+                complexity_mode=complexity_mode,
+                conversation_id=conversation_id,
+                mode=MODE_SOLVE,
+                image_data_url=image_data_url,
+            ):
+                yield evt
 
     async def stream_theory(
         self,
@@ -919,15 +926,21 @@ class SolverXService:
         conversation_id: Optional[str],
         image_data_url: Optional[str] = None,
     ) -> AsyncIterator[str]:
-        async for evt in self._dispatch(
-            user_oid=user_oid,
-            question_text=question_text,
-            complexity_mode=complexity_mode,
-            conversation_id=conversation_id,
-            mode=MODE_THEORY,
-            image_data_url=image_data_url,
+        async with usage_context(
+            self.db,
+            user_id=user_oid,
+            source="solverx",
+            extra={"mode": MODE_THEORY, "complexity": complexity_mode},
         ):
-            yield evt
+            async for evt in self._dispatch(
+                user_oid=user_oid,
+                question_text=question_text,
+                complexity_mode=complexity_mode,
+                conversation_id=conversation_id,
+                mode=MODE_THEORY,
+                image_data_url=image_data_url,
+            ):
+                yield evt
 
     # ------------------------------------------------------------------
     # Dispatcher — routes by (mode, complexity) → simple vs deep path.
