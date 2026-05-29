@@ -27,7 +27,10 @@
   backdrop-filter: blur(2px);
   -webkit-backdrop-filter: blur(2px);
   transform: rotate(var(--card-rotation, 0deg));
-  transform-origin: 50% -24px;
+  /* Pivot at the card's own top-center so the top stays anchored as the
+     answer expands — only the bottom edge sweeps along the rotation arc,
+     and the card's visible anchor doesn't shift sideways. */
+  transform-origin: 50% 0;
   transition:
     transform 220ms ease,
     box-shadow 220ms ease,

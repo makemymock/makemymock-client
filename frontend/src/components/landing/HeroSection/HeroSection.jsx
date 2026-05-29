@@ -5,6 +5,10 @@ import QaCard from '../QaCard/QaCard';
 import { tokenStorage } from '../../../utils/token';
 import styles from './HeroSection.module.css';
 
+// The two cards float free over the hero. Placement is owned by the
+// HeroSection stylesheet (one class per card) so each card carries its own
+// responsive rules instead of sharing a positioning sandbox — the previous
+// wrapper sat on top of the login/signup buttons and ate their clicks.
 const heroCards = [
   {
     id: 'function-qa',
@@ -13,11 +17,6 @@ const heroCards = [
     fullText:
       'A function maps every allowed input to exactly one output. If one input gives two different outputs, it is not a function. In school math, functions are written as f(x) and help describe patterns like straight lines, curves, and growth.',
     pinPosition: 'center',
-    placement: {
-      '--card-left': '0rem',
-      '--card-top': '3rem',
-      '--card-rotation': '5.8deg',
-    },
   },
   {
     id: 'hydrocarbons-qa',
@@ -26,11 +25,6 @@ const heroCards = [
     fullText:
       'Hydrocarbons are organic molecules containing only carbon and hydrogen. They are grouped as alkanes, alkenes, alkynes, and aromatic compounds, and they form the core of many fuels and industrial chemicals used in daily life.',
     pinPosition: 'left',
-    placement: {
-      '--card-right': '-3.5rem',
-      '--card-top': '1rem',
-      '--card-rotation': '-2.6deg',
-    },
   },
 ];
 
@@ -126,16 +120,14 @@ function HeroSection() {
         </div>
       </div>
 
-      <div className={styles.heroInfoCards}>
-        {heroCards.map((card) => (
-          <QaCard
-            key={card.id}
-            card={card}
-            pinPosition={card.pinPosition}
-            style={card.placement}
-          />
-        ))}
-      </div>
+      {heroCards.map((card, i) => (
+        <QaCard
+          key={card.id}
+          card={card}
+          pinPosition={card.pinPosition}
+          className={i === 0 ? styles.heroQaCardOne : styles.heroQaCardTwo}
+        />
+      ))}
     </section>
   );
 }

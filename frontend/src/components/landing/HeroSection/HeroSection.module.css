@@ -159,7 +159,10 @@
 
 .heroCopy {
   position: relative;
-  z-index: 3;
+  /* Above the floating Q&A cards (QaCard wrapper is z:6) so the title,
+     description, and CTA buttons inside this stacking context all sit on
+     top of any card that drifts behind them. */
+  z-index: 7;
   width: min(50rem, 100%);
   text-align: center;
   color: var(--color-text-primary);
@@ -297,19 +300,26 @@
   font-family: var(--font-secondary);
 }
 
-.heroInfoCards {
-  position: absolute;
-  left: 50%;
-  top: 64%;
-  transform: translateX(-50%);
-  width: min(48rem, calc(100% - 2rem));
-  height: 13.5rem;
-  z-index: 4;
+/* The two floating Q&A cards. Independent siblings of .heroCopy — no
+   shared wrapper to swallow clicks on the buttons below. Each card owns
+   its placement (CSS vars consumed by QaCard's .wrapper) plus a width
+   override that beats QaCard's default since this module loads after it. */
+.heroQaCardOne {
+  --card-left: max(1rem, calc(50% - 24rem));
+  --card-top: calc(78% + 1.5rem);
+  --card-rotation: 5.8deg;
+}
+.heroQaCardTwo {
+  --card-right: max(-2.5rem, calc(50% - 27.5rem));
+  --card-top: 78%;
+  --card-rotation: -2.6deg;
 }
 
+/* Buttons sit above the floating cards (QaCard wrapper is z:6) so clicks
+   land on the CTAs even where the cards overlap. */
 .heroBottomActions {
   position: relative;
-  z-index: 4;
+  z-index: 7;
   margin: 1rem auto 0;
   justify-content: center;
   display: flex;
@@ -469,38 +479,21 @@
     display: none;
   }
 
-  .heroInfoCards {
-    position: absolute;
-    top: auto;
-    bottom: 1.2rem;
-    left: 50%;
-    right: auto;
-    transform: translateX(-50%);
-    width: calc(100% - 1.5rem);
-    height: auto;
-    min-height: 10rem;
-    z-index: 4;
+  /* Mobile: anchor by top (not bottom) so a card expanding on hover
+     grows downward, not up into the title. Top is set generous enough
+     (72%) to clear the centred .heroCopy + bottom buttons across
+     typical phone heights. */
+  .heroQaCardOne {
+    --card-left: 0.75rem;
+    --card-right: auto;
+    --card-top: 72%;
+    width: calc(50% - 1.15rem);
   }
-
-  /* Re-position the two QaCard wrappers (immediate div children) for mobile.
-     The wrappers' default position/width come from QaCard.module.css; here
-     we override by structural position so QaCard remains layout-agnostic. */
-  .heroInfoCards > div:nth-child(1),
-  .heroInfoCards > div:nth-child(2) {
-    position: absolute;
-    width: calc(50% - 0.4rem);
-  }
-
-  .heroInfoCards > div:nth-child(1) {
-    left: 0;
-    right: auto;
-    top: 0;
-  }
-
-  .heroInfoCards > div:nth-child(2) {
-    left: auto;
-    right: 0;
-    top: 0.9rem;
+  .heroQaCardTwo {
+    --card-left: auto;
+    --card-right: 0.75rem;
+    --card-top: calc(72% + 0.9rem);
+    width: calc(50% - 1.15rem);
   }
 
   .heroBottomActions {
