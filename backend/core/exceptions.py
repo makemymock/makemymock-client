@@ -85,3 +85,35 @@ class ProfileNotFound(AppException):
 class InvalidTourSlug(AppException):
     def __init__(self, detail: str = "Invalid tour identifier."):
         super().__init__(detail, status.HTTP_400_BAD_REQUEST)
+
+
+# ---- Contests ----
+class ContestNotFound(AppException):
+    def __init__(self, detail: str = "Contest not found."):
+        super().__init__(detail, status.HTTP_404_NOT_FOUND)
+
+
+class ContestLobbyClosed(AppException):
+    """The lobby (and start button) only open within 5 min of start time."""
+    def __init__(self, detail: str = "Contest lobby is not open yet."):
+        super().__init__(detail, status.HTTP_403_FORBIDDEN)
+
+
+class ContestNotStarted(AppException):
+    def __init__(self, detail: str = "Contest has not started yet."):
+        super().__init__(detail, status.HTTP_403_FORBIDDEN)
+
+
+class ContestEnded(AppException):
+    def __init__(self, detail: str = "Contest has ended."):
+        super().__init__(detail, status.HTTP_410_GONE)
+
+
+class ContestAlreadySubmitted(AppException):
+    def __init__(self, detail: str = "You have already submitted this contest."):
+        super().__init__(detail, status.HTTP_409_CONFLICT)
+
+
+class ContestNotEntered(AppException):
+    def __init__(self, detail: str = "You must enter the contest lobby before starting."):
+        super().__init__(detail, status.HTTP_403_FORBIDDEN)

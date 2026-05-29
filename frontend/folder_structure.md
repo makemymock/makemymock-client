@@ -33,7 +33,9 @@ frontend/
 │   │   ├── dashboard/  history/
 │   │   ├── tests/               # TestsLaunch, TakeTest, Result, BrowseQuestion
 │   │   ├── analytics/           # Analytics, ChapterAnalytics, TopicAnalytics
-│   │   ├── battle/              # BattleLaunch, BattleArena, BattleHistory
+│   │   ├── battle/              # BattleLaunch (legacy), BattleArena, BattleHistory
+│   │   ├── compete/             # Compete hub (3-tab) + ContestLobby /
+│   │   │                        #   ContestPlay (fullscreen) / ContestResult
 │   │   └── solverx/             # SolverX chat surface
 │   ├── routes/                  # Router config + route guards
 │   │   ├── AppRoutes.jsx
@@ -45,6 +47,7 @@ frontend/
 │   │   ├── mockTestService.js
 │   │   ├── potdService.js
 │   │   ├── battleService.js
+│   │   ├── contestService.js
 │   │   └── solverxService.js
 │   ├── hooks/                   # useTheme (light/dark)
 │   ├── context/                 # Reserved — empty today
@@ -140,7 +143,11 @@ One folder per route. **Pages own their CSS module** (lowercase: `login.module.c
 | `Analytics` | `/analytics` *(protected)* | Overview + topic + chapter analytics, activity heatmap. |
 | `ChapterAnalytics` / `TopicAnalytics` | `/analytics/chapter/:id` + `/analytics/topic/:id` *(protected)* | Drill-down views. |
 | `History` | `/history` *(protected)* | List of past mock tests. |
-| `BattleLaunch` / `BattleArena` / `BattleHistory` | `/battle`, `/battle/play`, `/battle/history` *(protected)* | Queue UI, fullscreen live WebSocket arena, past replays. |
+| `BattleArena` / `BattleHistory` | `/battle/play`, `/battle/history` *(protected)* | Fullscreen live WebSocket arena and past replays. The legacy `/battle` route redirects to the Compete hub's Battle tab. |
+| `Compete` | `/compete` *(protected)* | Hub page with three tabs — **Battle** (queue + recent), **Contest** (live / upcoming / past cards with countdown), **Leaderboard** (per-contest ranked table). Tab persisted in `?tab=`. |
+| `ContestLobby` | `/contest/:id` *(protected)* | Rules markdown + countdown + gated Enter / Start CTA. Server enforces the 5-minute lobby window. |
+| `ContestPlay` | `/contest/:id/play` *(protected, fullscreen)* | Active contest run — reuses `Timer`, `QuestionViewer`, `QuestionPalette`. Autosaves draft to `sessionStorage` so a refresh resumes. |
+| `ContestResult` | `/contest/:id/result` *(protected)* | Headline score + rank, embedded leaderboard, per-question review with worked solution. |
 | `SolverX` | `/solverx` *(protected, fullscreen)* | Chat surface with SSE-streamed Solve / Theory modes + conversation sidebar. |
 
 ### `routes/`

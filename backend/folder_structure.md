@@ -22,6 +22,9 @@ backend/
 │   │                     #   Browse catalog, notebook. Sole engine caller.
 │   ├── potd/             # Problem of the Day + streak
 │   ├── battle/           # 1-vs-1 REST + WebSocket matchmaking & play
+│   ├── contest/          # Scheduled contests (lobby + play + leaderboard).
+│   │                     #   Admin writes to `contests`; this module owns
+│   │                     #   `contest_participations` + `contest_responses`.
 │   └── solverx/          # SSE-streamed LLM solver/tutor (Vertex AI)
 ├── services/             # Reserved for cross-module orchestration services
 ├── main.py               # FastAPI app factory + lifespan + global handlers

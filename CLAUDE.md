@@ -67,6 +67,7 @@ Settings + DB lifecycle live in [backend/config/](backend/config/). All Mongo in
 - [`potd/`](backend/modules/potd/) — Problem of the Day: `today`, `attempt`, `view-solution`, `streak`, `history`, past-date lookup. Owns `potd_assignments` + `potd_user_state`.
 - [`battle/`](backend/modules/battle/) — 1-vs-1 matchmaking + live play. REST (`/battle/history`, `/battle/{id}`) + WebSocket (`/battle/ws?token=…`) with a documented message protocol; matchmaking state lives in [matchmaker.py](backend/modules/battle/matchmaker.py). Persists battle replays to `battles`.
 - [`solverx/`](backend/modules/solverx/) — multi-agent LLM solver/tutor over **Vertex AI** (`google-genai`). Two Server-Sent Events endpoints (`/solverx/solve`, `/solverx/theory`) stream status + content tokens; conversation history at `/solverx/conversations`. LaTeX is normalised in [latex_normalize.py](backend/modules/solverx/latex_normalize.py); prompts in [prompts.py](backend/modules/solverx/prompts.py).
+- [`contest/`](backend/modules/contest/) — scheduled contests (Admin creates them; Client serves participants). Lobby gate opens 5 min before `start_time`; `/start` returns the question payload + server timer; `/submit` grades with the per-contest marking scheme (`+correct / wrong / unattempted`), persists `contest_participations` + `contest_responses`, and computes rank. Grader lives in [grader.py](backend/modules/contest/grader.py) — pure functions duplicated from mock_test (single/multi/integer/matching; passages excluded in v1).
 
 ### Hard rules
 
@@ -104,7 +105,9 @@ React 19 + Vite + `vite-plugin-pwa` SPA. CSS Modules for styling. **No Tailwind 
 Pages (see [routes/AppRoutes.jsx](frontend/src/routes/AppRoutes.jsx)):
 - Public: `/` (`landing/`), `/signup`, `/login`.
 - Pre-shell protected: `/profile/setup` (renders before the AppLayout chrome — user has no profile yet).
-- Inside [AppLayout](frontend/src/components/layout/AppLayout.jsx): `/dashboard`, `/tests` + `/tests/browse/:questionId`, `/tests/:sessionId` (TakeTest) + `/result`, `/analytics` + `/analytics/chapter/:id` + `/analytics/topic/:id`, `/history`, `/battle` + `/battle/play` + `/battle/history`, `/solverx`. Active test, live battle, and SolverX bypass the chrome via `AppLayout`'s `FULLSCREEN_RE`.
+- Inside [AppLayout](frontend/src/components/layout/AppLayout.jsx): `/dashboard`, `/tests` + `/tests/browse/:questionId`, `/tests/:sessionId` (TakeTest) + `/result`, `/analytics` + `/analytics/chapter/:id` + `/analytics/topic/:id`, `/history`, `/compete` (hub), `/battle/play` + `/battle/history`, `/contest/:id` (lobby) + `/contest/:id/play` (fullscreen) + `/contest/:id/result`, `/solverx`. Active test, live battle, active contest play, and SolverX bypass the chrome via `AppLayout`'s `FULLSCREEN_RE`. Legacy `/battle` redirects to `/compete?tab=battle`.
+
+The `/compete` hub ([pages/compete/Compete.jsx](frontend/src/pages/compete/Compete.jsx)) renders three tabs in one screen: **Battle** (queue + recent), **Contest** (live / upcoming / past cards with countdown), and **Leaderboard** (contest picker → ranked table). Tab state is mirrored to the `?tab=` query string so deep links from elsewhere (e.g. `/compete?tab=leaderboard`) land on the right pane.
 
 Component folders: [components/common/](frontend/src/components/common/) (primitives + charts: `Button`, `InputField`, `SelectField`, `Loader`, `ErrorMessage`, `StatCard`, `BarChart`, `LineChart`, `DonutChart`, `Heatmap`, `ConfidenceTrophy`, `DashboardFab`, `MarkdownText`, `ThemeToggle`, `ThemeToggleFab`), [components/auth/](frontend/src/components/auth/) (`AuthLayout`, `OTPModal`, `PasswordInput`), [components/layout/](frontend/src/components/layout/) (`AppLayout`), [components/landing/](frontend/src/components/landing/), [components/dashboard/](frontend/src/components/dashboard/) (`PotdModal`), [components/mockTest/](frontend/src/components/mockTest/) (`ExamShell`, `QuestionViewer`, `QuestionPalette`, `MatchingEditor`, `SubmitDialog`, `Timer`), [components/solverx/](frontend/src/components/solverx/) (`MessageBlock`).
 
@@ -153,6 +156,11 @@ Battle (owned by `modules/battle/`):
 SolverX (owned by `modules/solverx/`):
 - `solverx_conversations` — per-user, sorted by `updated_at` for the sidebar.
 - `solverx_messages` — join back to conversation via `conversation_id`, ordered by `created_at`.
+
+Contests (split ownership — see [`contest/`](backend/modules/contest/) note above):
+- `contests` — **written by the Admin backend**, read by Client. Indexed on `start_time` + `end_time` (also serves the no-overlap check).
+- `contest_participations` — unique on (contest_id, user_id). Owned by Client `contest/`. Leaderboard sort uses a compound index on (contest_id, score, time_taken_seconds).
+- `contest_responses` — unique on (contest_id, user_id, question_id). Owned by Client `contest/`. The per-question review on the result page reads in `display_order`.
 
 Question catalog (read-only, `bbd_db` schema): `questions`, indexed on `(subject, chapter, topic)`.
 

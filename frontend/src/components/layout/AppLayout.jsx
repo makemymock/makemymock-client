@@ -25,20 +25,17 @@ const IconSpark = (p) => (
     <circle cx="12" cy="12" r="3.5" />
   </svg>
 );
-// Crossed swords — Lucide "swords" glyph. Two blades pointing
-// up-right (from the bottom-left hilt) and up-left (from the
-// bottom-right hilt), crossing in the middle.
-const IconSwords = (p) => (
+// Trophy — used for the "Compete" nav item. Replaces the older crossed-
+// swords glyph because Compete now bundles Battle + Contest + Leaderboard
+// and the trophy reads better as the parent metaphor.
+const IconCompete = (p) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
        strokeLinecap="round" strokeLinejoin="round" {...p}>
-    <polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5" />
-    <line x1="13" y1="19" x2="19" y2="13" />
-    <line x1="16" y1="16" x2="20" y2="20" />
-    <line x1="19" y1="21" x2="21" y2="19" />
-    <polyline points="14.5 6.5 18 3 21 3 21 6 17.5 9.5" />
-    <line x1="5" y1="14" x2="9" y2="18" />
-    <line x1="7" y1="17" x2="4" y2="20" />
-    <line x1="3" y1="19" x2="5" y2="21" />
+    <path d="M8 21h8" />
+    <path d="M12 17v4" />
+    <path d="M7 4h10v5a5 5 0 0 1-10 0V4z" />
+    <path d="M17 5h3v3a3 3 0 0 1-3 3" />
+    <path d="M7 5H4v3a3 3 0 0 0 3 3" />
   </svg>
 );
 const IconChart = (p) => (
@@ -68,20 +65,31 @@ const IconMoon = (p) => (
   </svg>
 );
 // ---------- five-item navigation ----------
+// `match` (optional) lets a nav item claim the active state on routes
+// other than its own `to`. Compete owns everything under /compete,
+// /contest, and the legacy /battle paths — without this NavLink would
+// show no active item on the Lobby / Result pages even though they
+// belong to the Compete feature.
 const NAV_ITEMS = [
   { to: '/dashboard', label: 'Home',      Icon: IconHome,    end: true, tour: 'nav.dashboard' },
-  { to: '/tests',     label: 'Practice',  Icon: IconTest,    tour: 'nav.practice' },
+  { to: '/tests',     label: 'Practice',  Icon: IconTest,    tour: 'nav.practice',
+    match: (p) => p.startsWith('/tests') },
   { to: '/solverx',   label: 'SolverX',   Icon: IconSpark,   tour: 'nav.solverx' },
-  { to: '/battle',    label: 'Battle',    Icon: IconSwords,  tour: 'nav.battle' },
-  { to: '/analytics', label: 'Analytics', Icon: IconChart,   tour: 'nav.analytics' },
+  { to: '/compete',   label: 'Compete',   Icon: IconCompete, tour: 'nav.compete',
+    match: (p) => p.startsWith('/compete')
+               || p.startsWith('/contest')
+               || p.startsWith('/battle') },
+  { to: '/analytics', label: 'Analytics', Icon: IconChart,   tour: 'nav.analytics',
+    match: (p) => p.startsWith('/analytics') },
 ];
 
 // Routes that own the whole viewport (no sidebar, no topbar, no bottom
-// nav). Active test/battle screens hide chrome so a stray tap can't
-// disrupt an attempt.
+// nav). Active test / battle / contest screens hide chrome so a stray
+// tap can't disrupt an attempt.
 const FULLSCREEN_RE = [
   /^\/tests\/[^/]+$/,            // /tests/:sessionId (active test only)
   /^\/battle\/play$/,            // active 1-vs-1 battle
+  /^\/contest\/[^/]+\/play$/,    // active contest run
 ];
 
 // Routes that keep the global sidebar + top bar, but render edge-to-edge
@@ -136,56 +144,71 @@ const AppLayout = () => {
 // Sub-components
 // ============================================================================
 
-const SideNav = ({ onLogout }) => (
-  <nav className={styles.sideNav} aria-label="Primary">
-    <ul className={styles.sideNavList}>
-      {NAV_ITEMS.map(({ to, label, Icon, end, tour }) => (
-        <li key={to}>
-          <NavLink
-            to={to}
-            end={end}
-            data-tour={tour}
-            className={({ isActive }) =>
-              `${styles.sideNavItem} ${isActive ? styles.sideNavItemActive : ''}`
-            }
-            title={label}
-          >
-            <Icon className={styles.sideNavIcon} />
-            <span className={styles.sideNavLabel}>{label}</span>
-          </NavLink>
-        </li>
-      ))}
-    </ul>
-    <button
-      type="button"
-      className={styles.sideNavItem}
-      onClick={onLogout}
-      title="Sign out"
-    >
-      <IconLogout className={styles.sideNavIcon} />
-      <span className={styles.sideNavLabel}>Sign out</span>
-    </button>
-  </nav>
-);
+// NavLink's built-in `isActive` only matches the item's own `to`. For
+// items with a `match` predicate (Compete owns /contest + /battle too)
+// we fall back to the current pathname so the active style sticks
+// across the whole feature area.
+const isItemActive = (item, builtIn, pathname) =>
+  item.match ? item.match(pathname) : builtIn;
 
-const BottomNav = () => (
-  <nav className={styles.bottomNav} aria-label="Primary">
-    {NAV_ITEMS.map(({ to, label, Icon, end, tour }) => (
-      <NavLink
-        key={to}
-        to={to}
-        end={end}
-        data-tour={tour}
-        className={({ isActive }) =>
-          `${styles.bottomNavItem} ${isActive ? styles.bottomNavItemActive : ''}`
-        }
+const SideNav = ({ onLogout }) => {
+  const { pathname } = useLocation();
+  return (
+    <nav className={styles.sideNav} aria-label="Primary">
+      <ul className={styles.sideNavList}>
+        {NAV_ITEMS.map((item) => (
+          <li key={item.to}>
+            <NavLink
+              to={item.to}
+              end={item.end}
+              data-tour={item.tour}
+              className={({ isActive }) => {
+                const active = isItemActive(item, isActive, pathname);
+                return `${styles.sideNavItem} ${active ? styles.sideNavItemActive : ''}`;
+              }}
+              title={item.label}
+            >
+              <item.Icon className={styles.sideNavIcon} />
+              <span className={styles.sideNavLabel}>{item.label}</span>
+            </NavLink>
+          </li>
+        ))}
+      </ul>
+      <button
+        type="button"
+        className={styles.sideNavItem}
+        onClick={onLogout}
+        title="Sign out"
       >
-        <Icon className={styles.bottomNavIcon} />
-        <span className={styles.bottomNavLabel}>{label}</span>
-      </NavLink>
-    ))}
-  </nav>
-);
+        <IconLogout className={styles.sideNavIcon} />
+        <span className={styles.sideNavLabel}>Sign out</span>
+      </button>
+    </nav>
+  );
+};
+
+const BottomNav = () => {
+  const { pathname } = useLocation();
+  return (
+    <nav className={styles.bottomNav} aria-label="Primary">
+      {NAV_ITEMS.map((item) => (
+        <NavLink
+          key={item.to}
+          to={item.to}
+          end={item.end}
+          data-tour={item.tour}
+          className={({ isActive }) => {
+            const active = isItemActive(item, isActive, pathname);
+            return `${styles.bottomNavItem} ${active ? styles.bottomNavItemActive : ''}`;
+          }}
+        >
+          <item.Icon className={styles.bottomNavIcon} />
+          <span className={styles.bottomNavLabel}>{item.label}</span>
+        </NavLink>
+      ))}
+    </nav>
+  );
+};
 
 const TopBar = ({ user, theme, onToggleTheme, onLogout }) => {
   const [menuOpen, setMenuOpen] = useState(false);

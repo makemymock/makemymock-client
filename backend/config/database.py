@@ -173,6 +173,41 @@ async def _ensure_indexes() -> None:
         [("conversation_id", ASCENDING), ("created_at", ASCENDING)],
     )
 
+    # ---------- Contests ----------
+    # Admin writes to `contests`; the Client backend reads them and owns
+    # the per-user participation / response collections.
+    # `start_time` index serves listing (sort + filter) and the no-overlap
+    # check on admin create/update.
+    await mongo.db["contests"].create_index([("start_time", ASCENDING)])
+    await mongo.db["contests"].create_index([("end_time", ASCENDING)])
+
+    # One participation row per (contest, user) — both the lobby-entry
+    # upsert and the leaderboard read rely on this.
+    await mongo.db["contest_participations"].create_index(
+        [("contest_id", ASCENDING), ("user_id", ASCENDING)],
+        unique=True,
+    )
+    # Leaderboard sort key: score desc, time asc — declared as ascending
+    # because Mongo can walk indexes in reverse for the score component.
+    await mongo.db["contest_participations"].create_index(
+        [("contest_id", ASCENDING), ("score", ASCENDING),
+         ("time_taken_seconds", ASCENDING)],
+    )
+    await mongo.db["contest_participations"].create_index([("user_id", ASCENDING)])
+
+    # Per-question responses. Unique per (contest, user, question) so a
+    # retry can't double-write; also the in-order read for the result
+    # page sorts by display_order.
+    await mongo.db["contest_responses"].create_index(
+        [("contest_id", ASCENDING), ("user_id", ASCENDING),
+         ("question_id", ASCENDING)],
+        unique=True,
+    )
+    await mongo.db["contest_responses"].create_index(
+        [("contest_id", ASCENDING), ("user_id", ASCENDING),
+         ("display_order", ASCENDING)],
+    )
+
 
 def get_database() -> AsyncIOMotorDatabase:
     if mongo.db is None:

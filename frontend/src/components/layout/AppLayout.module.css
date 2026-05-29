@@ -280,7 +280,10 @@
   width: 100%;
 }
 
-.sideNavList li { width: 100%; padding: 0 10px; }
+/* Tighter li padding so the active/hover tile gets enough breathing
+   room to enclose both the icon AND the label without the text
+   visually overflowing the rounded surface. */
+.sideNavList li { width: 100%; padding: 0 6px; }
 
 .sideNavItem {
   display: flex;
@@ -289,18 +292,19 @@
   justify-content: center;
   gap: 4px;
   width: 100%;
-  padding: 10px 4px;
+  padding: 10px 6px;
   background: transparent;
   border: none;
   border-radius: 12px;
   color: var(--dash-sidebar-text);
   cursor: pointer;
   font-family: inherit;
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 600;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.2px;
   text-decoration: none;
   transition: background 0.15s ease, color 0.15s ease;
+  position: relative;
 }
 
 .sideNavItem:hover {
@@ -308,10 +312,26 @@
   color: var(--dash-sidebar-text-active);
 }
 
-.sideNavItemActive {
+/* Active state — solid brand surface with a left accent bar so the
+   selected item is unmistakable on the dark sidebar (the old
+   translucent gradient read like a hover, not a click). */
+.sideNavItemActive,
+.sideNavItemActive:hover {
   background: linear-gradient(135deg,
-    rgba(20, 184, 166, 0.18), rgba(245, 196, 81, 0.18));
-  color: var(--dash-sidebar-text-active);
+    rgba(20, 184, 166, 0.32), rgba(20, 184, 166, 0.16));
+  color: #ffffff;
+  box-shadow: inset 0 0 0 1px rgba(20, 184, 166, 0.45),
+              0 6px 14px rgba(20, 184, 166, 0.18);
+}
+.sideNavItemActive::before {
+  content: '';
+  position: absolute;
+  left: -6px;
+  top: 14px;
+  bottom: 14px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--color-accent);
 }
 
 .sideNavIcon {
@@ -363,11 +383,26 @@
   font-weight: 600;
   letter-spacing: 0.2px;
   padding: 6px 2px;
+  position: relative;
 }
 
 .bottomNavItem:active { background: rgba(255, 255, 255, 0.06); }
 
-.bottomNavItemActive { color: var(--dash-accent-yellow); }
+.bottomNavItemActive {
+  color: #ffffff;
+  background: linear-gradient(180deg,
+    rgba(20, 184, 166, 0.18), transparent 70%);
+}
+.bottomNavItemActive::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 18%;
+  right: 18%;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: var(--color-accent);
+}
 
 .bottomNavItemActive .bottomNavIcon { transform: translateY(-2px); }
 
