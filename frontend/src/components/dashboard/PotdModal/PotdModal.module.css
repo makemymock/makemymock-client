@@ -94,6 +94,7 @@
 .topicChip {
   margin: 0;
   display: inline-block;
+  max-width: 100%;
   font-size: 12px;
   font-weight: 600;
   padding: 4px 10px;
@@ -102,6 +103,10 @@
   border: 1px solid var(--dash-card-border);
   color: var(--dash-text-muted);
   text-transform: capitalize;
+  line-height: 1.4;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: break-word;
 }
 
 .closeBtn {
@@ -119,6 +124,58 @@
 }
 
 .closeBtn:hover { background: var(--color-chip-bg); }
+
+/* ----- Phone layout — stack actions above the title so the title block
+   doesn't get squeezed into a one-word-per-line column. ----- */
+@media (max-width: 600px) {
+  .dialogHeader {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: 12px;
+    padding: 14px 16px 12px;
+  }
+
+  .titleWrap {
+    width: 100%;
+  }
+
+  .headerRight {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .closeBtn {
+    margin-left: auto;
+  }
+
+  .title {
+    font-size: 20px;
+    line-height: 1.2;
+    letter-spacing: -0.2px;
+  }
+
+  .eyebrow {
+    letter-spacing: 1.5px;
+  }
+
+  .body {
+    padding: 14px 16px;
+  }
+
+  .footer {
+    padding: 12px 14px;
+    gap: 6px;
+  }
+
+  .primaryBtn,
+  .secondaryBtn,
+  .dangerBtn {
+    padding: 9px 14px;
+    font-size: 13px;
+  }
+}
 
 /* ----- Body (scrolls) ----- */
 

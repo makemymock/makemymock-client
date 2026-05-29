@@ -6,9 +6,9 @@
 .backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(7, 10, 18, 0.62);
-  backdrop-filter: blur(3px);
-  -webkit-backdrop-filter: blur(3px);
+  background: rgba(7, 10, 18, 0.85);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -18,11 +18,12 @@
 
 .card {
   width: min(480px, 100%);
-  background: var(--color-panel-bg);
+  background: #0f1622;
+  background: var(--color-panel-bg, #0f1622);
   border: 1px solid var(--color-panel-border);
   border-radius: 18px;
   padding: 22px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -100,16 +101,18 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 28px;
+  font-size: 16px;
   font-weight: 800;
-  letter-spacing: 6px;
+  letter-spacing: 4px;
   font-variant-numeric: tabular-nums;
-  padding: 10px 16px;
+  padding: 10px 12px;
   border-radius: 10px;
   border: 1.5px dashed var(--color-accent);
   background: rgba(20, 184, 166, 0.08);
   color: var(--color-text-primary);
   user-select: all;
+  min-width: 0;
+  line-height: 1.4;
 }
 
 .copyBtn {
