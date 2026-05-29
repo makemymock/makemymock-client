@@ -7,26 +7,72 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'robots.txt', 'logo192.png'],
+      // 'prompt' so the React app decides when the new SW takes over (we
+      // show an "Update available" toast). With 'autoUpdate' the SW swaps
+      // in the background and the open tab keeps running the old bundle
+      // silently — users have to know to hard-reload to see the new code.
+      registerType: 'prompt',
+      includeAssets: [
+        'robots.txt',
+        'logo.png',
+        'maskable_icon_x128.png',
+        'maskable_icon_x192.png',
+        'maskable_icon_x384.png',
+        'maskable_icon_x512.png',
+        'dashboard-narrow.png',
+        'dashboard-wide.png',
+      ],
       manifest: {
+        id: '/',
         name: 'Make My Mock',
         short_name: 'MakeMyMock',
         description: 'Smart test series platform — mock, analyse, succeed.',
+        lang: 'en',
+        dir: 'ltr',
+        categories: ['education', 'productivity'],
         theme_color: '#0d9678',
         background_color: '#fbfdf4',
         display: 'standalone',
+        // Prefer richer display modes when supported, fall back gracefully.
+        display_override: ['standalone', 'minimal-ui'],
+        // No native counterpart — tell the OS not to suggest one.
+        prefer_related_applications: false,
+        orientation: 'portrait',
         start_url: '/',
         scope: '/',
         icons: [
-          { src: 'logo192.png', sizes: '192x192', type: 'image/png' },
-          { src: 'logo512.png', sizes: '512x512', type: 'image/png' },
+          // Plain logo — used for the browser tab favicon, bookmarks,
+          // and the "any" PWA contexts (OSes that don't apply a mask).
+          { src: 'logo.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          // Maskable variants for Android adaptive launchers — these
+          // PNGs reserve safe-zone padding so the brand survives the
+          // circle / squircle / rounded-square crop.
+          { src: 'maskable_icon_x128.png', sizes: '128x128', type: 'image/png', purpose: 'maskable' },
+          { src: 'maskable_icon_x192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+          { src: 'maskable_icon_x384.png', sizes: '384x384', type: 'image/png', purpose: 'maskable' },
+          { src: 'maskable_icon_x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        ],
+        screenshots: [
           {
-            src: 'logo512.png',
-            sizes: '512x512',
+            src: 'dashboard-narrow.png',
+            sizes: '376x813',
             type: 'image/png',
-            purpose: 'any maskable',
+            form_factor: 'narrow',
+            label: 'Personalised dashboard with daily progress',
           },
+          {
+            src: 'dashboard-wide.png',
+            sizes: '1905x924',
+            type: 'image/png',
+            form_factor: 'wide',
+            label: 'Personalised dashboard with daily progress',
+          },
+        ],
+        shortcuts: [
+          { name: 'Tests',     short_name: 'Tests',     url: '/tests',     icons: [{ src: 'logo.png', sizes: '512x512' }] },
+          { name: 'Compete',   short_name: 'Compete',   url: '/compete',   icons: [{ src: 'logo.png', sizes: '512x512' }] },
+          { name: 'Analytics', short_name: 'Analytics', url: '/analytics', icons: [{ src: 'logo.png', sizes: '512x512' }] },
+          { name: 'SolverX',   short_name: 'SolverX',   url: '/solverx',   icons: [{ src: 'logo.png', sizes: '512x512' }] },
         ],
       },
       workbox: {

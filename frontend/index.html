@@ -2,11 +2,24 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" href="/favicon.ico" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0d9678" />
+    <!-- Tab favicon — browsers downscale this single 512×512 source for
+         the tab (16/32px), bookmarks, and the address bar. -->
+    <link rel="icon" type="image/png" sizes="any" href="/logo.png" />
+    <!-- `viewport-fit=cover` lets the standalone PWA paint into the safe
+         area on notched iPhones; `env(safe-area-inset-*)` in CSS can then
+         pad content away from the cutout. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- Theme color drives the mobile address bar / status bar tint.
+         Use the brand green in light mode and the dark-theme page bg in
+         dark so the chrome blends with whichever theme is rendering. -->
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#0d9678" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)"  content="#0b1220" />
     <meta name="description" content="Smart test series platform — mock, analyse, succeed." />
-    <link rel="apple-touch-icon" href="/logo192.png" />
+    <link rel="apple-touch-icon" href="/logo.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="MakeMyMock" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&family=Space+Grotesk:wght@300..700&display=swap" rel="stylesheet" />
