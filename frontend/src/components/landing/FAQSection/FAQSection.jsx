@@ -22,25 +22,31 @@ const faqs = [
     id: 'who-is-it-for',
     question: 'Who is this platform for?',
     answer:
-      'MakeMyMock is built for high-school and competitive-exam students who want personalised, adaptive practice. Whether you are preparing for board exams, JEE, or NEET, the platform adapts to your pace and your weak areas.',
+      "It's designed for students preparing for exams like JEE, NEET, CUET, and boards — whether you're just starting out or already deep into preparation.",
   },
   {
     id: 'different-from-others',
     question: 'How is this different from other test series?',
     answer:
-      'Most test series serve everyone the same paper. MakeMyMock analyses your performance after every session and serves the next question based on what you actually need to improve, not what is next in a fixed list.',
+      'Most platforms stop at giving tests. Here, the focus is also on what happens after the test — understanding mistakes, practising weak areas, and improving step by step.',
   },
   {
     id: 'personalized-practice',
-    question: 'What is personalised practice?',
+    question: 'What is personalized practice?',
     answer:
-      'Personalised practice means the system identifies the concepts you are getting wrong, the difficulty level you are ready for, and the topics you have not seen recently — then assembles each session around those signals instead of random questions.',
+      "After you attempt tests, you'll get questions based on your weak areas and performance, so you're not just practicing randomly.",
   },
   {
     id: 'suitable-for-beginners',
     question: 'Is this suitable for beginners?',
     answer:
-      'Yes. The system starts with foundational concepts and increases difficulty only as your accuracy improves. Beginners get scaffolded practice; advanced learners get harder problems pulled from previous-year papers.',
+      'Yes. You can start at your own level and gradually improve with practice and insights.',
+  },
+  {
+    id: 'solutions-every-question',
+    question: 'Will I get solutions for every question?',
+    answer:
+      "Yes, you'll get clear step-by-step solutions, so you can actually understand where you went wrong.",
   },
 ];
 
