@@ -100,7 +100,7 @@ class SessionNotFound(AppException):
 
 class NoUnlockedTopics(AppException):
     def __init__(self, detail: str = "No unlocked topics available for this student yet."):
-        super().__init__(detail, status.HTTP_422_UNPROCESSABLE_ENTITY)
+        super().__init__(detail, status.HTTP_404_NOT_FOUND)
 
 
 class RecommenderAgentError(AppException):

@@ -49,6 +49,49 @@ from modules.recommender.constants import (
 logger = logging.getLogger(__name__)
 
 
+def _build_coach_note(
+    mode: str,
+    topic_id: str,
+    mastery_mean: float,
+    p_appears: float,
+    difficulty_offset: float,
+) -> str:
+    topic_name  = topic_id.split("::")[-1].replace("-", " ").title()
+    mastery_pct = int(mastery_mean * 100)
+
+    if mode == "recovery":
+        return (
+            f"You've hit a rough patch — the AI switched to a topic you know well "
+            f"({topic_name}, {mastery_pct}% mastery). Let's rebuild momentum before pushing harder."
+        )
+    if mode == "wind_down":
+        return (
+            f"You've been at this a while — finishing with a comfortable {topic_name} question "
+            "to close the session strong."
+        )
+
+    reasons: list[str] = []
+    if mastery_pct < 40:
+        reasons.append(f"your mastery of {topic_name} is only {mastery_pct}% — it needs the most work right now")
+    elif mastery_pct < 65:
+        reasons.append(f"you're still developing in {topic_name} ({mastery_pct}% mastery)")
+
+    if p_appears >= 0.70:
+        reasons.append(f"it shows up in ~{int(p_appears * 100)}% of recent JEE papers")
+    elif p_appears >= 0.50:
+        reasons.append("it's a moderately frequent JEE topic")
+
+    if difficulty_offset > 0.4:
+        reasons.append("difficulty pushed up — you're on a streak")
+    elif difficulty_offset < -0.4:
+        reasons.append("difficulty eased slightly to keep you in the zone")
+
+    if not reasons:
+        return f"Continuing with {topic_name} — the AI sees room to grow here."
+
+    return "The AI picked this because " + "; ".join(reasons) + "."
+
+
 class RecommenderService:
     def __init__(self, db: AsyncIOMotorDatabase) -> None:
         self._db = db
@@ -98,7 +141,7 @@ class RecommenderService:
             review_injection_rate=float(plan.get("review_injection_rate", 0.25)),
             confidence_note=plan.get("confidence_note", ""),
             reasoning_steps=plan.get("reasoning_steps", []),
-            state=SessionState(consecutive_wrong=0, questions_asked=0, session_mode="normal"),
+            state=SessionState(),
         )
 
     async def start_session_stream(
@@ -127,7 +170,7 @@ class RecommenderService:
             review_injection_rate=float(plan.get("review_injection_rate", 0.25)),
             confidence_note=plan.get("confidence_note", ""),
             reasoning_steps=plan.get("reasoning_steps", []),
-            state=SessionState(consecutive_wrong=0, questions_asked=0, session_mode="normal"),
+            state=SessionState(),
         )
         await event_queue.put({"type": "plan", **resp.model_dump()})
         return resp
@@ -135,140 +178,136 @@ class RecommenderService:
     async def get_next_question(
         self,
         student_id: str,
-        session_id: str,
         focus_topics: list[str],
         start_difficulty_offset: float,
         review_injection_rate: float,
         state: SessionState,
     ) -> NextQuestionResponse:
         personality = await self._repo.get_personality(student_id) or {}
-        confidence_profile = personality.get("confidence_profile", "resilient")
-        fatigue_threshold  = personality.get("fatigue_threshold_questions", 20)
-
         mode_result = ConfidenceRegulator.get_session_mode(
             consecutive_wrong=state.consecutive_wrong,
             questions_asked=state.questions_asked,
-            confidence_profile=confidence_profile,
-            fatigue_threshold=fatigue_threshold,
+            confidence_profile=personality.get("confidence_profile", "resilient"),
+            fatigue_threshold=personality.get("fatigue_threshold_questions", 20),
         )
-        current_mode     = mode_result.mode
         difficulty_offset = start_difficulty_offset + mode_result.difficulty_offset
 
-        # ── Incorrectly-answered retry injection (higher priority than SM-2 review) ──
-        # Probability INCORRECT_INJECTION_PROB (0.55) > SM2_REVIEW_INJECTION_PROB (0.30)
+        # Injections must stay within the current session's subject scope.
+        # focus_topics is the list of topic IDs the student chose — if set, only
+        # inject questions whose topic_id is in that set.
+        _in_scope = set(focus_topics) if focus_topics else None
+
+        # ── Incorrect retry injection (p=0.55, checked first) ──────────────────
         if SM2Scheduler.should_inject_review(INCORRECT_INJECTION_PROB) and mode_result.mode == "normal":
-            due_wrong = await self._repo.get_due_incorrect_questions(student_id, limit=5)
-            not_served_wrong = [r for r in due_wrong if r["question_id"] not in state.seen_all_ids]
-            if not_served_wrong:
-                retry = not_served_wrong[0]
-                consec = retry.get("consecutive_incorrect", 1)
-                last_at = retry.get("last_attempted_at")
-                days_since = (datetime.now(timezone.utc) - last_at).days if last_at else 1
-                retry_reason = (
-                    f"You got this wrong {consec} time(s) — let's try again after {days_since} day(s). "
-                    "Getting it right now will really consolidate the concept!"
-                )
+            due_wrong = await self._repo.get_due_incorrect_questions(student_id, limit=10)
+            retry = next(
+                (r for r in due_wrong
+                 if r["question_id"] not in state.seen_all_ids
+                 and (_in_scope is None or r.get("topic_id") in _in_scope)),
+                None,
+            )
+            if retry:
+                consec     = retry.get("consecutive_incorrect", 1)
+                days_since = (datetime.now(timezone.utc) - retry["last_attempted_at"]).days if retry.get("last_attempted_at") else 1
+                topic_name = retry["topic_id"].split("::")[-1].replace("-", " ").title()
                 return NextQuestionResponse(
                     question_id=retry["question_id"],
                     topic_id=retry["topic_id"],
-                    chapter=retry.get("chapter", ""),
                     difficulty_target=0.0,
                     is_review_injection=True,
-                    session_mode=current_mode,
-                    difficulty_offset_applied=difficulty_offset,
-                    review_reason=retry_reason,
+                    review_reason=(
+                        f"You got this wrong {consec} time(s) — "
+                        f"retry after {days_since} day(s). Getting it right consolidates the concept!"
+                    ),
+                    coach_note=(
+                        f"You've gotten {topic_name} wrong {consec} time{'s' if consec > 1 else ''} in a row. "
+                        "The AI is bringing it back now — solving it today will break the pattern."
+                    ),
                 )
 
-        # ── Correctly-solved SM-2 review injection ─────────────────────────────
+        # ── SM-2 review injection (p=review_injection_rate) ────────────────────
         if SM2Scheduler.should_inject_review(review_injection_rate) and mode_result.mode == "normal":
-            due = await self._repo.get_due_review_questions(student_id, limit=5)
-            not_served = [r for r in due if r["question_id"] not in state.seen_all_ids]
-            if not_served:
-                review = not_served[0]
-                times_attempted = review.get("times_attempted", review.get("times_solved", 1))
-                last_at  = review.get("last_attempted_at", review.get("last_solved_at"))
-                days_since   = (datetime.now(timezone.utc) - last_at).days if last_at else 1
-                if times_attempted == 1:
-                    review_reason = (
-                        f"You solved this question {days_since} day(s) ago for the first time. "
-                        f"Reviewing it now helps lock it into long-term memory!"
-                    )
-                else:
-                    review_reason = (
-                        f"This is your review #{times_attempted} of this question — "
-                        f"you first solved it {days_since} day(s) ago. Keep reinforcing it!"
-                    )
+            due = await self._repo.get_due_review_questions(student_id, limit=10)
+            review = next(
+                (r for r in due
+                 if r["question_id"] not in state.seen_all_ids
+                 and (_in_scope is None or r.get("topic_id") in _in_scope)),
+                None,
+            )
+            if review:
+                attempts   = review.get("times_attempted", 1)
+                days_since = (datetime.now(timezone.utc) - review.get("last_attempted_at")).days if review.get("last_attempted_at") else 1
+                topic_name = review["topic_id"].split("::")[-1].replace("-", " ").title()
                 return NextQuestionResponse(
                     question_id=review["question_id"],
                     topic_id=review["topic_id"],
-                    chapter=review.get("chapter", ""),
                     difficulty_target=0.0,
                     is_review_injection=True,
-                    session_mode=current_mode,
-                    difficulty_offset_applied=difficulty_offset,
-                    review_reason=review_reason,
+                    review_reason=f"Review #{attempts} — first solved {days_since} day(s) ago.",
+                    coach_note=(
+                        f"You solved this {topic_name} question {days_since} day(s) ago. "
+                        f"This is review #{attempts} — spaced repetition research shows that reviewing at this "
+                        "interval is the most efficient way to move it into long-term memory."
+                    ),
                 )
 
+        # ── Topic selection via Thompson Sampling ───────────────────────────────
         all_states   = await self._repo.get_topic_states_dict(student_id)
-        graph        = get_prereq_graph()
-        unlocked_set = PrerequisiteChecker.get_unlocked_set(all_states, graph)
-
+        unlocked_set = PrerequisiteChecker.get_unlocked_set(all_states, get_prereq_graph())
         if not unlocked_set:
             raise NoUnlockedTopics()
 
         if mode_result.topic_override == "pick_mastered_topic":
-            strong_chapters = set(personality.get("strong_chapters", []))
-            unlocked_states = (
-                [s for tid, s in all_states.items() if tid in unlocked_set and s.get("chapter") in strong_chapters]
-                or [s for tid, s in all_states.items() if tid in unlocked_set]
-            )
+            strong = set(personality.get("strong_chapters", []))
+            pool = [s for tid, s in all_states.items() if tid in unlocked_set and s.get("chapter") in strong]
         else:
             focus_set = set(focus_topics) & unlocked_set if focus_topics else unlocked_set
-            unlocked_states = [s for tid, s in all_states.items() if tid in focus_set]
-            if not unlocked_states:
-                unlocked_states = [s for tid, s in all_states.items() if tid in unlocked_set]
+            pool = [s for tid, s in all_states.items() if tid in focus_set]
+        if not pool:
+            pool = [s for tid, s in all_states.items() if tid in unlocked_set]
 
-        trend_scores  = await self._repo.get_trend_scores_dict()
-        target_topic  = ThompsonSampler.select_topic(
-            topic_states=unlocked_states,
+        trend_scores = await self._repo.get_trend_scores_dict()
+        target_topic = ThompsonSampler.select_topic(
+            topic_states=pool,
             trend_scores=trend_scores,
             focus_topics=focus_topics if mode_result.topic_override is None else None,
         )
         if not target_topic:
             raise NoUnlockedTopics()
 
-        topic_state = all_states.get(target_topic, {})
-        chapter     = topic_state.get("chapter", "")
-        theta       = float(topic_state.get("theta", 0.0))
-        target_difficulty = IRTEngine.target_difficulty(theta, offset=difficulty_offset)
-        diff_min, diff_max = IRTEngine.difficulty_band(target_difficulty)
+        topic_state   = all_states[target_topic]
+        theta         = float(topic_state.get("theta", 0.0))
+        d_target      = IRTEngine.target_difficulty(theta, offset=difficulty_offset)
+        d_min, d_max  = IRTEngine.difficulty_band(d_target)
 
-        error_profile = personality.get("error_profile", {})
-        selector      = QuestionSelectorAgent()
-        question_id   = await selector.run(
-            student_id=student_id, topic_id=target_topic,
-            difficulty_min=diff_min, difficulty_max=diff_max,
-            seen_correct_ids=state.seen_correct_ids, error_profile=error_profile, db=self._db,
-        )
-
+        # ── Agent selects question via tool calls ───────────────────────────────
+        selector    = QuestionSelectorAgent()
+        question_id = await selector.run(student_id, target_topic, d_min, d_max, state.seen_all_ids, self._db)
         if not question_id:
-            question_id = await selector.run(
-                student_id=student_id, topic_id=target_topic,
-                difficulty_min=-1.5, difficulty_max=1.5,
-                seen_correct_ids=[], error_profile=error_profile, db=self._db,
+            # Wider band, no exclusions
+            question_id = await selector.run(student_id, target_topic, -1.5, 1.5, [], self._db)
+        if not question_id:
+            # Hard fallback: agent failed entirely — query DB directly
+            fallback = await self._repo.tool_get_candidate_questions(
+                topic_id=target_topic, difficulty_min=-1.5, difficulty_max=1.5,
+                exclude_ids=[], limit=1, student_id=student_id,
             )
-
+            question_id = fallback[0]["question_id"] if fallback else None
         if not question_id:
             raise NoUnlockedTopics(f"No questions available for topic {target_topic}.")
 
         return NextQuestionResponse(
             question_id=question_id,
             topic_id=target_topic,
-            chapter=chapter,
-            difficulty_target=round(target_difficulty, 3),
+            difficulty_target=round(d_target, 3),
             is_review_injection=False,
-            session_mode=current_mode,
-            difficulty_offset_applied=round(difficulty_offset, 3),
+            coach_note=_build_coach_note(
+                mode=mode_result.mode,
+                topic_id=target_topic,
+                mastery_mean=topic_state.get("alpha", 1) / (topic_state.get("alpha", 1) + topic_state.get("beta", 1)),
+                p_appears=trend_scores.get(target_topic, 0.5),
+                difficulty_offset=difficulty_offset,
+            ),
         )
 
     async def process_answer(
@@ -277,14 +316,13 @@ class RecommenderService:
         session_id: str,
         question_id: str,
         topic_id: str,
-        chapter: str,
         correct: bool,
         time_ms: int,
         difficulty: float,
         question_type: str,
         state: SessionState,
     ) -> SubmitAnswerResponse:
-        avg_time_ms = 60000
+        chapter = topic_id.split("::")[0] if "::" in topic_id else topic_id
 
         await self._repo.append_question_history(new_question_history_doc(
             student_id=student_id, session_id=session_id, question_id=question_id,
@@ -292,37 +330,30 @@ class RecommenderService:
             time_ms=time_ms, difficulty=difficulty, question_type=question_type,
         ))
 
-        # track ALL attempts (correct + incorrect) for per-question spaced repetition.
-        # Correct → SM-2 long interval; Incorrect → short retry interval.
-        # Both are excluded from normal candidates until their next_review_date.
-        topic_state_for_subj = await self._repo.get_topic_state(student_id, topic_id) or {}
-        question_subject = topic_state_for_subj.get("subject", SUBJECT_MATHEMATICS)
+        topic_state_doc = await self._repo.get_topic_state(student_id, topic_id) or {}
         await self._repo.upsert_solved_question(
             student_id=student_id, question_id=question_id,
             topic_id=topic_id, chapter=chapter,
             difficulty=difficulty, question_type=question_type,
             last_correct=correct,
-            subject=question_subject,
+            subject=topic_state_doc.get("subject", SUBJECT_MATHEMATICS),
         )
 
-        topic_state    = await self._repo.get_topic_state(student_id, topic_id) or {}
-        alpha          = int(topic_state.get("alpha", 1))
-        beta_val       = int(topic_state.get("beta", 1))
-        theta          = float(topic_state.get("theta", 0.0))
-        current_interval = int(topic_state.get("review_interval_days", 1))
-        current_ef     = float(topic_state.get("easiness_factor", 2.5))
-        total_correct  = int(topic_state.get("total_correct", 0))
-        total_attempts = int(topic_state.get("total_attempts", 0))
+        alpha    = int(topic_state_doc.get("alpha", 1))
+        beta_val = int(topic_state_doc.get("beta", 1))
 
-        if correct: alpha   += 1
+        if correct: alpha    += 1
         else:       beta_val += 1
 
-        irt_update = IRTEngine.update_theta(theta, difficulty, correct)
-        grade      = SM2Scheduler.compute_grade(correct, time_ms, avg_time_ms)
+        irt_update = IRTEngine.update_theta(float(topic_state_doc.get("theta", 0.0)), difficulty, correct)
+        grade      = SM2Scheduler.compute_grade(correct, time_ms, avg_time_ms=60_000)
         sm2        = SM2Scheduler.update_schedule(
-            current_interval=current_interval, current_ef=current_ef,
-            correct=correct, grade=grade, is_first_correct=(correct and total_correct == 0),
+            current_interval=int(topic_state_doc.get("review_interval_days", 1)),
+            current_ef=float(topic_state_doc.get("easiness_factor", 2.5)),
+            correct=correct, grade=grade,
+            is_first_correct=(correct and int(topic_state_doc.get("total_correct", 0)) == 0),
         )
+        total_attempts = int(topic_state_doc.get("total_attempts", 0))
 
         await self._repo.update_topic_state(student_id, topic_id, {
             "alpha": alpha, "beta": beta_val,
@@ -331,31 +362,18 @@ class RecommenderService:
             "easiness_factor": sm2.easiness_factor,
             "next_review_date": sm2.next_review_date,
             "total_attempts": total_attempts + 1,
-            "total_correct": total_correct + (1 if correct else 0),
+            "total_correct": int(topic_state_doc.get("total_correct", 0)) + (1 if correct else 0),
             "last_attempted": datetime.now(timezone.utc),
         })
 
-        new_seen_correct = list(state.seen_correct_ids)
-        if correct and question_id not in new_seen_correct:
-            new_seen_correct.append(question_id)
-        new_seen_all = list(state.seen_all_ids)
-        if question_id not in new_seen_all:
-            new_seen_all.append(question_id)
-
-        block_idx = min(state.questions_asked // 10, 2)
-        new_block_correct = list(state.block_correct)
-        new_block_total   = list(state.block_total)
-        if correct: new_block_correct[block_idx] += 1
-        new_block_total[block_idx] += 1
+        new_seen = list(state.seen_all_ids)
+        if question_id not in new_seen:
+            new_seen.append(question_id)
 
         new_state = SessionState(
             consecutive_wrong=0 if correct else state.consecutive_wrong + 1,
             questions_asked=state.questions_asked + 1,
-            session_mode=state.session_mode,
-            seen_correct_ids=new_seen_correct,
-            seen_all_ids=new_seen_all,
-            block_correct=new_block_correct,
-            block_total=new_block_total,
+            seen_all_ids=new_seen,
         )
 
         all_states     = await self._repo.get_topic_states_dict(student_id)
@@ -366,26 +384,28 @@ class RecommenderService:
             asyncio.create_task(DiagnosisAgent().run(student_id, session_id, "frustration", self._db))
             logger.info("DiagnosisAgent triggered (frustration) for %s", student_id)
 
-        mastery_mean = alpha / (alpha + beta_val)
         return SubmitAnswerResponse(
             updated_topic=TopicMasteryUpdate(
                 topic_id=topic_id, chapter=chapter, alpha=alpha, beta=beta_val,
-                mastery_mean=round(mastery_mean, 3),
+                mastery_mean=round(alpha / (alpha + beta_val), 3),
                 theta=round(irt_update.theta_new, 4),
                 next_review_date=sm2.next_review_date,
             ),
             newly_unlocked_topics=newly_unlocked,
             state=new_state,
             frustration_triggered=frustration_triggered,
-            diagnosis_triggered=frustration_triggered,
         )
 
     async def end_session(self, student_id: str, session_id: str, state: SessionState, started_at: datetime) -> EndSessionResponse:
         ended_at         = datetime.now(timezone.utc)
         duration_minutes = (ended_at - started_at).total_seconds() / 60.0
 
-        history       = await self._repo.get_recent_history(student_id, limit=state.questions_asked + 5)
-        session_events = [e for e in history if e.get("session_id") == session_id]
+        history        = await self._repo.get_recent_history(student_id, limit=state.questions_asked + 5)
+        # Sort chronologically (get_recent_history returns DESC)
+        session_events = sorted(
+            [e for e in history if e.get("session_id") == session_id],
+            key=lambda e: e.get("timestamp", ""),
+        )
 
         chapter_totals: dict[str, list[bool]] = {}
         topic_times: dict[str, list[float]]   = {}
@@ -393,19 +413,24 @@ class RecommenderService:
             chapter_totals.setdefault(event.get("chapter", "unknown"), []).append(event.get("correct", False))
             topic_times.setdefault(event.get("topic_id", ""), []).append(float(event.get("time_ms", 0)) / 1000.0)
 
-        accuracy_by_chapter  = {ch: round(sum(outs) / len(outs), 3) for ch, outs in chapter_totals.items() if outs}
-        avg_time_by_topic    = {tid: round(sum(ts) / len(ts), 1) for tid, ts in topic_times.items() if ts}
+        accuracy_by_chapter = {ch: round(sum(outs) / len(outs), 3) for ch, outs in chapter_totals.items() if outs}
+        avg_time_by_topic   = {tid: round(sum(ts) / len(ts), 1) for tid, ts in topic_times.items() if ts}
 
-        first_acc = state.block_correct[0] / state.block_total[0] if state.block_total[0] > 0 else 0.0
-        last_acc  = state.block_correct[2] / state.block_total[2] if state.block_total[2] > 0 else 0.0
+        # First-half vs second-half accuracy derived from event order (no block state needed)
+        n    = len(session_events)
+        mid  = n // 2
+        def _acc(evts): return round(sum(1 for e in evts if e.get("correct")) / len(evts), 3) if evts else 0.0
+        first_acc = _acc(session_events[:mid])
+        last_acc  = _acc(session_events[mid:])
 
         summary_id = await self._repo.create_session_summary(new_session_summary_doc(
             session_id=session_id, student_id=student_id, duration_minutes=duration_minutes,
-            questions_attempted=state.questions_asked, accuracy_by_chapter=accuracy_by_chapter,
-            avg_time_by_topic=avg_time_by_topic, frustration_events_count=0, topics_unlocked=[],
-            first_half_accuracy=round(first_acc, 3), second_half_accuracy=round(last_acc, 3),
+            questions_attempted=n or state.questions_asked,
+            accuracy_by_chapter=accuracy_by_chapter, avg_time_by_topic=avg_time_by_topic,
+            frustration_events_count=0, topics_unlocked=[],
+            first_half_accuracy=first_acc, second_half_accuracy=last_acc,
             hardest_correct_difficulty=None, easiest_wrong_difficulty=None,
-            session_mode_sequence=[state.session_mode],
+            session_mode_sequence=[],
         ))
 
         asyncio.create_task(DiagnosisAgent().run(student_id, session_id, "session_end", self._db))
@@ -476,14 +501,24 @@ class RecommenderService:
 
     async def get_trend_scores(self) -> AllTrendScoresResponse:
         docs = await self._repo.get_all_trend_scores()
+        if not docs:
+            # First request — kick off computation in the background.
+            # Subsequent requests will return real data once it finishes.
+            asyncio.create_task(TrendIntelligenceAgent().run(db=self._db))
+            return AllTrendScoresResponse(topics=[], total=0, high_priority_count=0, computed_at=None)
+
         topics = []
         computed_at = None
         for d in docs:
             p = d.get("p_appears", 0.0)
             topics.append(TopicTrendResponse(
-                topic_id=d["topic_id"], chapter=d.get("chapter", ""),
-                p_appears=p, trend_score_raw=d.get("trend_score_raw", 0.0),
-                gap_bonus=d.get("gap_bonus", 1.0), streak_score=d.get("streak_score", 1.0),
+                topic_id=d["topic_id"],
+                chapter=d.get("chapter", ""),
+                subject=d.get("subject", ""),
+                p_appears=p,
+                trend_score_raw=d.get("trend_score_raw", 0.0),
+                gap_bonus=d.get("gap_bonus", 1.0),
+                streak_score=d.get("streak_score", 1.0),
                 direction_multiplier=d.get("direction_multiplier", 1.0),
                 computed_at=d.get("computed_at"),
                 is_high_priority=p >= TREND_HIGH_PRIORITY_THRESHOLD,
@@ -524,13 +559,15 @@ class RecommenderService:
 
         options      = [QuestionOption(identifier=o.get("identifier", ""), content=o.get("content", "")) for o in raw_options]
         correct_opts = doc.get("correct_options") or []
-        correct_ans  = doc.get("correct_answer")
+        # Catalog stores integer answers in 'answer', not 'correct_answer'
+        correct_ans  = doc.get("correct_answer") if doc.get("correct_answer") is not None else doc.get("answer")
         return QuestionDetailResponse(
             question_id=str(doc.get("question_id", "")),
             question=raw_question,
             options=options,
             correct_options=[str(x) for x in correct_opts] if isinstance(correct_opts, list) else [],
             correct_answer=str(correct_ans) if correct_ans is not None else None,
+            explanation=doc.get("explanation") or "",
             type=doc.get("type", "mcq"),
             chapter=doc.get("chapter", ""), topic=doc.get("topic", ""), subject=doc.get("subject", ""),
             difficulty=doc.get("difficulty", "medium"),

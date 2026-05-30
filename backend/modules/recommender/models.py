@@ -142,13 +142,14 @@ def new_solved_question_doc(
 
 
 def new_topic_trend_doc(
-    topic_id: str, chapter: str, p_appears: float,
+    topic_id: str, chapter: str, subject: str, p_appears: float,
     trend_score_raw: float, gap_bonus: float,
     streak_score: float, direction_multiplier: float,
 ) -> dict[str, Any]:
     return {
         "topic_id": topic_id,
         "chapter": chapter,
+        "subject": subject,
         "p_appears": round(p_appears, 4),
         "trend_score_raw": round(trend_score_raw, 4),
         "gap_bonus": round(gap_bonus, 4),

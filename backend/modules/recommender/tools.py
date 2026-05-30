@@ -30,6 +30,7 @@ def make_tool_executor(db: AsyncIOMotorDatabase, student_id: str):
                 difficulty_max=float(args.get("difficulty_max", 1.5)),
                 exclude_ids=args.get("exclude_seen_correct", []),
                 limit=int(args.get("limit", 10)),
+                student_id=student_id,
             )
 
         if tool_name == "get_question_type_weights":

@@ -95,7 +95,6 @@ async def start_session_stream(user: CurrentVerifiedUser, service: RecommenderDe
 async def get_next_question(payload: NextQuestionRequest, user: CurrentVerifiedUser, service: RecommenderDep) -> NextQuestionResponse:
     return await service.get_next_question(
         student_id=str(user["_id"]),
-        session_id=payload.session_id,
         focus_topics=payload.focus_topics,
         start_difficulty_offset=payload.start_difficulty_offset,
         review_injection_rate=payload.review_injection_rate,
@@ -110,7 +109,6 @@ async def submit_answer(payload: SubmitAnswerRequest, user: CurrentVerifiedUser,
         session_id=payload.session_id,
         question_id=payload.question_id,
         topic_id=payload.topic_id,
-        chapter=payload.chapter,
         correct=payload.correct,
         time_ms=payload.time_ms,
         difficulty=payload.difficulty,

@@ -306,7 +306,8 @@ class RecommenderRepository:
         if student_id:
             solved_not_due = await self.get_solved_not_due_ids(student_id)
         all_excluded = list(set(exclude_ids) | solved_not_due)
-        query: dict = {"chapter": chapter, "topic": topic, **diff_filter}
+        # Integer questions are excluded — the catalog has no correct answers stored for them
+        query: dict = {"chapter": chapter, "topic": topic, "type": {"$ne": "integer"}, **diff_filter}
         if all_excluded:
             query["question_id"] = {"$nin": all_excluded}
 
@@ -532,17 +533,29 @@ class RecommenderRepository:
             return {"total_attempts": 0, "total_correct": 0, "topics_attempted": 0, "topics_mastered": 0, "unlocked_count": 0}
         return docs[0]
 
-    async def tool_get_topic_year_matrix(self) -> dict[str, dict[int, int]]:
-        pipeline = [{"$group": {"_id": {"chapter": "$chapter", "topic": "$topic", "year": "$year"}, "count": {"$sum": 1}}}]
-        docs   = await self._questions.aggregate(pipeline).to_list(length=None)
+    async def tool_get_topic_year_matrix(self) -> tuple[dict[str, dict[int, int]], dict[str, str]]:
+        """Returns (year_matrix, topic_subjects).
+        year_matrix  : {topic_id -> {year -> count}}
+        topic_subjects: {topic_id -> subject}
+        """
+        pipeline = [{"$group": {
+            "_id": {"subject": "$subject", "chapter": "$chapter", "topic": "$topic", "year": "$year"},
+            "count": {"$sum": 1},
+        }}]
+        docs = await self._questions.aggregate(pipeline).to_list(length=None)
         matrix: dict[str, dict[int, int]] = {}
+        topic_subjects: dict[str, str]    = {}
         for d in docs:
+            subject = d["_id"].get("subject", "")
             chapter = d["_id"].get("chapter", "")
             topic   = d["_id"].get("topic", "")
             year    = d["_id"].get("year")
-            if not chapter or not topic or not year: continue
-            matrix.setdefault(f"{chapter}::{topic}", {})[int(year)] = d["count"]
-        return matrix
+            if not chapter or not topic or not year:
+                continue
+            tid = f"{chapter}::{topic}"
+            matrix.setdefault(tid, {})[int(year)] = d["count"]
+            topic_subjects[tid] = subject
+        return matrix, topic_subjects
 
     async def tool_flag_prerequisite_gap(self, student_id: str, topic_id: str, gap_type: str) -> None:
         note = f"[{gap_type.upper()}] {topic_id}"

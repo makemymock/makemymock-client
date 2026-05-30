@@ -9,11 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 class SessionState(BaseModel):
     consecutive_wrong: int = 0
     questions_asked: int = 0
-    session_mode: Literal["normal", "recovery", "wind_down"] = "normal"
-    seen_correct_ids: list[str] = Field(default_factory=list)
     seen_all_ids: list[str] = Field(default_factory=list)
-    block_correct: list[int] = Field(default_factory=lambda: [0, 0, 0])
-    block_total: list[int] = Field(default_factory=lambda: [0, 0, 0])
 
 
 class InitializeStudentResponse(BaseModel):
@@ -21,10 +17,6 @@ class InitializeStudentResponse(BaseModel):
     topics_initialized: int
     personality_created: bool
     message: str
-
-
-class StartSessionRequest(BaseModel):
-    pass
 
 
 class SessionPlanResponse(BaseModel):
@@ -50,19 +42,16 @@ class NextQuestionRequest(BaseModel):
 class NextQuestionResponse(BaseModel):
     question_id: str
     topic_id: str
-    chapter: str
     difficulty_target: float
     is_review_injection: bool
-    session_mode: Literal["normal", "recovery", "wind_down"]
-    difficulty_offset_applied: float
     review_reason: str = ""   # populated when is_review_injection=True
+    coach_note: str = ""      # why the AI chose this question, shown to student
 
 
 class SubmitAnswerRequest(BaseModel):
     session_id: str
     question_id: str
     topic_id: str
-    chapter: str
     correct: bool
     time_ms: int = Field(..., ge=0)
     difficulty: float
@@ -85,7 +74,6 @@ class SubmitAnswerResponse(BaseModel):
     newly_unlocked_topics: list[str]
     state: SessionState
     frustration_triggered: bool
-    diagnosis_triggered: bool
 
 
 class EndSessionRequest(BaseModel):
@@ -154,6 +142,7 @@ class AllTopicStatesResponse(BaseModel):
 class TopicTrendResponse(BaseModel):
     topic_id: str
     chapter: str
+    subject: str = ""
     p_appears: float
     trend_score_raw: float
     gap_bonus: float
@@ -207,6 +196,7 @@ class QuestionDetailResponse(BaseModel):
     options: list[QuestionOption]
     correct_options: list[str] = []
     correct_answer: Optional[str] = None
+    explanation: str = ""     # step-by-step solution from the catalog
     type: str
     chapter: str
     topic: str

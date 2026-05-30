@@ -51,11 +51,7 @@ const MODE_EMOJI = { drilling: '🔥', review: '📖', recovery: '💜', mixed: 
 const INITIAL_SESSION_STATE = {
   consecutive_wrong: 0,
   questions_asked: 0,
-  session_mode: 'normal',
-  seen_correct_ids: [],
   seen_all_ids: [],
-  block_correct: [0, 0, 0],
-  block_total: [0, 0, 0],
 };
 
 // ─── Student-friendly helper text ────────────────────────────────────────────
@@ -197,6 +193,38 @@ const ThinkingDots = () => (
     <span /><span /><span />
   </span>
 );
+
+// ─── CoachNoteCard — why the AI chose this question ──────────────────────────
+const CoachNoteCard = ({ note, isReview }) => (
+  <div className={`${styles.coachNote} ${isReview ? styles.coachNoteReview : ''}`}>
+    <span className={styles.coachNoteIcon}>{isReview ? '📅' : '🧠'}</span>
+    <p className={styles.coachNoteText}>{note}</p>
+  </div>
+);
+
+// ─── SolutionCard — step-by-step explanation revealed after submission ────────
+const SolutionCard = ({ explanation }) => {
+  const [open, setOpen] = useState(false);
+  if (!explanation) return null;
+  // Strip HTML line-break tags before rendering
+  const clean = explanation.replace(/<br\s*\/?>/gi, '\n');
+  return (
+    <div className={styles.solutionCard}>
+      <button className={styles.solutionToggle} onClick={() => setOpen(v => !v)}>
+        <span className={styles.solutionToggleLeft}>
+          <span className={styles.solutionIcon}>📖</span>
+          <span className={styles.solutionToggleLabel}>View Solution</span>
+        </span>
+        <IcoChevron className={`${styles.thinkChevron} ${open ? styles.thinkChevronOpen : ''}`} />
+      </button>
+      {open && (
+        <div className={styles.solutionBody}>
+          <LatexText>{clean}</LatexText>
+        </div>
+      )}
+    </div>
+  );
+};
 
 // ─── ConfidenceNote — typewriter effect for the AI coach message ───────────────
 const ConfidenceNote = ({ text }) => {
@@ -464,7 +492,6 @@ const Recommender = () => {
         session_id: session.session_id,
         question_id: question.question_id,
         topic_id: question.topic_id,
-        chapter: question.chapter,
         correct: isCorrect,
         time_ms: elapsed,
         difficulty: question.difficulty_target || 0.5,
@@ -477,7 +504,8 @@ const Recommender = () => {
       setSubmitResult({ ...resp, isCorrect });
 
       // accumulate for session summary
-      sessionResultsRef.current.push({ isCorrect, topic: question.topic_id, chapter: question.chapter });
+      const chapter = question.topic_id?.split('::')[0] || question.topic_id;
+      sessionResultsRef.current.push({ isCorrect, topic: question.topic_id, chapter });
 
       if (isCorrect) {
         addThought('Nicely done! 🎉 That was the correct answer.');
@@ -929,6 +957,11 @@ const QuestionCard = ({
         )}
       </div>
 
+      {/* Coach note — why the AI chose this question */}
+      {question?.coach_note && (
+        <CoachNoteCard note={question.coach_note} isReview={question.is_review_injection} />
+      )}
+
       {/* Question text */}
       <div className={styles.qText}>
         {qContent.is_image_question
@@ -942,16 +975,20 @@ const QuestionCard = ({
           <label className={styles.intLabel}>Type your answer (integer):</label>
           <input
             type="number"
-            className={styles.intInput}
+            className={`${styles.intInput} ${recState === 'submitted' ? (submitResult?.isCorrect ? styles.intInputCorrect : styles.intInputWrong) : ''}`}
             value={intAnswer}
             onChange={(e) => setIntAnswer(e.target.value)}
             placeholder="Enter a number"
             disabled={recState === 'submitted'}
           />
-          {recState === 'submitted' && qContent.correct_answer != null && (
-            <p className={styles.correctHint}>
-              ✓ Correct answer: <strong>{qContent.correct_answer}</strong>
-            </p>
+          {recState === 'submitted' && (
+            <div className={`${styles.answerReveal} ${submitResult?.isCorrect ? styles.answerRevealCorrect : styles.answerRevealWrong}`}>
+              {submitResult?.isCorrect
+                ? <><IcoCheck className={styles.answerRevealIcon} /> Your answer is correct!</>
+                : qContent.correct_answer != null
+                  ? <><IcoXCircle className={styles.answerRevealIcon} /> Correct answer: <strong>{qContent.correct_answer}</strong></>
+                  : <><IcoXCircle className={styles.answerRevealIcon} /> Incorrect</>}
+            </div>
           )}
         </div>
       ) : (
@@ -982,6 +1019,13 @@ const QuestionCard = ({
           {qContent.type === 'mcqm' && recState === 'question' && (
             <p className={styles.mcqmHint}>This question has multiple correct answers — select all that apply</p>
           )}
+          {/* Explicit correct-answer banner — shown when student got it wrong */}
+          {recState === 'submitted' && !submitResult?.isCorrect && correctOptions.length > 0 && (
+            <div className={styles.answerReveal}>
+              <IcoCheck className={styles.answerRevealIcon} />
+              Correct answer: <strong>{correctOptions.join(' and ')}</strong>
+            </div>
+          )}
         </div>
       )}
 
@@ -1000,13 +1044,16 @@ const QuestionCard = ({
         </div>
       )}
 
+      {/* Solution (revealed after submission) */}
+      {recState === 'submitted' && <SolutionCard explanation={qContent.explanation} />}
+
       {/* Result */}
       {recState === 'submitted' && submitResult && (
         <div className={`${styles.resultCard} ${submitResult.isCorrect ? styles.resultGood : styles.resultBad}`}>
           <div className={styles.resultHeader}>
             {submitResult.isCorrect
               ? <><IcoCheck className={styles.resultIcon} /><span>Correct! Well done 🎉</span></>
-              : <><IcoXCircle className={styles.resultIcon} /><span>Not quite — check the answer above</span></>}
+              : <><IcoXCircle className={styles.resultIcon} /><span>Incorrect — the correct answer is highlighted above</span></>}
           </div>
           <div className={styles.masteryRow}>
             <span className={styles.masteryLabel}>
@@ -1182,7 +1229,28 @@ const SessionHistoryCard = ({ history }) => {
 
 // ─── TrendCard ────────────────────────────────────────────────────────────────
 const TrendCard = ({ trends }) => {
-  const top = (trends?.topics || []).filter((t) => t.is_high_priority).slice(0, 6);
+  const allTopics = trends?.topics || [];
+  const [activeSubj, setActiveSubj] = useState('');
+
+  // Build per-subject lists on every render (fast, allTopics is ≤ a few hundred)
+  const bySubject = {};
+  allTopics.forEach((t) => {
+    const s = (t.subject || 'other').toLowerCase();
+    (bySubject[s] = bySubject[s] || []).push(t);
+  });
+  const subjOrder  = ['mathematics', 'physics', 'chemistry'];
+  const subjLabel  = { mathematics: 'Maths', physics: 'Physics', chemistry: 'Chemistry' };
+  const availSubjs = subjOrder.filter((s) => bySubject[s]?.length > 0);
+
+  // Default to first available subject
+  const currentSubj = activeSubj && bySubject[activeSubj] ? activeSubj : availSubjs[0] || '';
+  const subjectTopics = bySubject[currentSubj] || [];
+
+  // Show high-priority first; if none reach the threshold, show top-6 anyway
+  const highPri = subjectTopics.filter((t) => t.is_high_priority);
+  const display = (highPri.length > 0 ? highPri : subjectTopics).slice(0, 6);
+  const computing = allTopics.length === 0;
+
   return (
     <section className={styles.card}>
       <div className={styles.cardHead}>
@@ -1190,15 +1258,36 @@ const TrendCard = ({ trends }) => {
         <div>
           <h2 className={styles.cardTitle}>Hot Topics in JEE</h2>
           <p className={styles.cardSub}>
-            {trends?.high_priority_count ?? 0} topics frequently asked this year
+            {computing
+              ? 'Computing trends…'
+              : `${trends?.high_priority_count ?? 0} topics frequently asked · ${currentSubj ? subjLabel[currentSubj] || currentSubj : ''}`}
           </p>
         </div>
       </div>
-      {top.length === 0 ? (
-        <p className={styles.empty}>Trend data not yet available.</p>
+
+      {/* Subject tabs */}
+      {availSubjs.length > 1 && (
+        <div className={styles.trendSubjectTabs}>
+          {availSubjs.map((s) => (
+            <button
+              key={s}
+              className={`${styles.trendSubjectTab} ${currentSubj === s ? styles.trendSubjectTabActive : ''}`}
+              onClick={() => setActiveSubj(s)}
+            >
+              {subjLabel[s] || s}
+              <span className={styles.trendTabCount}>{bySubject[s]?.filter(t => t.is_high_priority).length || bySubject[s]?.length || 0}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {computing ? (
+        <p className={styles.empty}>Calculating trends from exam history — refresh in a moment.</p>
+      ) : display.length === 0 ? (
+        <p className={styles.empty}>No trend data for this subject yet.</p>
       ) : (
         <div className={styles.trendList}>
-          {top.map((t) => (
+          {display.map((t) => (
             <div key={t.topic_id} className={styles.trendRow}>
               <div className={styles.trendLeft}>
                 <span className={styles.trendName}>{t.topic_id.split('::')[1] || t.topic_id}</span>

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 from datetime import datetime, timezone
@@ -69,7 +68,7 @@ Planning rules:
 - focus_topics: 3-5 topic IDs. Blend the weakest unlocked topics with at least one high-trend (p_appears > 0.6) topic.
 - session_mode: use "recovery" if confidence_profile is "brittle" AND frustration_events > 0 in recent sessions; "drilling" if accuracy trend is improving; "review" if many topics are due for spaced repetition; otherwise "mixed".
 - start_difficulty_offset: negative (easier) for recovery or low-confidence students; positive (harder) for students on a winning streak.
-- confidence_note: speak directly to the student using "you". Name their strongest and weakest topic explicitly. Example: "You've been doing well in Complex Numbers, but Limits is where you're struggling the most right now — that's what we're targeting today."""
+- confidence_note: speak directly to the student using "you". Name their strongest and weakest topic explicitly. Be warm and motivating — 3-4 sentences. Explain what you found (weakest topic, exam trend, error pattern if known) and what today's session targets. Example: "You've been doing well in Complex Numbers, but Limits is where you're struggling most — your mastery is only 38%. I also noticed that Limits appears in 74% of recent JEE papers, so it's the highest-leverage topic right now. Today's session will focus here, starting comfortable and pushing up as you warm up." """
 
     _TOOL_LABELS = {
         "get_unlocked_topics":       "Looked at all the topics you've unlocked so far",
@@ -119,7 +118,7 @@ Planning rules:
                 ],
                 tools=SESSION_PLANNER_TOOLS,
                 tool_executor=make_tool_executor(db, student_id),
-                model=settings.RECOMMENDER_MODEL_HEAVY,
+                model=settings.GEMINI_MODEL_FLASH,
                 temperature=0.15,
                 max_tokens=2048,
                 max_tool_rounds=5,
@@ -172,19 +171,14 @@ Planning rules:
 
 
 class QuestionSelectorAgent:
-    SYSTEM_PROMPT = """
-    You are a JEE question selector. Select the single best question for this student.
-
-You receive the student's error profile, question-type priority weights, and a candidate list.
-
-Selection priority (most important first):
-1. Highest type_weight value → student needs the most practice in that question type
-2. is_novel: true → fresh questions are more valuable than repeats
-3. Most recent year → newer exam questions are more relevant
-4. Closest difficulty to the requested target
-
-Respond with exactly this JSON and nothing else:{"selected_question_id": "<id>"}
-"""
+    SYSTEM_PROMPT = (
+        "You are a JEE question selector.\n\n"
+        "Steps:\n"
+        "1. Call get_candidate_questions with the topic_id and difficulty range provided.\n"
+        "2. Call get_question_type_weights to see which types the student needs most.\n"
+        "3. Pick the best question by: highest type_weight → is_novel=true → most recent year.\n"
+        "4. Respond with exactly: {\"selected_question_id\": \"<id>\"}"
+    )
 
     async def run(
         self,
@@ -192,60 +186,42 @@ Respond with exactly this JSON and nothing else:{"selected_question_id": "<id>"}
         topic_id: str,
         difficulty_min: float,
         difficulty_max: float,
-        seen_correct_ids: list[str],
-        error_profile: dict[str, str],
+        seen_ids: list[str],
         db: AsyncIOMotorDatabase,
     ) -> str | None:
-        repo = RecommenderRepository(db)
-        candidates = await repo.tool_get_candidate_questions(
-            topic_id=topic_id,
-            difficulty_min=difficulty_min,
-            difficulty_max=difficulty_max,
-            exclude_ids=seen_correct_ids,
-            limit=10,
-            student_id=student_id,
-        )
-        if not candidates:
-            logger.info("No candidates for topic=%s difficulty=[%.1f,%.1f]", topic_id, difficulty_min, difficulty_max)
-            return None
-
-        type_weights = await repo.tool_get_question_type_weights(student_id)
-        user_message = (
-            f"Error profile: {json.dumps(error_profile)}\n"
-            f"Type improvement weights: {json.dumps(type_weights)}\n"
-            f"Candidates: {json.dumps(candidates)}\n\n"
-            "Select the best question_id."
-        )
-
+        tool_calls: list[dict] = []
         try:
-            resp = await chat_json(
-                user_message,
-                model=settings.RECOMMENDER_MODEL_FAST,
-                system=self.SYSTEM_PROMPT,
+            final_text, tool_calls = await chat_with_tools(
+                messages=[
+                    {"role": "system", "content": self.SYSTEM_PROMPT},
+                    {"role": "user", "content": (
+                        f"topic_id: {topic_id}\n"
+                        f"difficulty range: [{difficulty_min:.2f}, {difficulty_max:.2f}]\n"
+                        f"exclude_seen_correct: {seen_ids[:30]}"
+                    )},
+                ],
+                tools=QUESTION_SELECTOR_TOOLS,
+                tool_executor=make_tool_executor(db, student_id),
+                model=settings.GEMINI_MODEL_FLASH,
                 temperature=0.05,
-                max_tokens=64,
+                max_tokens=1024,
+                max_tool_rounds=3,
             )
-            start, end = resp.find("{"), resp.rfind("}") + 1
+            start, end = final_text.find("{"), final_text.rfind("}") + 1
             if start != -1 and end > 0:
-                selected = json.loads(resp[start:end]).get("selected_question_id")
-                valid_ids = {c["question_id"] for c in candidates}
-                if selected in valid_ids:
-                    return selected
+                qid = json.loads(final_text[start:end]).get("selected_question_id")
+                if qid:
+                    return str(qid)
         except Exception as exc:
-            logger.warning("QuestionSelectorAgent failed: %s, falling back", exc)
+            logger.warning("QuestionSelectorAgent failed: %s", exc)
 
-        return self._score_and_pick(candidates, type_weights, error_profile)
-
-    @staticmethod
-    def _score_and_pick(candidates: list[dict], type_weights: dict, _error_profile: dict) -> str | None:
-        if not candidates:
-            return None
-        best = max(candidates, key=lambda c: (
-            type_weights.get(c.get("type", "single_correct"), 0.25)
-            + (0.2 if c.get("is_novel") else 0.0)
-            + (c.get("year", 2019) - 2019) * 0.02
-        ))
-        return best["question_id"]
+        # Fallback: first candidate returned by the tool
+        for tc in tool_calls:
+            if tc["name"] == "get_candidate_questions":
+                cands = tc.get("result") or []
+                if isinstance(cands, list) and cands:
+                    return cands[0].get("question_id")
+        return None
 
 
 class DiagnosisAgent:
@@ -289,7 +265,7 @@ After all tool calls are done, output exactly this JSON and nothing else:
                 ],
                 tools=DIAGNOSIS_TOOLS,
                 tool_executor=make_tool_executor(db, student_id),
-                model=settings.RECOMMENDER_MODEL_HEAVY,
+                model=settings.GEMINI_MODEL_FLASH,
                 temperature=0.1,
                 max_tokens=2048,
                 max_tool_rounds=8,
@@ -366,7 +342,7 @@ class TrendIntelligenceAgent:
     async def run(self, db: AsyncIOMotorDatabase) -> int:
         repo = RecommenderRepository(db)
 
-        year_matrix = await repo.tool_get_topic_year_matrix()
+        year_matrix, topic_subjects = await repo.tool_get_topic_year_matrix()
         if not year_matrix:
             logger.warning("TrendIntelligenceAgent: year matrix is empty")
             return 0
@@ -380,6 +356,7 @@ class TrendIntelligenceAgent:
             await repo.upsert_trend_score(new_topic_trend_doc(
                 topic_id=topic_id,
                 chapter=data.chapter,
+                subject=topic_subjects.get(topic_id, ""),
                 p_appears=data.p_appears,
                 trend_score_raw=data.trend_score_raw,
                 gap_bonus=data.gap_bonus,
@@ -388,26 +365,5 @@ class TrendIntelligenceAgent:
             ))
             updated += 1
 
-        asyncio.create_task(self._log_anomalies(results, scorer.high_priority_topics(results)))
         logger.info("TrendIntelligenceAgent: updated %d topics", updated)
         return updated
-
-    async def _log_anomalies(self, results: dict, high_priority: list[str]) -> None:
-        try:
-            top_5 = sorted(results.values(), key=lambda x: x.p_appears, reverse=True)[:5]
-            prompt = (
-                f"Top 5 JEE topics by exam appearance probability:\n"
-                f"{json.dumps([{'topic_id': d.topic_id, 'p_appears': d.p_appears, 'gap_bonus': d.gap_bonus} for d in top_5], indent=2)}\n\n"
-                f"High-priority topics (p > 0.7): {len(high_priority)}\n\n"
-                "In 1-2 sentences, flag any surprising trends for exam prep."
-            )
-            note = await chat_json(
-                prompt,
-                model=settings.RECOMMENDER_MODEL_FAST,
-                system="You are a JEE exam trend analyst. Be concise.",
-                temperature=0.3,
-                max_tokens=128,
-            )
-            logger.info("Trend anomaly note: %s", note.strip())
-        except Exception as exc:
-            logger.debug("Trend anomaly logging skipped: %s", exc)
