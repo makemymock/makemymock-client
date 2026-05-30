@@ -3,6 +3,7 @@ from typing import Optional
 
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from pymongo import ASCENDING, DESCENDING
+from pymongo.errors import OperationFailure
 
 from config.settings import settings
 
@@ -70,6 +71,15 @@ async def connect_to_mongo() -> None:
             pyq_mongo.db = None
     else:
         logger.warning("PYQ_MONGO_URI not set; question catalog unavailable.")
+
+    # Recommender indexes are created after the PYQ connection block so that a
+    # failed index build (e.g. pre-existing duplicate docs) never kills the
+    # connection itself.
+    if pyq_mongo.db is not None:
+        try:
+            await _ensure_recommender_indexes(pyq_mongo.db)
+        except Exception as exc:
+            logger.warning("Recommender index setup had issues (non-fatal): %s", exc)
 
 
 async def close_mongo_connection() -> None:
@@ -191,64 +201,56 @@ async def _ensure_indexes() -> None:
     )
 
     # ---------- JEE Recommender ----------
+    # Recommender indexes live on the PYQ cluster (created in connect_to_mongo
+    # after the PYQ connection is established — see _ensure_recommender_indexes).
 
-    # student_topic_state — 156 docs per student; unique on (student_id, topic_id)
-    # so a double-initialize call is a no-op rather than a data corruption.
-    await mongo.db["student_topic_state"].create_index(
-        [("student_id", ASCENDING), ("topic_id", ASCENDING)],
-        unique=True,
-    )
-    # Chapter rollup: used by tool_get_unlocked_topics when filtering by chapter.
-    await mongo.db["student_topic_state"].create_index(
-        [("student_id", ASCENDING), ("chapter", ASCENDING)],
-    )
-    # SM-2 due-review query: find all topics due for review today.
-    await mongo.db["student_topic_state"].create_index(
-        [("student_id", ASCENDING), ("next_review_date", ASCENDING)],
-    )
 
-    # student_personality — one doc per student; unique on student_id.
-    await mongo.db["student_personality"].create_index(
-        [("student_id", ASCENDING)],
-        unique=True,
-    )
+async def _ensure_recommender_indexes(db: AsyncIOMotorDatabase) -> None:
+    """Create indexes for all JEE recommender collections on the PYQ cluster.
 
-    # student_question_history — raw event log.
-    # Primary: time-ordered history for error-cluster computation.
-    await mongo.db["student_question_history"].create_index(
-        [("student_id", ASCENDING), ("timestamp", DESCENDING)],
-    )
-    # Seen-question lookup: used by Question Selector to exclude correct repeats.
-    await mongo.db["student_question_history"].create_index(
-        [("student_id", ASCENDING), ("question_id", ASCENDING)],
-    )
-    # Session-scoped: session summary generation filters by session_id.
-    await mongo.db["student_question_history"].create_index(
-        [("student_id", ASCENDING), ("session_id", ASCENDING)],
-    )
+    Each index is attempted individually.  A duplicate-key OperationFailure
+    (code 11000) on a unique index means the collection has pre-existing
+    duplicate documents — the index is skipped with a warning rather than
+    crashing the startup.  All other indexes are non-unique so they always
+    succeed.
+    """
 
-    # session_summaries — Level-1 memory (≈200 tokens each).
-    # Session Planner reads last-3 sorted by recency.
-    await mongo.db["session_summaries"].create_index(
-        [("student_id", ASCENDING), ("created_at", DESCENDING)],
-    )
-    # Diagnosis Agent fetches by session_id after session_end trigger.
-    await mongo.db["session_summaries"].create_index(
-        [("session_id", ASCENDING)],
-        unique=True,
-        sparse=True,
-    )
+    async def _try(collection: str, keys: list, **kwargs) -> None:
+        try:
+            await db[collection].create_index(keys, **kwargs)
+        except OperationFailure as exc:
+            if exc.code == 11000:
+                logger.warning(
+                    "Skipped unique index on %s %s — duplicate docs exist "
+                    "(clean up duplicates to enable the constraint): %s",
+                    collection, [k[0] for k in keys], exc.details.get("errmsg", ""),
+                )
+            else:
+                raise
 
-    # topic_trend_scores — 156 docs, recomputed weekly.
-    # Unique on topic_id so upsert-replace is always consistent.
-    await mongo.db["topic_trend_scores"].create_index(
-        [("topic_id", ASCENDING)],
-        unique=True,
-    )
-    # get_trend_top_topics sorts by p_appears descending.
-    await mongo.db["topic_trend_scores"].create_index(
-        [("p_appears", DESCENDING)],
-    )
+    await _try("student_topic_state",      [("student_id", ASCENDING), ("topic_id", ASCENDING)], unique=True)
+    await _try("student_topic_state",      [("student_id", ASCENDING), ("chapter", ASCENDING)])
+    await _try("student_topic_state",      [("student_id", ASCENDING), ("subject", ASCENDING)])
+    await _try("student_topic_state",      [("student_id", ASCENDING), ("next_review_date", ASCENDING)])
+
+    await _try("student_personality",      [("student_id", ASCENDING)], unique=True)
+
+    await _try("student_question_history", [("student_id", ASCENDING), ("timestamp", DESCENDING)])
+    await _try("student_question_history", [("student_id", ASCENDING), ("question_id", ASCENDING)])
+    await _try("student_question_history", [("student_id", ASCENDING), ("session_id", ASCENDING)])
+
+    await _try("session_summaries",        [("student_id", ASCENDING), ("created_at", DESCENDING)])
+    await _try("session_summaries",        [("session_id", ASCENDING)], unique=True, sparse=True)
+
+    await _try("student_solved_questions", [("student_id", ASCENDING), ("question_id", ASCENDING)], unique=True)
+    await _try("student_solved_questions", [("student_id", ASCENDING), ("last_correct", ASCENDING), ("next_review_date", ASCENDING)])
+    await _try("student_solved_questions", [("student_id", ASCENDING), ("last_correct", ASCENDING),
+                                            ("next_review_date", ASCENDING), ("consecutive_incorrect", DESCENDING)])
+
+    await _try("topic_trend_scores",       [("topic_id", ASCENDING)], unique=True)
+    await _try("topic_trend_scores",       [("p_appears", DESCENDING)])
+
+    logger.info("Recommender indexes ensured on PYQ cluster.")
 
 
 def get_database() -> AsyncIOMotorDatabase:

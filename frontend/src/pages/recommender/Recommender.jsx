@@ -23,6 +23,30 @@ const IcoUser    = (p) => <svg viewBox="0 0 24 24" fill="none" stroke="currentCo
 const IcoChevron = (p) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}><polyline points="6 9 12 15 18 9"/></svg>;
 const IcoXCircle = (p) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" {...p}><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>;
 
+// ─── Subject config ───────────────────────────────────────────────────────────
+const SUBJECT_LABELS = {
+  mathematics: 'Maths',
+  physics:     'Physics',
+  chemistry:   'Chemistry',
+};
+const SUBJECT_ORDER = ['mathematics', 'physics', 'chemistry'];
+
+// ─── Agent tool → emoji icon ──────────────────────────────────────────────────
+const TOOL_ICONS = {
+  get_unlocked_topics:       '🔓',
+  get_due_reviews:           '📅',
+  get_weakest_unlocked:      '📉',
+  get_trend_top_topics:      '🔥',
+  get_candidate_questions:   '🎯',
+  get_question_type_weights: '⚖️',
+  get_topic_attempt_stats:   '📊',
+  get_error_clusters:        '🔍',
+  get_session_summary:       '📋',
+};
+
+// ─── Session mode → emoji ─────────────────────────────────────────────────────
+const MODE_EMOJI = { drilling: '🔥', review: '📖', recovery: '💜', mixed: '⚡' };
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 const INITIAL_SESSION_STATE = {
   consecutive_wrong: 0,
@@ -33,16 +57,6 @@ const INITIAL_SESSION_STATE = {
   block_correct: [0, 0, 0],
   block_total: [0, 0, 0],
 };
-
-// Student-friendly loading steps shown while waiting for the API
-const LOADING_STEPS = [
-  { at: 0,    text: 'Looking at your recent study history...' },
-  { at: 500,  text: 'Checking which topics need the most work...' },
-  { at: 1000, text: 'Figuring out the right difficulty level for you...' },
-  { at: 1600, text: 'Browsing through thousands of past JEE questions...' },
-  { at: 2200, text: 'Making sure this is a fresh question for you...' },
-  { at: 2700, text: 'Almost there — picking the perfect match...' },
-];
 
 // ─── Student-friendly helper text ────────────────────────────────────────────
 const sessionModeText = (mode) => {
@@ -184,6 +198,30 @@ const ThinkingDots = () => (
   </span>
 );
 
+// ─── ConfidenceNote — typewriter effect for the AI coach message ───────────────
+const ConfidenceNote = ({ text }) => {
+  const [shown, setShown] = useState('');
+  useEffect(() => {
+    let i = 0;
+    const tick = () => {
+      if (i >= text.length) return;
+      setShown(text.slice(0, ++i));
+      setTimeout(tick, 16);
+    };
+    tick();
+  }, [text]);
+  const done = shown.length >= text.length;
+  return (
+    <div className={styles.thinkConfidence}>
+      <span className={styles.thinkConfidenceEmoji}>💬</span>
+      <p className={styles.thinkConfidenceText}>
+        <em>&ldquo;{shown}&rdquo;</em>
+        {!done && <span className={styles.thinkCursor} />}
+      </p>
+    </div>
+  );
+};
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 const Recommender = () => {
   const [stats, setStats]             = useState(null);
@@ -191,13 +229,21 @@ const Recommender = () => {
   const [personality, setPersonality] = useState(null);
   const [history, setHistory]         = useState(null);
   const [trends, setTrends]           = useState(null);
+  const [correctQ, setCorrectQ]       = useState(null);   // AttemptedQuestionsResponse
+  const [incorrectQ, setIncorrectQ]   = useState(null);   // AttemptedQuestionsResponse
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState('');
   const [initNeeded, setInitNeeded]   = useState(false);
   const [initializing, setInitializing] = useState(false);
 
+  // Subject tab for chapter grid
+  const [activeSubject, setActiveSubject] = useState('mathematics');
+
   // Recommendation state
-  const [selectedChapter, setSelectedChapter] = useState(null);
+  const [selectedChapters, setSelectedChapters] = useState(new Set()); // multi-select
+  const [questionTotal, setQuestionTotal]       = useState(5);
+  const [questionNum, setQuestionNum]           = useState(0); // 0 = not started
+  const [sessionDone, setSessionDone]           = useState(false);
   const [recState, setRecState] = useState(null); // null | 'loading' | 'question' | 'submitted'
   const [session, setSession]   = useState(null);
   const [hotState, setHotState] = useState(INITIAL_SESSION_STATE);
@@ -208,12 +254,13 @@ const Recommender = () => {
   const [intAnswer, setIntAnswer] = useState('');
   const [submitResult, setSubmitResult] = useState(null);
   const [submitting, setSubmitting]     = useState(false);
+  const sessionResultsRef = useRef([]); // accumulate results for session summary
 
-  // Thinking panel
+  // Thinking panel — each step: { id, kind: 'step'|'note'|'confidence'|'divider', ... }
   const [thinkSteps, setThinkSteps]   = useState([]);
   const [thinkOpen, setThinkOpen]     = useState(true);
-  const stepTimersRef = useRef([]);
   const thinkEndRef   = useRef(null);
+  const abortCtrlRef  = useRef(null);   // AbortController for the SSE stream
 
   // Answer timer
   const [elapsed, setElapsed] = useState(0);
@@ -223,18 +270,22 @@ const Recommender = () => {
   const loadOverview = useCallback(async () => {
     setLoading(true); setError('');
     try {
-      const [s, ts, p, h, tr] = await Promise.allSettled([
+      const [s, ts, p, h, tr, cq, iq] = await Promise.allSettled([
         recommenderService.getStats(),
         recommenderService.getTopicStates(),
         recommenderService.getPersonality(),
         recommenderService.getSessionHistory(),
         recommenderService.getTrends(),
+        recommenderService.getAttemptedQuestions(true,  20),
+        recommenderService.getAttemptedQuestions(false, 20),
       ]);
       if (s.status  === 'fulfilled') setStats(s.value);
       if (ts.status === 'fulfilled') setTopicStates(ts.value);
       if (p.status  === 'fulfilled') setPersonality(p.value);
       if (h.status  === 'fulfilled') setHistory(h.value);
       if (tr.status === 'fulfilled') setTrends(tr.value);
+      if (cq.status === 'fulfilled') setCorrectQ(cq.value);
+      if (iq.status === 'fulfilled') setIncorrectQ(iq.value);
       if (ts.status === 'rejected' || ts.value?.total === 0) setInitNeeded(true);
     } catch (err) {
       setError(parseApiError(err, 'Failed to load your data.'));
@@ -242,17 +293,21 @@ const Recommender = () => {
   }, []);
 
   useEffect(() => { loadOverview(); }, [loadOverview]);
-  useEffect(() => () => { stopTimer(); clearStepTimers(); }, []);
+  useEffect(() => () => {
+    stopTimer();
+    if (abortCtrlRef.current) abortCtrlRef.current.abort();
+  }, []);
 
   // Scroll thinking panel to bottom as steps appear
   useEffect(() => {
     if (thinkEndRef.current) thinkEndRef.current.scrollIntoView({ behavior: 'smooth' });
   }, [thinkSteps]);
 
-  // Open thinking panel when loading starts; stay open so user can read agent thoughts
+  // Keep thinking panel open whenever a new session loading starts
   useEffect(() => {
     if (recState === 'loading') setThinkOpen(true);
   }, [recState]);
+
 
   // ── timer ──────────────────────────────────────────────────────────────────
   const startTimer = () => {
@@ -264,25 +319,13 @@ const Recommender = () => {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
   };
 
-  // ── thinking animation ────────────────────────────────────────────────────
-  const clearStepTimers = () => {
-    stepTimersRef.current.forEach(clearTimeout);
-    stepTimersRef.current = [];
-  };
-
-  const startLoadingAnimation = () => {
-    setThinkSteps([]);
-    clearStepTimers();
-    LOADING_STEPS.forEach(({ at, text }) => {
-      const t = setTimeout(() => {
-        setThinkSteps((prev) => [...prev, { id: Date.now() + Math.random(), text }]);
-      }, at);
-      stepTimersRef.current.push(t);
-    });
-  };
-
-  const addThought = (text) => {
-    setThinkSteps((prev) => [...prev, { id: Date.now() + Math.random(), text }]);
+  // addThought accepts either a plain string (legacy: submit feedback, question info)
+  // or a step object { kind, tool?, label?, text? }.
+  const addThought = (data) => {
+    const step = typeof data === 'string'
+      ? { kind: 'note', text: data }
+      : data;
+    setThinkSteps((prev) => [...prev, { id: Date.now() + Math.random(), ...step }]);
   };
 
   // ── initialize ─────────────────────────────────────────────────────────────
@@ -297,74 +340,112 @@ const Recommender = () => {
     } finally { setInitializing(false); }
   };
 
-  // ── get recommendation ─────────────────────────────────────────────────────
-  const handleGetRecommendation = async (chapter) => {
-    if (session) {
-      try {
-        await recommenderService.endSession({ session_id: session.session_id, state: hotState, started_at: startedAt });
-      } catch { /* best-effort */ }
+  // ── helpers ────────────────────────────────────────────────────────────────
+  const toggleChapter = (ch, hasUnlocked) => {
+    if (!hasUnlocked || sessionDone) return;
+    setSelectedChapters((prev) => {
+      const next = new Set(prev);
+      next.has(ch) ? next.delete(ch) : next.add(ch);
+      return next;
+    });
+  };
+
+  const getFocusTopics = (chapters) =>
+    (topicStates?.topic_states || [])
+      .filter((t) => chapters.has(t.chapter) && t.is_unlocked)
+      .map((t) => t.topic_id);
+
+  const fetchNextQuestion = async (plan, currentHot, num) => {
+    const chapters = selectedChapters.size > 0 ? selectedChapters : new Set([...selectedChapters]);
+    const focusTopics = getFocusTopics(chapters);
+    const nq = await recommenderService.getNextQuestion({
+      session_id: plan.session_id,
+      focus_topics: focusTopics.length > 0 ? focusTopics : (plan.focus_topics || []),
+      start_difficulty_offset: plan.start_difficulty_offset,
+      review_injection_rate: plan.review_injection_rate,
+      state: currentHot,
+    });
+    setQuestion(nq);
+    setQuestionNum(num);
+
+    const topicName = nq.topic_id?.split('::')[1] || nq.topic_id;
+    if (nq.is_review_injection && nq.review_reason) {
+      addThought(`📅 ${nq.review_reason}`);
+    } else if (nq.is_review_injection) {
+      addThought(`📅 This question is coming back for review — let's see if it's stuck!`);
+    } else {
+      addThought(`Question ${num} — "${topicName}" at ${diffFriendly(nq.difficulty_target)} difficulty`);
     }
 
-    setSelectedChapter(chapter);
+    const content = await recommenderService.getQuestion(nq.question_id);
+    setQContent(content);
+    return { nq, content };
+  };
+
+  // ── start practice (multi-chapter, N questions) ───────────────────────────
+  const handleStartPractice = async () => {
+    if (selectedChapters.size === 0) return;
+    if (session) {
+      try { await recommenderService.endSession({ session_id: session.session_id, state: hotState, started_at: startedAt }); } catch { /* best-effort */ }
+    }
+    // Abort any previous stream still running
+    if (abortCtrlRef.current) { abortCtrlRef.current.abort(); abortCtrlRef.current = null; }
+
+    setSessionDone(false);
+    sessionResultsRef.current = [];
     setRecState('loading');
     setQuestion(null); setQContent(null); setSubmitResult(null);
-    setSelected([]); setIntAnswer('');
-    startLoadingAnimation();
+    setSelected([]); setIntAnswer(''); setQuestionNum(0);
+    setThinkSteps([]);
+    setThinkOpen(true);
+
+    abortCtrlRef.current = new AbortController();
+    let resolvedPlan = null;
+    let streamError  = null;
 
     try {
-      const plan = await recommenderService.startSession();
+      await recommenderService.startSessionStream(
+        (event) => {
+          if (event.type === 'connected') return;
+          if (event.type === 'step') {
+            addThought({ kind: 'step', tool: event.tool, label: event.label });
+          } else if (event.type === 'confidence') {
+            addThought({ kind: 'confidence', text: event.text });
+          } else if (event.type === 'plan') {
+            resolvedPlan = event;
+          } else if (event.type === 'error') {
+            streamError = event.message;
+          }
+        },
+        abortCtrlRef.current.signal,
+      );
+    } catch (err) {
+      if (err.name === 'AbortError') return;   // user navigated away / reset
+      streamError = parseApiError(err, 'Please try again.');
+    }
 
-      // Replace generic loading steps with real agent trace
-      clearStepTimers();
-      setThinkSteps([]);
+    if (streamError) {
+      addThought({ kind: 'note', text: `Couldn't start: ${streamError}` });
+      setRecState(null);
+      return;
+    }
+    if (!resolvedPlan) { setRecState(null); return; }
 
-      setSession(plan);
-      const newHot = plan.state || INITIAL_SESSION_STATE;
-      setHotState(newHot);
-      setStartedAt(new Date().toISOString());
+    const plan = resolvedPlan;
+    setSession(plan);
+    const newHot = plan.state || INITIAL_SESSION_STATE;
+    setHotState(newHot);
+    setStartedAt(new Date().toISOString());
 
-      const chapterTopics = (topicStates?.topic_states || [])
-        .filter((t) => t.chapter === chapter && t.is_unlocked)
-        .map((t) => t.topic_id);
+    const chapterNames = [...selectedChapters].join(', ');
+    addThought({ kind: 'note', text: `Planning ${questionTotal} questions from: ${chapterNames}` });
 
-      // Show each tool call the agent made, one by one with 250ms gaps
-      const agentSteps = [
-        ...(plan.reasoning_steps || []),
-        plan.confidence_note || sessionModeText(plan.session_mode),
-        `Narrowing down to ${chapterTopics.length || 'available'} topics in "${chapter}"...`,
-      ].filter(Boolean);
-
-      agentSteps.forEach((text, idx) => {
-        const t = setTimeout(() => addThought(text), idx * 250);
-        stepTimersRef.current.push(t);
-      });
-
-      const nq = await recommenderService.getNextQuestion({
-        session_id: plan.session_id,
-        focus_topics: chapterTopics.length > 0 ? chapterTopics : (plan.focus_topics || []),
-        start_difficulty_offset: plan.start_difficulty_offset,
-        review_injection_rate: plan.review_injection_rate,
-        state: newHot,
-      });
-      setQuestion(nq);
-
-      const topicName = nq.topic_id?.split('::')[1] || nq.topic_id;
-      addThought(`Found your focus area: "${topicName}"`);
-      if (nq.is_review_injection) {
-        addThought("This one's coming back for review — let's see if you remember it");
-      } else {
-        addThought(`Setting difficulty to ${diffFriendly(nq.difficulty_target)} — just right for where you are`);
-      }
-
-      const content = await recommenderService.getQuestion(nq.question_id);
-      setQContent(content);
-      addThought(`${content.year ? `JEE ${content.year}` : 'Past JEE'} question ready for you ✓`);
-
+    try {
+      await fetchNextQuestion(plan, newHot, 1);
       setRecState('question');
       startTimer();
     } catch (err) {
-      clearStepTimers();
-      addThought(`Couldn't find a question right now: ${parseApiError(err, 'No questions available for this chapter.')}`);
+      addThought({ kind: 'note', text: `Couldn't load question: ${parseApiError(err, 'Please try again.')}` });
       setRecState(null);
     }
   };
@@ -391,10 +472,13 @@ const Recommender = () => {
         state: hotState,
       });
 
-      setHotState(resp.state || hotState);
+      const newHot = resp.state || hotState;
+      setHotState(newHot);
       setSubmitResult({ ...resp, isCorrect });
 
-      // Student-friendly result thoughts
+      // accumulate for session summary
+      sessionResultsRef.current.push({ isCorrect, topic: question.topic_id, chapter: question.chapter });
+
       if (isCorrect) {
         addThought('Nicely done! 🎉 That was the correct answer.');
       } else {
@@ -420,17 +504,48 @@ const Recommender = () => {
     return selected[0] === correct[0];
   };
 
-  // ── change chapter ─────────────────────────────────────────────────────────
-  const handleChangeChapter = async () => {
-    stopTimer(); clearStepTimers();
-    if (session) {
+  // ── next question in current session ─────────────────────────────────────
+  const handleNextQuestion = async () => {
+    if (!session) return;
+    const nextNum = questionNum + 1;
+
+    if (nextNum > questionTotal) {
+      // all N done — end session and show summary
       try {
         await recommenderService.endSession({ session_id: session.session_id, state: hotState, started_at: startedAt });
       } catch { /* best-effort */ }
+      setSessionDone(true);
+      setRecState(null);
+      await loadOverview();
+      return;
     }
-    setSession(null); setSelectedChapter(null); setRecState(null);
+
+    setRecState('loading');
+    setQuestion(null); setQContent(null); setSubmitResult(null);
+    setSelected([]); setIntAnswer('');
+
+    try {
+      addThought({ kind: 'divider', text: `── Question ${nextNum} of ${questionTotal} ──` });
+      await fetchNextQuestion(session, hotState, nextNum);
+      setRecState('question');
+      startTimer();
+    } catch (err) {
+      addThought(`Couldn't load question ${nextNum}: ${parseApiError(err, 'Please try again.')}`);
+      setRecState(null);
+    }
+  };
+
+  // ── reset — go back to chapter selection ─────────────────────────────────
+  const handleReset = async () => {
+    stopTimer();
+    if (abortCtrlRef.current) { abortCtrlRef.current.abort(); abortCtrlRef.current = null; }
+    if (session) {
+      try { await recommenderService.endSession({ session_id: session.session_id, state: hotState, started_at: startedAt }); } catch { /* best-effort */ }
+    }
+    setSession(null); setSelectedChapters(new Set()); setRecState(null);
     setThinkSteps([]); setQuestion(null); setQContent(null); setSubmitResult(null);
-    setHotState(INITIAL_SESSION_STATE);
+    setHotState(INITIAL_SESSION_STATE); setQuestionNum(0); setSessionDone(false);
+    sessionResultsRef.current = [];
     await loadOverview();
   };
 
@@ -446,13 +561,19 @@ const Recommender = () => {
   // ─── render ────────────────────────────────────────────────────────────────
   if (loading) return <div className={styles.loaderWrap}><Loader /></div>;
 
-  // Build chapter data
-  const byChapter = {};
+  // ── Build per-subject chapter maps ────────────────────────────────────────
+  const bySubjectChapter = {};
   (topicStates?.topic_states || []).forEach((t) => {
-    (byChapter[t.chapter] = byChapter[t.chapter] || []).push(t);
+    const subj = (t.subject || 'mathematics').toLowerCase();
+    if (!bySubjectChapter[subj]) bySubjectChapter[subj] = {};
+    (bySubjectChapter[subj][t.chapter] = bySubjectChapter[subj][t.chapter] || []).push(t);
   });
 
-  // Sort: chapters with unlocked topics first, then by mastery ascending (weakest first)
+  // Available subjects (those with at least one topic state)
+  const availableSubjects = SUBJECT_ORDER.filter((s) => bySubjectChapter[s]);
+
+  const byChapter = bySubjectChapter[activeSubject] || {};
+
   const sortedChapters = Object.entries(byChapter).sort(([, a], [, b]) => {
     const aU = a.filter((t) => t.is_unlocked).length;
     const bU = b.filter((t) => t.is_unlocked).length;
@@ -466,8 +587,10 @@ const Recommender = () => {
   const trendMap = {};
   (trends?.topics || []).forEach((t) => { trendMap[t.topic_id] = t; });
 
-  const isThinking = recState === 'loading';
-  const thinkDone  = recState === 'question' || recState === 'submitted';
+  const isThinking   = recState === 'loading';
+  const sessionActive = session && !sessionDone;
+  const sessionResults = sessionResultsRef.current;
+  const sessionCorrect = sessionResults.filter((r) => r.isCorrect).length;
 
   return (
     <div className={styles.page}>
@@ -481,7 +604,7 @@ const Recommender = () => {
           </div>
           <h1 className={styles.heroTitle}>Your Personal JEE Coach</h1>
           <p className={styles.heroSub}>
-            Pick a chapter below — the AI finds the exact question you need most right now
+            Select one or more chapters, pick how many questions you want, and the AI builds your perfect practice set
           </p>
         </div>
         <div className={styles.heroRight}>
@@ -507,11 +630,40 @@ const Recommender = () => {
       {/* ── Chapter grid ── */}
       <section className={styles.section}>
         <div className={styles.sectionHead}>
-          <h2 className={styles.sectionTitle}>Choose a Chapter to Practice</h2>
+          <h2 className={styles.sectionTitle}>
+            {sessionActive
+              ? `Practising — ${[...selectedChapters].join(', ')}`
+              : sessionDone
+              ? 'Session Complete'
+              : 'Choose Chapters to Practise'}
+          </h2>
           <p className={styles.sectionSub}>
-            Sorted weakest → strongest · Click a chapter to get your AI-recommended question
+            {sessionActive
+              ? `Question ${questionNum} of ${questionTotal}`
+              : 'Select one or more chapters · Sorted weakest → strongest'}
           </p>
         </div>
+
+        {/* Subject tabs */}
+        {!sessionActive && !sessionDone && availableSubjects.length > 1 && (
+          <div className={styles.subjectTabs}>
+            {availableSubjects.map((subj) => {
+              const chapCount = Object.keys(bySubjectChapter[subj] || {}).length;
+              return (
+                <button
+                  key={subj}
+                  className={`${styles.subjectTab} ${activeSubject === subj ? styles.subjectTabActive : ''}`}
+                  onClick={() => { setActiveSubject(subj); setSelectedChapters(new Set()); }}
+                  disabled={initNeeded}
+                >
+                  {SUBJECT_LABELS[subj] || subj}
+                  <span className={styles.subjectTabCount}>{chapCount}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {sortedChapters.length === 0 ? (
           <p className={styles.emptyHint}>No chapter data yet. Set up the engine above to get started.</p>
         ) : (
@@ -523,62 +675,49 @@ const Recommender = () => {
                 : 0;
               const hasTrend   = topics.some((t) => trendMap[t.topic_id]?.is_high_priority);
               const color      = masteryColor(avgMastery);
-              const isSelected = selectedChapter === ch;
-              const isLoading  = isSelected && recState === 'loading';
+              const isSelected = selectedChapters.has(ch);
+              const locked     = unlocked === 0;
 
               return (
                 <button
                   key={ch}
-                  className={`${styles.chapterCard} ${isSelected ? styles.chapterCardSelected : ''} ${unlocked === 0 ? styles.chapterCardLocked : ''}`}
-                  onClick={() => unlocked > 0 && !isLoading && handleGetRecommendation(ch)}
-                  disabled={unlocked === 0 || (recState === 'loading' && !isSelected) || initNeeded}
+                  className={`${styles.chapterCard} ${isSelected ? styles.chapterCardSelected : ''} ${locked ? styles.chapterCardLocked : ''}`}
+                  onClick={() => !sessionActive && !sessionDone && toggleChapter(ch, unlocked > 0)}
+                  disabled={locked || sessionActive || sessionDone || initNeeded}
                 >
                   <div className={styles.chapterCardTop}>
                     <span className={styles.chapterCardName}>{ch}</span>
                     <span className={styles.chapterCardRight}>
                       {hasTrend && <span className={styles.hotDot} title="Frequently asked in JEE">🔥</span>}
-                      {unlocked === 0
+                      {isSelected
+                        ? <IcoCheck className={styles.chapterCardLockIcon} style={{ color: 'var(--color-accent)' }} />
+                        : locked
                         ? <IcoLock className={styles.chapterCardLockIcon} />
                         : <IcoUnlock className={styles.chapterCardLockIcon} style={{ color }} />}
                     </span>
                   </div>
 
                   <div className={styles.chapterCardBarTrack}>
-                    <div
-                      className={styles.chapterCardBarFill}
-                      style={{ width: `${avgMastery}%`, background: color }}
-                    />
+                    <div className={styles.chapterCardBarFill} style={{ width: `${avgMastery}%`, background: color }} />
                   </div>
 
                   <div className={styles.chapterCardBottom}>
-                    <span className={styles.chapterCardMasteryPct} style={{ color }}>
-                      {avgMastery}%
-                    </span>
-                    <span className={styles.chapterCardMasteryLabel} style={{ color }}>
-                      {masteryLabel(avgMastery)}
-                    </span>
+                    <span className={styles.chapterCardMasteryPct} style={{ color }}>{avgMastery}%</span>
+                    <span className={styles.chapterCardMasteryLabel} style={{ color }}>{masteryLabel(avgMastery)}</span>
                     <span className={styles.chapterCardTopicCount}>
-                      {unlocked === 0 ? 'Locked' : `${unlocked} / ${topics.length} topics`}
+                      {locked ? 'Locked' : `${unlocked} / ${topics.length} topics`}
                     </span>
                   </div>
 
                   <div className={styles.chapterCardAction}>
-                    {unlocked === 0 ? (
-                      <span className={styles.chapterCardActionText}>
-                        <IcoLock className={styles.chapterCardActionIcon} /> Locked
-                      </span>
-                    ) : isLoading ? (
-                      <span className={styles.chapterCardActionText}>
-                        <span className={styles.spinnerSm} /> Finding question…
-                      </span>
+                    {locked ? (
+                      <span className={styles.chapterCardActionText}><IcoLock className={styles.chapterCardActionIcon} /> Locked</span>
                     ) : isSelected ? (
                       <span className={styles.chapterCardActionText} style={{ color: 'var(--color-accent)' }}>
-                        <IcoCheck className={styles.chapterCardActionIcon} /> Active
+                        <IcoCheck className={styles.chapterCardActionIcon} /> Selected
                       </span>
                     ) : (
-                      <span className={styles.chapterCardActionText}>
-                        <IcoZap className={styles.chapterCardActionIcon} /> Get Question
-                      </span>
+                      <span className={styles.chapterCardActionText}><IcoZap className={styles.chapterCardActionIcon} /> Select</span>
                     )}
                   </div>
                 </button>
@@ -586,60 +725,118 @@ const Recommender = () => {
             })}
           </div>
         )}
+
+        {/* Count selector + Start button */}
+        {!sessionActive && !sessionDone && selectedChapters.size > 0 && (
+          <div className={styles.practiceBar}>
+            <span className={styles.practiceBarLabel}>Questions:</span>
+            {[3, 5, 10, 15].map((n) => (
+              <button
+                key={n}
+                className={`${styles.countBtn} ${questionTotal === n ? styles.countBtnActive : ''}`}
+                onClick={() => setQuestionTotal(n)}
+              >
+                {n}
+              </button>
+            ))}
+            <button
+              className={`${styles.btn} ${styles.btnPrimary} ${styles.startBtn}`}
+              onClick={handleStartPractice}
+              disabled={recState === 'loading'}
+            >
+              {recState === 'loading' ? <span className={styles.spinner} /> : <IcoZap className={styles.btnIcon} />}
+              {recState === 'loading'
+                ? 'Starting…'
+                : `Start ${questionTotal} Questions from ${selectedChapters.size} chapter${selectedChapters.size > 1 ? 's' : ''}`}
+            </button>
+          </div>
+        )}
       </section>
 
-      {/* ── Recommendation section ── */}
-      <section className={styles.section} id="recommendation">
-        <div className={styles.sectionHead}>
-          <h2 className={styles.sectionTitle}>
-            {selectedChapter
-              ? `Question from: ${selectedChapter}`
-              : 'AI Recommendation'}
-          </h2>
-          {selectedChapter && (
-            <button className={`${styles.btn} ${styles.btnGhost} ${styles.btnSm}`} onClick={handleChangeChapter} disabled={submitting}>
-              Change Chapter
-            </button>
-          )}
-        </div>
-
-        {!selectedChapter ? (
-          <div className={styles.recIdle}>
-            <div className={styles.recIdleIcon}><IcoBrain /></div>
-            <p className={styles.recIdleText}>
-              Pick a chapter above and the AI will find the right question for you
+      {/* ── Session done summary ── */}
+      {sessionDone && (
+        <section className={styles.section}>
+          <div className={`${styles.sessionSummary} ${sessionCorrect === sessionResults.length ? styles.summaryPerfect : ''}`}>
+            <h2 className={styles.summaryTitle}>
+              {sessionCorrect === sessionResults.length ? '🎉 Perfect session!' : `Session complete — ${sessionCorrect} / ${sessionResults.length} correct`}
+            </h2>
+            <div className={styles.summaryAccBar}>
+              <div className={styles.summaryAccFill} style={{ width: `${sessionResults.length ? Math.round(sessionCorrect / sessionResults.length * 100) : 0}%` }} />
+            </div>
+            <p className={styles.summaryAcc}>
+              Accuracy: <strong>{sessionResults.length ? Math.round(sessionCorrect / sessionResults.length * 100) : 0}%</strong> across {sessionResults.length} questions
             </p>
+            <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={handleReset}>
+              <IcoRefresh className={styles.btnIcon} /> Start New Session
+            </button>
           </div>
-        ) : (
+        </section>
+      )}
+
+      {/* ── Recommendation section ── */}
+      {sessionActive && (
+        <section className={styles.section} id="recommendation">
+          <div className={styles.sectionHead}>
+            <div className={styles.progressRow}>
+              <span className={styles.progressLabel}>Question {questionNum} of {questionTotal}</span>
+              <div className={styles.progressBarTrack}>
+                <div className={styles.progressBarFill} style={{ width: `${Math.round((questionNum - 1) / questionTotal * 100)}%` }} />
+              </div>
+              <button className={`${styles.btn} ${styles.btnGhost} ${styles.btnSm}`} onClick={handleReset} disabled={submitting}>
+                End Session
+              </button>
+            </div>
+          </div>
+
           <div className={styles.recLayout}>
             {/* Thinking panel */}
             {thinkSteps.length > 0 && (
               <div className={styles.thinkPanel}>
-                <button
-                  className={styles.thinkToggle}
-                  onClick={() => setThinkOpen((v) => !v)}
-                >
+                <button className={styles.thinkToggle} onClick={() => setThinkOpen((v) => !v)}>
                   <span className={styles.thinkToggleLeft}>
-                    {isThinking ? <ThinkingDots /> : <IcoCheck className={styles.thinkDoneIcon} />}
+                    {isThinking
+                      ? <ThinkingDots />
+                      : <span className={styles.thinkDoneCircle}><IcoCheck className={styles.thinkDoneCheckIcon} /></span>}
                     <span className={styles.thinkToggleLabel}>
-                      {isThinking ? 'Thinking…' : 'Thought process'}
+                      {isThinking ? 'AI Coach is thinking…' : 'AI Coach · Ready'}
                     </span>
+                    {!isThinking && session && (
+                      <span className={`${styles.modeBadge} ${styles[`modeBadge_${session.session_mode}`] || ''}`}>
+                        {MODE_EMOJI[session.session_mode] || '⚡'} {session.session_mode}
+                      </span>
+                    )}
                   </span>
                   <IcoChevron className={`${styles.thinkChevron} ${thinkOpen ? styles.thinkChevronOpen : ''}`} />
                 </button>
 
                 {thinkOpen && (
-                  <div className={styles.thinkContent}>
-                    {thinkSteps.map((step) => (
-                      <div key={step.id} className={styles.thinkStep}>
-                        <span className={styles.thinkStepDot} />
-                        <span className={styles.thinkStepText}>{step.text}</span>
-                      </div>
-                    ))}
+                  <div className={styles.thinkBody}>
+                    {thinkSteps.map((step) => {
+                      if (step.kind === 'divider') return (
+                        <div key={step.id} className={styles.thinkDivider}>{step.text}</div>
+                      );
+                      if (step.kind === 'confidence') return (
+                        <ConfidenceNote key={step.id} text={step.text} />
+                      );
+                      if (step.kind === 'step') return (
+                        <div key={step.id} className={styles.thinkStepItem}>
+                          <span className={styles.thinkStepEmoji}>{TOOL_ICONS[step.tool] || '✦'}</span>
+                          <span className={styles.thinkStepLabel}>{step.label}</span>
+                          <IcoCheck className={styles.thinkStepCheck} />
+                        </div>
+                      );
+                      // kind === 'note' — free text (submit feedback, question info, errors)
+                      return (
+                        <div key={step.id} className={styles.thinkNoteItem}>
+                          <span className={styles.thinkNoteStepDot} />
+                          <span className={styles.thinkStepText}>{step.text}</span>
+                        </div>
+                      );
+                    })}
                     {isThinking && (
-                      <div className={styles.thinkStep}>
-                        <span className={styles.thinkStepDot} style={{ opacity: 0.4 }} />
-                        <span className={styles.thinkCursor} />
+                      <div className={styles.thinkWaitRow}>
+                        <span className={styles.spinnerSm} />
+                        <span className={styles.thinkWaitText}>Working on it…</span>
                       </div>
                     )}
                     <div ref={thinkEndRef} />
@@ -660,21 +857,29 @@ const Recommender = () => {
                 elapsed={elapsed}
                 submitting={submitting}
                 submitResult={submitResult}
+                questionNum={questionNum}
+                questionTotal={questionTotal}
                 onToggle={toggleOption}
                 onSubmit={handleSubmit}
-                onNewRec={() => handleGetRecommendation(selectedChapter)}
-                onChange={handleChangeChapter}
+                onNext={handleNextQuestion}
+                onReset={handleReset}
               />
             )}
           </div>
-        )}
-      </section>
+        </section>
+      )}
 
       {/* ── Bottom grid ── */}
       <div className={styles.bottomGrid}>
         <PersonalityCard personality={personality} />
         <SessionHistoryCard history={history} />
         <TrendCard trends={trends} />
+      </div>
+
+      {/* ── Attempted questions ── */}
+      <div className={styles.attemptedGrid}>
+        <CorrectQuestionsCard items={correctQ?.items || []} />
+        <IncorrectQuestionsCard items={incorrectQ?.items || []} />
       </div>
     </div>
   );
@@ -685,7 +890,8 @@ const QuestionCard = ({
   qContent, question, recState,
   selected, intAnswer, setIntAnswer,
   elapsed, submitting, submitResult,
-  onToggle, onSubmit, onNewRec, onChange,
+  questionNum, questionTotal,
+  onToggle, onSubmit, onNext, onReset,
 }) => {
   const correctOptions = qContent.correct_options || [];
 
@@ -822,11 +1028,13 @@ const QuestionCard = ({
             </p>
           )}
           <div className={styles.resultActions}>
-            <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={onNewRec}>
-              <IcoRefresh className={styles.btnIcon} /> Get New Recommendation
+            <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={onNext}>
+              {questionNum >= questionTotal
+                ? <><IcoCheck className={styles.btnIcon} /> Finish Session</>
+                : <><IcoArrow className={styles.btnIcon} /> Next Question ({questionNum + 1} of {questionTotal})</>}
             </button>
-            <button className={`${styles.btn} ${styles.btnGhost}`} onClick={onChange}>
-              Change Chapter
+            <button className={`${styles.btn} ${styles.btnGhost}`} onClick={onReset}>
+              End Session
             </button>
           </div>
         </div>
@@ -1009,5 +1217,112 @@ const TrendCard = ({ trends }) => {
     </section>
   );
 };
+
+// ─── AttemptedQuestionRow ──────────────────────────────────────────────────────
+const AttemptedQuestionRow = ({ item, isCorrect }) => {
+  const [open, setOpen] = useState(false);
+  const topicName = item.topic_id?.split('::')[1] || item.topic_id || item.chapter;
+  const diffLabel = typeof item.difficulty === 'string'
+    ? item.difficulty
+    : item.difficulty == null ? '' : item.difficulty < 0.33 ? 'easy' : item.difficulty < 0.66 ? 'medium' : 'hard';
+  const diffClass = styles[`diff_${diffLabel}`] || styles.diff_medium;
+  const subjLabel = SUBJECT_LABELS[(item.subject || 'mathematics').toLowerCase()] || item.subject;
+
+  return (
+    <div className={styles.aqRow}>
+      <button className={styles.aqRowHeader} onClick={() => setOpen((v) => !v)}>
+        <span className={styles.aqRowLeft}>
+          <span className={`${styles.aqDot} ${isCorrect ? styles.aqDotCorrect : styles.aqDotWrong}`} />
+          <span className={styles.aqRowTopic}>{topicName}</span>
+          <span className={styles.aqRowChips}>
+            <span className={styles.qChip}>{item.chapter}</span>
+            {subjLabel && <span className={`${styles.qChip} ${styles.aqSubjectChip}`}>{subjLabel}</span>}
+            {diffLabel && <span className={`${styles.qDiff} ${diffClass}`}>{diffLabel.charAt(0).toUpperCase() + diffLabel.slice(1)}</span>}
+            {item.year && <span className={styles.qYear}>JEE {item.year}</span>}
+          </span>
+        </span>
+        <IcoChevron className={`${styles.aqChevron} ${open ? styles.aqChevronOpen : ''}`} />
+      </button>
+
+      {open && (
+        <div className={styles.aqRowBody}>
+          {item.is_image_question ? (
+            <p className={styles.qImgNote}>This question has an image — view it in the full exam app.</p>
+          ) : (
+            <div className={styles.aqQText}><LatexText>{item.question_text}</LatexText></div>
+          )}
+
+          {item.options?.length > 0 && (
+            <div className={styles.aqOptList}>
+              {item.options.map((opt) => {
+                const isCorr = (item.correct_options || []).includes(opt.identifier);
+                return (
+                  <div
+                    key={opt.identifier}
+                    className={`${styles.aqOpt} ${isCorr ? styles.aqOptCorrect : ''}`}
+                  >
+                    <span className={styles.optId}>{opt.identifier}</span>
+                    <span className={styles.optText}><LatexText>{opt.content}</LatexText></span>
+                    {isCorr && <IcoCheck className={styles.optCheckIcon} />}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {item.correct_answer != null && item.options?.length === 0 && (
+            <p className={styles.correctHint}>
+              Correct answer: <strong>{item.correct_answer}</strong>
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── CorrectQuestionsCard ──────────────────────────────────────────────────────
+const CorrectQuestionsCard = ({ items }) => (
+  <section className={styles.card}>
+    <div className={styles.cardHead}>
+      <IcoCheck className={`${styles.cardIcon} ${styles.iconGreen}`} />
+      <div>
+        <h2 className={styles.cardTitle}>Questions You Got Right</h2>
+        <p className={styles.cardSub}>{items.length} recent correct answers</p>
+      </div>
+    </div>
+    {items.length === 0 ? (
+      <p className={styles.empty}>No correct answers yet — start practising above!</p>
+    ) : (
+      <div className={styles.aqList}>
+        {items.map((item) => (
+          <AttemptedQuestionRow key={`${item.question_id}-${item.timestamp}`} item={item} isCorrect />
+        ))}
+      </div>
+    )}
+  </section>
+);
+
+// ─── IncorrectQuestionsCard ────────────────────────────────────────────────────
+const IncorrectQuestionsCard = ({ items }) => (
+  <section className={styles.card}>
+    <div className={styles.cardHead}>
+      <IcoXCircle className={`${styles.cardIcon} ${styles.iconRed}`} />
+      <div>
+        <h2 className={styles.cardTitle}>Questions to Review</h2>
+        <p className={styles.cardSub}>{items.length} recent incorrect answers · will come back for retry</p>
+      </div>
+    </div>
+    {items.length === 0 ? (
+      <p className={styles.empty}>No incorrect answers yet. Keep it up!</p>
+    ) : (
+      <div className={styles.aqList}>
+        {items.map((item) => (
+          <AttemptedQuestionRow key={`${item.question_id}-${item.timestamp}`} item={item} isCorrect={false} />
+        ))}
+      </div>
+    )}
+  </section>
+);
 
 export default Recommender;

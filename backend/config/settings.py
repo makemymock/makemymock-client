@@ -79,10 +79,14 @@ class Settings(BaseSettings):
     PYQ_MONGO_URI: str = ""
     JEE_QUESTIONS_DB_NAME: str = "adaptive_practice"
 
-    # ---- Groq (JEE Recommender agentic layer) ----
-    # Two model slots:
-    #   FAST  → per-question Question Selector (~1 s, small context)
-    #   HEAVY → Session Planner / Diagnosis / Trend Intelligence (~3-5 s, async)
+    # ---- JEE Recommender agentic layer (Vertex AI / Gemini) ----
+    # Two model slots — same Vertex AI / ADC auth as SolverX:
+    #   FAST  → QuestionSelectorAgent: pure selection, thinking disabled
+    #   HEAVY → SessionPlannerAgent / DiagnosisAgent: tool-use + reasoning
+    RECOMMENDER_MODEL_FAST: str = "gemini-2.0-flash-lite"
+    RECOMMENDER_MODEL_HEAVY: str = "gemini-2.5-flash"
+
+    # ---- Groq (kept for rollback reference — no longer active) ----
     GROQ_API_KEY: str = ""
     GROQ_MODEL_FAST: str = "llama-3.3-70b-versatile"
     GROQ_MODEL_HEAVY: str = "qwen/qwen3-32b"

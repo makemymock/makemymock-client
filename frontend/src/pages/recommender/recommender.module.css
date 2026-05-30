@@ -260,6 +260,109 @@
 .chapterCardSelected .chapterCardActionText { color: var(--color-accent); }
 .chapterCardActionIcon { width: 13px; height: 13px; }
 
+/* ── Practice bar (count selector + start button) ─────────────── */
+.practiceBar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+  padding: 16px 20px;
+  background: var(--dash-card-bg);
+  border: 1px solid var(--dash-card-border);
+  border-radius: 14px;
+}
+.practiceBarLabel {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--dash-text-muted);
+  margin-right: 4px;
+}
+.countBtn {
+  padding: 6px 18px;
+  border-radius: 8px;
+  border: 1.5px solid var(--dash-card-border);
+  background: transparent;
+  color: var(--dash-text-muted);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.countBtn:hover { border-color: var(--color-accent); color: var(--color-accent); }
+.countBtnActive {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: #fff;
+}
+.startBtn { margin-left: auto; }
+
+/* ── Progress row ──────────────────────────────────────────────── */
+.progressRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+.progressLabel {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--dash-text-muted);
+  white-space: nowrap;
+}
+.progressBarTrack {
+  flex: 1;
+  height: 6px;
+  background: var(--dash-progress-track, #e5e7eb);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.progressBarFill {
+  height: 100%;
+  background: var(--color-accent);
+  border-radius: 99px;
+  transition: width 0.4s ease;
+}
+
+/* ── Session summary ───────────────────────────────────────────── */
+.sessionSummary {
+  padding: 32px 28px;
+  background: var(--dash-card-bg);
+  border: 1.5px solid var(--dash-card-border);
+  border-radius: 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+}
+.summaryPerfect { border-color: #22c55e; }
+.summaryTitle {
+  font-size: clamp(20px, 3vw, 26px);
+  font-weight: 800;
+  color: var(--dash-text-strong);
+  margin: 0;
+}
+.summaryAccBar {
+  width: 100%;
+  max-width: 360px;
+  height: 10px;
+  background: var(--dash-progress-track, #e5e7eb);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.summaryAccFill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-brand-grad-from, #14b8a6), var(--color-brand-grad-to, #0891b2));
+  border-radius: 99px;
+  transition: width 0.6s ease;
+}
+.summaryAcc {
+  margin: 0;
+  font-size: 16px;
+  color: var(--dash-text-muted);
+}
+
 /* ── Recommendation section ──────────────────────────────────── */
 .recIdle {
   display: flex; flex-direction: column; align-items: center; gap: 14px;
@@ -291,28 +394,67 @@
 /* ── Thinking panel ──────────────────────────────────────────── */
 .thinkPanel {
   background: var(--dash-card-bg);
-  border: 1px solid var(--dash-card-border);
+  border: 1px solid rgba(20, 184, 166, 0.3);
   border-radius: 16px;
   overflow: hidden;
+  position: relative;
+}
+/* top accent line */
+.thinkPanel::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(20,184,166,0.7) 50%, transparent 100%);
+  pointer-events: none;
 }
 
 .thinkToggle {
   width: 100%;
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px 18px;
-  background: transparent; border: none; cursor: pointer;
+  background: rgba(20, 184, 166, 0.04);
+  border: none;
+  border-bottom: 1px solid rgba(20, 184, 166, 0.12);
+  cursor: pointer;
   transition: background 0.15s;
 }
-.thinkToggle:hover { background: var(--color-chip-bg); }
+.thinkToggle:hover { background: rgba(20, 184, 166, 0.08); }
 
-.thinkToggleLeft { display: flex; align-items: center; gap: 10px; }
+.thinkToggleLeft { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .thinkToggleLabel {
   font-size: 15px; font-weight: 700;
   color: var(--dash-text-strong);
 }
 
+/* Animated done circle — appears when agent finishes */
+.thinkDoneCircle {
+  width: 22px; height: 22px; border-radius: 50%;
+  background: rgba(34,197,94,0.12);
+  border: 1.5px solid rgba(34,197,94,0.5);
+  color: #22c55e;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  animation: checkBounce 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.thinkDoneCheckIcon { width: 12px; height: 12px; }
+@keyframes checkBounce {
+  from { transform: scale(0); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+
+/* Session mode badge shown after plan arrives */
+.modeBadge {
+  font-size: 11px; font-weight: 800;
+  padding: 3px 9px; border-radius: 99px; border: 1px solid;
+  letter-spacing: 0.05em; text-transform: uppercase;
+}
+.modeBadge_drilling { background: rgba(251,146,60,0.1);  border-color: rgba(251,146,60,0.35);  color: #fb923c; }
+.modeBadge_review   { background: rgba(99,102,241,0.1);  border-color: rgba(99,102,241,0.35);  color: #818cf8; }
+.modeBadge_recovery { background: rgba(168,85,247,0.1);  border-color: rgba(168,85,247,0.35);  color: #c084fc; }
+.modeBadge_mixed    { background: rgba(20,184,166,0.1);  border-color: rgba(20,184,166,0.3);   color: var(--color-accent); }
+
 .thinkDoneIcon { width: 18px; height: 18px; color: var(--color-accent); }
-.thinkChevron { width: 16px; height: 16px; color: var(--dash-text-muted); transition: transform 0.2s; }
+.thinkChevron { width: 16px; height: 16px; color: var(--dash-text-muted); transition: transform 0.2s; flex-shrink: 0; }
 .thinkChevronOpen { transform: rotate(180deg); }
 
 /* Three-dot thinking animation */
@@ -333,47 +475,98 @@
   40%           { transform: scale(1.3); opacity: 1; }
 }
 
-.thinkContent {
-  padding: 4px 18px 16px 18px;
-  display: flex; flex-direction: column; gap: 0;
-  max-height: 260px; overflow-y: auto;
+/* Scrollable body */
+.thinkBody {
+  padding: 10px 14px 14px;
+  display: flex; flex-direction: column; gap: 7px;
+  max-height: 320px; overflow-y: auto;
   scrollbar-width: thin;
-  scrollbar-color: var(--color-panel-border) transparent;
+  scrollbar-color: rgba(20,184,166,0.25) transparent;
 }
 
-.thinkStep {
-  display: flex; align-items: flex-start; gap: 10px;
-  padding: 7px 0;
-  border-bottom: 1px solid var(--dash-card-border);
-  animation: thinkStepIn 0.28s ease;
+/* Agent tool-call step card (slides in from left) */
+.thinkStepItem {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 13px;
+  background: var(--color-chip-bg);
+  border: 1px solid var(--color-chip-border);
+  border-radius: 10px;
+  animation: stepSlideIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-.thinkStep:last-child { border-bottom: none; }
-@keyframes thinkStepIn {
-  from { opacity: 0; transform: translateY(-6px); }
-  to   { opacity: 1; transform: translateY(0); }
+@keyframes stepSlideIn {
+  from { opacity: 0; transform: translateX(-14px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.thinkStepEmoji { font-size: 15px; flex-shrink: 0; line-height: 1; }
+.thinkStepLabel { flex: 1; font-size: 14px; color: var(--dash-text-strong); line-height: 1.45; }
+.thinkStepCheck {
+  width: 15px; height: 15px; color: #22c55e; flex-shrink: 0;
+  animation: checkBounce 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-.thinkStepDot {
-  width: 6px; height: 6px;
-  border-radius: 50%;
+/* Free-text note step (submit feedback, question info, errors) */
+.thinkNoteItem {
+  display: flex; align-items: flex-start; gap: 9px;
+  padding: 5px 2px;
+  animation: thinkStepIn 0.25s ease;
+}
+.thinkNoteStepDot {
+  width: 5px; height: 5px; border-radius: 50%;
   background: var(--color-accent);
-  flex-shrink: 0; margin-top: 7px;
-  box-shadow: 0 0 5px var(--color-accent);
+  flex-shrink: 0; margin-top: 8px;
+  box-shadow: 0 0 4px var(--color-accent);
 }
-.thinkStepText {
-  font-size: 15px;
-  color: var(--dash-text-muted);
-  line-height: 1.55;
+.thinkStepText { font-size: 14px; color: var(--dash-text-muted); line-height: 1.55; }
+
+/* Divider between session questions */
+.thinkDivider {
+  text-align: center;
+  font-size: 12px; color: var(--dash-text-muted);
+  opacity: 0.55; padding: 4px 0;
+  letter-spacing: 0.05em;
+  animation: thinkStepIn 0.2s ease;
 }
 
+/* AI Coach confidence note with typewriter text */
+.thinkConfidence {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 13px 15px;
+  background: linear-gradient(135deg, rgba(20,184,166,0.07) 0%, rgba(99,102,241,0.04) 100%);
+  border: 1px solid rgba(20,184,166,0.25);
+  border-radius: 12px;
+  animation: stepSlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.thinkConfidenceEmoji { font-size: 17px; flex-shrink: 0; line-height: 1.4; }
+.thinkConfidenceText {
+  margin: 0;
+  font-size: 14px; line-height: 1.65;
+  color: var(--dash-text-strong);
+}
+.thinkConfidenceText em { font-style: italic; }
+
+/* "Working on it…" row shown while stream is live */
+.thinkWaitRow {
+  display: flex; align-items: center; gap: 9px;
+  padding: 6px 2px; opacity: 0.55;
+}
+.thinkWaitText { font-size: 13px; color: var(--dash-text-muted); font-style: italic; }
+
+/* Blinking cursor used inside ConfidenceNote */
 .thinkCursor {
   display: inline-block;
-  width: 8px; height: 16px;
+  width: 2px; height: 14px;
   background: var(--color-accent);
-  opacity: 0.7;
+  opacity: 0.8;
   animation: blink 1s step-end infinite;
+  vertical-align: text-bottom;
+  margin-left: 1px;
 }
-@keyframes blink { 0%, 100% { opacity: 0.7; } 50% { opacity: 0; } }
+
+@keyframes thinkStepIn {
+  from { opacity: 0; transform: translateY(-5px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes blink { 0%, 100% { opacity: 0.8; } 50% { opacity: 0; } }
 
 /* ── Question card ───────────────────────────────────────────── */
 .qCard {
@@ -659,3 +852,169 @@
   border-radius: 99px; min-width: 3px;
 }
 .trendPct { font-size: 12px; font-weight: 700; color: #f5c451; min-width: 32px; text-align: right; }
+
+/* ── Subject tabs ─────────────────────────────────────────────── */
+.subjectTabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.subjectTab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  border-radius: 10px;
+  border: 1.5px solid var(--dash-card-border);
+  background: var(--color-chip-bg);
+  color: var(--dash-text-muted);
+  font-family: var(--font-secondary);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.subjectTab:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+.subjectTab:disabled { opacity: 0.5; cursor: not-allowed; }
+.subjectTabActive {
+  border-color: var(--color-accent) !important;
+  background: rgba(20, 184, 166, 0.1) !important;
+  color: var(--color-accent) !important;
+}
+.subjectTabCount {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 99px;
+  background: var(--dash-icon-bg);
+  color: var(--dash-text-muted);
+}
+.subjectTabActive .subjectTabCount {
+  background: rgba(20, 184, 166, 0.2);
+  color: var(--color-accent);
+}
+
+/* ── Attempted questions grid ─────────────────────────────────── */
+.attemptedGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: clamp(12px, 2vw, 18px);
+}
+@media (min-width: 860px) {
+  .attemptedGrid { grid-template-columns: 1fr 1fr; }
+}
+
+/* ── AttemptedQuestionRow ─────────────────────────────────────── */
+.aqList { display: flex; flex-direction: column; gap: 0; }
+
+.aqRow {
+  border-bottom: 1px solid var(--dash-card-border);
+}
+.aqRow:last-child { border-bottom: none; }
+
+.aqRowHeader {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 11px 4px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s;
+}
+.aqRowHeader:hover { background: var(--color-chip-bg); border-radius: 10px; }
+
+.aqRowLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.aqDot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.aqDotCorrect { background: #22c55e; box-shadow: 0 0 4px rgba(34,197,94,0.5); }
+.aqDotWrong   { background: #f87171; box-shadow: 0 0 4px rgba(248,113,113,0.5); }
+
+.aqRowTopic {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--dash-text-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
+}
+
+.aqRowChips {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.aqSubjectChip {
+  background: rgba(20,184,166,0.08);
+  border-color: rgba(20,184,166,0.2);
+  color: var(--color-accent);
+}
+
+.aqChevron {
+  width: 15px; height: 15px;
+  color: var(--dash-text-muted);
+  flex-shrink: 0;
+  transition: transform 0.2s;
+}
+.aqChevronOpen { transform: rotate(180deg); }
+
+.aqRowBody {
+  padding: 6px 4px 14px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: thinkStepIn 0.2s ease;
+}
+
+.aqQText {
+  font-size: clamp(13px, 1.6vw, 15px);
+  color: var(--dash-text-strong);
+  line-height: 1.75;
+}
+
+.aqOptList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.aqOpt {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 13px;
+  border-radius: 10px;
+  border: 1.5px solid var(--color-chip-border);
+  background: var(--color-chip-bg);
+  font-size: 13px;
+}
+.aqOptCorrect {
+  border-color: rgba(34,197,94,0.4) !important;
+  background: rgba(34,197,94,0.06) !important;
+}
+
+/* ── Icon colour helpers ──────────────────────────────────────── */
+.iconGreen { color: #22c55e !important; }
+.iconRed   { color: #f87171 !important; }

@@ -1,21 +1,3 @@
-"""
-Agent tool wrappers for the JEE Recommender agentic layer.
-
-Each tool is a thin async function that:
-  1. Accepts (db, **kwargs) matching the Groq tool parameter schema.
-  2. Calls the appropriate RecommenderRepository method.
-  3. Returns a JSON-serializable dict.
-
-Three sets of tool definitions (Groq JSON schema format) are exported:
-
-  SESSION_PLANNER_TOOLS   — used by SessionPlannerAgent
-  QUESTION_SELECTOR_TOOLS — used by QuestionSelectorAgent
-  DIAGNOSIS_TOOLS         — used by DiagnosisAgent
-
-The tool_executor passed to groq_client.chat_with_tools dispatches by name
-to the functions defined here.
-"""
-
 from __future__ import annotations
 
 from typing import Any
@@ -25,39 +7,22 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from modules.recommender.repository import RecommenderRepository
 
 
-# ---------------------------------------------------------------------------
-# Tool executor factory
-# ---------------------------------------------------------------------------
-
 def make_tool_executor(db: AsyncIOMotorDatabase, student_id: str):
-    """
-    Return a coroutine callable(tool_name, args) → dict for the Groq tool loop.
-
-    The student_id is baked in because every tool implicitly operates on one
-    student's data. The db is captured from the request context.
-    """
     repo = RecommenderRepository(db)
 
     async def execute(tool_name: str, args: dict[str, Any]) -> Any:
-        """Dispatch tool_name to the matching repository method."""
-
-        # ---- Session Planner tools ----
         if tool_name == "get_unlocked_topics":
             return await repo.tool_get_unlocked_topics(student_id)
 
         if tool_name == "get_due_reviews":
-            limit = int(args.get("limit", 5))
-            return await repo.tool_get_due_reviews(student_id, limit=limit)
+            return await repo.tool_get_due_reviews(student_id, limit=int(args.get("limit", 5)))
 
         if tool_name == "get_weakest_unlocked":
-            limit = int(args.get("limit", 5))
-            return await repo.tool_get_weakest_unlocked(student_id, limit=limit)
+            return await repo.tool_get_weakest_unlocked(student_id, limit=int(args.get("limit", 5)))
 
         if tool_name == "get_trend_top_topics":
-            limit = int(args.get("limit", 10))
-            return await repo.tool_get_trend_top_topics(limit=limit)
+            return await repo.tool_get_trend_top_topics(limit=int(args.get("limit", 10)))
 
-        # ---- Question Selector tools ----
         if tool_name == "get_candidate_questions":
             return await repo.tool_get_candidate_questions(
                 topic_id=args["topic_id"],
@@ -70,22 +35,17 @@ def make_tool_executor(db: AsyncIOMotorDatabase, student_id: str):
         if tool_name == "get_question_type_weights":
             return await repo.tool_get_question_type_weights(student_id)
 
-        # ---- Diagnosis Agent tools ----
         if tool_name == "get_topic_attempt_stats":
-            topic_ids = args.get("topic_ids", [])
-            return await repo.tool_get_topic_attempt_stats(student_id, topic_ids)
+            return await repo.tool_get_topic_attempt_stats(student_id, args.get("topic_ids", []))
 
         if tool_name == "get_error_clusters":
-            n_recent = int(args.get("n_recent", 30))
-            return await repo.tool_get_error_clusters(student_id, n_recent=n_recent)
+            return await repo.tool_get_error_clusters(student_id, n_recent=int(args.get("n_recent", 30)))
 
         if tool_name == "get_session_summary":
-            session_id = args.get("session_id", "")
-            return await repo.get_session_summary_by_id(session_id) or {}
+            return await repo.get_session_summary_by_id(args.get("session_id", "")) or {}
 
         if tool_name == "update_student_personality":
-            updates = args.get("updates", {})
-            await repo.update_personality(student_id, updates)
+            await repo.update_personality(student_id, args.get("updates", {}))
             return {"status": "updated"}
 
         if tool_name == "flag_prerequisite_gap":
@@ -101,20 +61,12 @@ def make_tool_executor(db: AsyncIOMotorDatabase, student_id: str):
     return execute
 
 
-# ---------------------------------------------------------------------------
-# Groq tool definitions — Session Planner Agent
-# ---------------------------------------------------------------------------
-
 SESSION_PLANNER_TOOLS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
             "name": "get_unlocked_topics",
-            "description": (
-                "Get all unlocked topics for the student with their current mastery stats "
-                "and exam appearance probability. Use this to understand which topics the "
-                "student can access and where they need the most work."
-            ),
+            "description": "Get all unlocked topics for the student with mastery stats and exam appearance probability.",
             "parameters": {"type": "object", "properties": {}, "required": []},
         },
     },
@@ -122,18 +74,10 @@ SESSION_PLANNER_TOOLS: list[dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "get_due_reviews",
-            "description": (
-                "Get questions that are due for spaced-repetition review today. "
-                "These should be injected into the session to prevent forgetting."
-            ),
+            "description": "Get questions due for spaced-repetition review today.",
             "parameters": {
                 "type": "object",
-                "properties": {
-                    "limit": {
-                        "type": "integer",
-                        "description": "Maximum number of due reviews to return (default 5).",
-                    }
-                },
+                "properties": {"limit": {"type": "integer", "description": "Max reviews to return (default 5)."}},
                 "required": [],
             },
         },
@@ -142,18 +86,10 @@ SESSION_PLANNER_TOOLS: list[dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "get_weakest_unlocked",
-            "description": (
-                "Get the topic_ids of the weakest unlocked topics (lowest mastery mean). "
-                "Use this to identify which topics need the most drilling."
-            ),
+            "description": "Get topic_ids of the weakest unlocked topics (lowest mastery mean).",
             "parameters": {
                 "type": "object",
-                "properties": {
-                    "limit": {
-                        "type": "integer",
-                        "description": "Number of weakest topics to return (default 5).",
-                    }
-                },
+                "properties": {"limit": {"type": "integer", "description": "Number of topics to return (default 5)."}},
                 "required": [],
             },
         },
@@ -162,18 +98,10 @@ SESSION_PLANNER_TOOLS: list[dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "get_trend_top_topics",
-            "description": (
-                "Get the top topics by JEE exam appearance probability (p_appears). "
-                "Use this to ensure the session focuses on high-relevance topics."
-            ),
+            "description": "Get the top topics by JEE exam appearance probability.",
             "parameters": {
                 "type": "object",
-                "properties": {
-                    "limit": {
-                        "type": "integer",
-                        "description": "Number of top trending topics to return (default 10).",
-                    }
-                },
+                "properties": {"limit": {"type": "integer", "description": "Number of topics to return (default 10)."}},
                 "required": [],
             },
         },
@@ -181,43 +109,20 @@ SESSION_PLANNER_TOOLS: list[dict[str, Any]] = [
 ]
 
 
-# ---------------------------------------------------------------------------
-# Groq tool definitions — Question Selector Agent
-# ---------------------------------------------------------------------------
-
 QUESTION_SELECTOR_TOOLS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
             "name": "get_candidate_questions",
-            "description": (
-                "Get candidate questions for a specific topic within a difficulty range. "
-                "Returns metadata (difficulty, year, type, novelty) without question content."
-            ),
+            "description": "Get candidate questions for a topic within a difficulty range.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "topic_id": {
-                        "type": "string",
-                        "description": "Topic ID in chapter::topic format.",
-                    },
-                    "difficulty_min": {
-                        "type": "number",
-                        "description": "Minimum difficulty on the IRT scale (-1=easy, 0=medium, +1=hard).",
-                    },
-                    "difficulty_max": {
-                        "type": "number",
-                        "description": "Maximum difficulty on the IRT scale.",
-                    },
-                    "exclude_seen_correct": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "Question IDs the student has already answered correctly (exclude these).",
-                    },
-                    "limit": {
-                        "type": "integer",
-                        "description": "Maximum candidates to return (default 10).",
-                    },
+                    "topic_id": {"type": "string", "description": "Topic ID in chapter::topic format."},
+                    "difficulty_min": {"type": "number", "description": "Min difficulty on IRT scale (-1=easy, 0=medium, +1=hard)."},
+                    "difficulty_max": {"type": "number", "description": "Max difficulty on IRT scale."},
+                    "exclude_seen_correct": {"type": "array", "items": {"type": "string"}, "description": "Question IDs to exclude."},
+                    "limit": {"type": "integer", "description": "Max candidates to return (default 10)."},
                 },
                 "required": ["topic_id"],
             },
@@ -227,38 +132,22 @@ QUESTION_SELECTOR_TOOLS: list[dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "get_question_type_weights",
-            "description": (
-                "Get the student's per-question-type improvement priority weights. "
-                "Higher weight means the student needs more practice of that type."
-            ),
+            "description": "Get the student's per-question-type improvement priority weights.",
             "parameters": {"type": "object", "properties": {}, "required": []},
         },
     },
 ]
 
 
-# ---------------------------------------------------------------------------
-# Groq tool definitions — Diagnosis Agent
-# ---------------------------------------------------------------------------
-
 DIAGNOSIS_TOOLS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
             "name": "get_topic_attempt_stats",
-            "description": (
-                "Get detailed attempt statistics for specific topics including "
-                "inconsistency rate, difficulty ceiling, and time z-score for error diagnosis."
-            ),
+            "description": "Get attempt stats (inconsistency rate, difficulty ceiling, time z-score) for specific topics.",
             "parameters": {
                 "type": "object",
-                "properties": {
-                    "topic_ids": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "List of topic IDs to analyze.",
-                    }
-                },
+                "properties": {"topic_ids": {"type": "array", "items": {"type": "string"}, "description": "Topic IDs to analyze."}},
                 "required": ["topic_ids"],
             },
         },
@@ -267,18 +156,10 @@ DIAGNOSIS_TOOLS: list[dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "get_error_clusters",
-            "description": (
-                "Get the dominant error type per topic from recent attempts. "
-                "Returns computation|conceptual|application|speed classification per topic."
-            ),
+            "description": "Get dominant error type per topic from recent attempts (computation|conceptual|application|speed).",
             "parameters": {
                 "type": "object",
-                "properties": {
-                    "n_recent": {
-                        "type": "integer",
-                        "description": "Number of recent answers to analyze (default 30).",
-                    }
-                },
+                "properties": {"n_recent": {"type": "integer", "description": "Number of recent answers to analyze (default 30)."}},
                 "required": [],
             },
         },
@@ -290,12 +171,7 @@ DIAGNOSIS_TOOLS: list[dict[str, Any]] = [
             "description": "Get the summary of a specific session by session_id.",
             "parameters": {
                 "type": "object",
-                "properties": {
-                    "session_id": {
-                        "type": "string",
-                        "description": "The session ID to fetch the summary for.",
-                    }
-                },
+                "properties": {"session_id": {"type": "string", "description": "The session ID."}},
                 "required": ["session_id"],
             },
         },
@@ -304,22 +180,13 @@ DIAGNOSIS_TOOLS: list[dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "update_student_personality",
-            "description": (
-                "Update specific fields of the student personality document. "
-                "Use this to record new diagnoses, update error profiles, notes, "
-                "confidence profile, or any other personality field."
-            ),
+            "description": "Update specific fields of the student personality document.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "updates": {
                         "type": "object",
-                        "description": (
-                            "Dictionary of fields to update. Valid top-level fields: "
-                            "learning_style, fatigue_threshold_questions, confidence_profile, "
-                            "improvement_rate, strong_chapters, persistent_weak_chapters, "
-                            "avoidance_topics, question_type_strengths, error_profile, notes."
-                        ),
+                        "description": "Fields to update: learning_style, fatigue_threshold_questions, confidence_profile, improvement_rate, strong_chapters, persistent_weak_chapters, avoidance_topics, question_type_strengths, error_profile, notes.",
                     }
                 },
                 "required": ["updates"],
@@ -330,23 +197,12 @@ DIAGNOSIS_TOOLS: list[dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "flag_prerequisite_gap",
-            "description": (
-                "Flag a topic as having a specific type of gap. "
-                "This adds the topic to the appropriate list in the student's personality "
-                "so the Session Planner can prioritize it next session."
-            ),
+            "description": "Flag a topic as having a gap, adding it to the student's avoidance/weak lists.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "topic_id": {
-                        "type": "string",
-                        "description": "The topic ID with the gap.",
-                    },
-                    "gap_type": {
-                        "type": "string",
-                        "enum": ["conceptual_gap", "needs_more_drill", "avoidance_detected"],
-                        "description": "The type of gap detected.",
-                    },
+                    "topic_id": {"type": "string", "description": "Topic ID with the gap."},
+                    "gap_type": {"type": "string", "enum": ["conceptual_gap", "needs_more_drill", "avoidance_detected"], "description": "Type of gap."},
                 },
                 "required": ["topic_id", "gap_type"],
             },

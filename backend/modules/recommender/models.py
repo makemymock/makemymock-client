@@ -1,15 +1,6 @@
-"""
-MongoDB document factories for the JEE Recommender module.
-
-Every document written to Mongo passes through one of these factories so that
-field shapes and default values are always consistent across the codebase.
-Follow the same convention as other modules: new_*_doc() returns a plain dict
-ready for Motor's insert_one / replace_one.
-"""
-
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from modules.recommender.constants import (
@@ -17,51 +8,34 @@ from modules.recommender.constants import (
     DEFAULT_FATIGUE_THRESHOLD,
     DEFAULT_IMPROVEMENT_RATE,
     DEFAULT_LEARNING_STYLE,
+    INCORRECT_FIRST_INTERVAL_DAYS,
     SM2_DEFAULT_EASINESS_FACTOR,
     SM2_FIRST_INTERVAL_DAYS,
+    SUBJECT_MATHEMATICS,
     THOMPSON_INITIAL_ALPHA,
     THOMPSON_INITIAL_BETA,
 )
 
 
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+def _utcnow() -> datetime: return datetime.now(timezone.utc)
+def _today_iso() -> str: return date.today().isoformat()
 
-
-def _today_iso() -> str:
-    return date.today().isoformat()
-
-
-# ---------------------------------------------------------------------------
-# student_topic_state — one doc per (student_id, topic_id), 156 total per student
-# ---------------------------------------------------------------------------
 
 def new_student_topic_state_doc(
-    student_id: str,
-    topic_id: str,
-    chapter: str,
+    student_id: str, topic_id: str, chapter: str,
+    subject: str = SUBJECT_MATHEMATICS,
 ) -> dict[str, Any]:
-    """
-    Create an initial topic-state document for a student.
-
-    The Beta prior starts at (1, 1) — a uniform distribution over [0, 1]
-    mastery. θ (IRT ability) starts at 0.0, which maps to P(correct) = 0.5
-    on a medium-difficulty question. SM-2 review starts in 1 day.
-    """
     return {
         "student_id": student_id,
         "topic_id": topic_id,
         "chapter": chapter,
-        # Thompson Sampling Beta posterior (alpha = successes+1, beta = failures+1)
+        "subject": subject,
         "alpha": THOMPSON_INITIAL_ALPHA,
         "beta": THOMPSON_INITIAL_BETA,
-        # IRT ability estimate on logistic scale
         "theta": 0.0,
-        # Spaced repetition (SM-2)
         "next_review_date": _today_iso(),
         "review_interval_days": SM2_FIRST_INTERVAL_DAYS,
         "easiness_factor": SM2_DEFAULT_EASINESS_FACTOR,
-        # Session metadata
         "total_attempts": 0,
         "total_correct": 0,
         "last_attempted": None,
@@ -70,18 +44,7 @@ def new_student_topic_state_doc(
     }
 
 
-# ---------------------------------------------------------------------------
-# student_personality — one doc per student, updated after each session
-# ---------------------------------------------------------------------------
-
 def new_student_personality_doc(student_id: str) -> dict[str, Any]:
-    """
-    Create a default personality document for a newly initialized student.
-
-    All fields match the shape described in §1.6 of RECOMMENDER_ARCHITECTURE.md.
-    The Diagnosis Agent overwrites individual fields after each session; it never
-    replaces the whole document so unrecognized future fields are preserved.
-    """
     return {
         "student_id": student_id,
         "learning_style": DEFAULT_LEARNING_STYLE,
@@ -104,27 +67,11 @@ def new_student_personality_doc(student_id: str) -> dict[str, Any]:
     }
 
 
-# ---------------------------------------------------------------------------
-# student_question_history — raw event log, one doc per answer event
-# ---------------------------------------------------------------------------
-
 def new_question_history_doc(
-    student_id: str,
-    session_id: str,
-    question_id: str,
-    topic_id: str,
-    chapter: str,
-    correct: bool,
-    time_ms: int,
-    difficulty: float,
-    question_type: str,
+    student_id: str, session_id: str, question_id: str,
+    topic_id: str, chapter: str, correct: bool,
+    time_ms: int, difficulty: float, question_type: str,
 ) -> dict[str, Any]:
-    """
-    Create a raw answer event document.
-
-    These are never shown to agents directly (§5.2). All agent context comes
-    from aggregated tool calls that query this collection.
-    """
     return {
         "student_id": student_id,
         "session_id": session_id,
@@ -139,31 +86,14 @@ def new_question_history_doc(
     }
 
 
-# ---------------------------------------------------------------------------
-# session_summaries — Level-1 memory, generated after each session
-# ---------------------------------------------------------------------------
-
 def new_session_summary_doc(
-    session_id: str,
-    student_id: str,
-    duration_minutes: float,
-    questions_attempted: int,
-    accuracy_by_chapter: dict[str, float],
-    avg_time_by_topic: dict[str, float],
-    frustration_events_count: int,
-    topics_unlocked: list[str],
-    first_half_accuracy: float,
-    second_half_accuracy: float,
-    hardest_correct_difficulty: float | None,
-    easiest_wrong_difficulty: float | None,
-    session_mode_sequence: list[str],
+    session_id: str, student_id: str, duration_minutes: float,
+    questions_attempted: int, accuracy_by_chapter: dict[str, float],
+    avg_time_by_topic: dict[str, float], frustration_events_count: int,
+    topics_unlocked: list[str], first_half_accuracy: float,
+    second_half_accuracy: float, hardest_correct_difficulty: float | None,
+    easiest_wrong_difficulty: float | None, session_mode_sequence: list[str],
 ) -> dict[str, Any]:
-    """
-    Create a compressed session summary document (≈200 tokens when serialized).
-
-    This is the Level-1 memory layer. The Session Planner agent receives the
-    last 3 of these (≈450 tokens total) alongside the personality document.
-    """
     return {
         "session_id": session_id,
         "student_id": student_id,
@@ -182,26 +112,40 @@ def new_session_summary_doc(
     }
 
 
-# ---------------------------------------------------------------------------
-# topic_trend_scores — 156 docs, recomputed weekly by Trend Intelligence Agent
-# ---------------------------------------------------------------------------
+def new_solved_question_doc(
+    student_id: str, question_id: str, topic_id: str,
+    chapter: str, difficulty: float, question_type: str,
+    last_correct: bool = True,
+    subject: str = SUBJECT_MATHEMATICS,
+) -> dict:
+    # Correct answers: start SM-2 at 1-day interval.
+    # Incorrect answers: also start at 1 day (INCORRECT_FIRST_INTERVAL_DAYS) but flagged.
+    interval = SM2_FIRST_INTERVAL_DAYS if last_correct else INCORRECT_FIRST_INTERVAL_DAYS
+    return {
+        "student_id": student_id,
+        "question_id": question_id,
+        "topic_id": topic_id,
+        "chapter": chapter,
+        "subject": subject,
+        "difficulty": difficulty,
+        "question_type": question_type,
+        "last_correct": last_correct,
+        "times_attempted": 1,
+        "times_correct": 1 if last_correct else 0,
+        "consecutive_incorrect": 0 if last_correct else 1,
+        "last_attempted_at": _utcnow(),
+        "next_review_date": (date.today() + timedelta(days=interval)).isoformat(),
+        "review_interval_days": interval,
+        "easiness_factor": 2.5,
+        "created_at": _utcnow(),
+    }
+
 
 def new_topic_trend_doc(
-    topic_id: str,
-    chapter: str,
-    p_appears: float,
-    trend_score_raw: float,
-    gap_bonus: float,
-    streak_score: float,
-    direction_multiplier: float,
+    topic_id: str, chapter: str, p_appears: float,
+    trend_score_raw: float, gap_bonus: float,
+    streak_score: float, direction_multiplier: float,
 ) -> dict[str, Any]:
-    """
-    Create or replace a topic trend score document.
-
-    p_appears is the final sigmoid-normalized probability that this topic
-    appears in this year's JEE Mains exam. Used by Thompson Sampling as the
-    urgency weight in priority = (1 - mastery_sample) × p_appears.
-    """
     return {
         "topic_id": topic_id,
         "chapter": chapter,

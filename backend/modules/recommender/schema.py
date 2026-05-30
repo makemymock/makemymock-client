@@ -1,10 +1,3 @@
-"""
-Pydantic v2 request and response models for the JEE Recommender API.
-
-Controllers import from here; services return instances of these models.
-No business logic lives here — only shape, validation, and serialization.
-"""
-
 from __future__ import annotations
 
 from datetime import datetime
@@ -13,31 +6,15 @@ from typing import Any, Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 
-# ---------------------------------------------------------------------------
-# Session state — passed on every per-question call to maintain the hot loop
-# without a server-side session store
-# ---------------------------------------------------------------------------
-
 class SessionState(BaseModel):
-    """
-    Client-maintained session state. Returned after each answer, echoed back
-    on the next next-question request. Keeps the hot path stateless server-side.
-    """
     consecutive_wrong: int = 0
     questions_asked: int = 0
     session_mode: Literal["normal", "recovery", "wind_down"] = "normal"
-    # question_ids already served and answered correctly (exclude from candidates)
     seen_correct_ids: list[str] = Field(default_factory=list)
-    # All question_ids served this session (exclude from spaced-repetition injection)
     seen_all_ids: list[str] = Field(default_factory=list)
-    # Tracks per-block accuracy for fatigue profiling
     block_correct: list[int] = Field(default_factory=lambda: [0, 0, 0])
     block_total: list[int] = Field(default_factory=lambda: [0, 0, 0])
 
-
-# ---------------------------------------------------------------------------
-# Student initialization
-# ---------------------------------------------------------------------------
 
 class InitializeStudentResponse(BaseModel):
     student_id: str
@@ -46,19 +23,11 @@ class InitializeStudentResponse(BaseModel):
     message: str
 
 
-# ---------------------------------------------------------------------------
-# Session start — Phase A
-# ---------------------------------------------------------------------------
-
 class StartSessionRequest(BaseModel):
-    pass  # student_id is derived from the bearer token in the controller
+    pass
 
 
 class SessionPlanResponse(BaseModel):
-    """
-    Output of the Session Planner Agent. Returned to the client at session
-    start and used to pre-filter the candidate topic pool for the whole session.
-    """
     student_id: str
     session_id: str
     focus_topics: list[str]
@@ -70,12 +39,7 @@ class SessionPlanResponse(BaseModel):
     state: SessionState
 
 
-# ---------------------------------------------------------------------------
-# Next question — Phase B (hot loop)
-# ---------------------------------------------------------------------------
-
 class NextQuestionRequest(BaseModel):
-    # student_id is derived from the bearer token in the controller
     session_id: str
     focus_topics: list[str]
     start_difficulty_offset: float
@@ -84,11 +48,6 @@ class NextQuestionRequest(BaseModel):
 
 
 class NextQuestionResponse(BaseModel):
-    """
-    Single question selected by the hot loop (math + agent). The client uses
-    question_id to fetch the full question from the existing /mock-test/browse
-    endpoint — this service does not duplicate question content.
-    """
     question_id: str
     topic_id: str
     chapter: str
@@ -96,14 +55,10 @@ class NextQuestionResponse(BaseModel):
     is_review_injection: bool
     session_mode: Literal["normal", "recovery", "wind_down"]
     difficulty_offset_applied: float
+    review_reason: str = ""   # populated when is_review_injection=True
 
-
-# ---------------------------------------------------------------------------
-# Answer submission — Phase C
-# ---------------------------------------------------------------------------
 
 class SubmitAnswerRequest(BaseModel):
-    # student_id is derived from the bearer token in the controller
     session_id: str
     question_id: str
     topic_id: str
@@ -126,10 +81,6 @@ class TopicMasteryUpdate(BaseModel):
 
 
 class SubmitAnswerResponse(BaseModel):
-    """
-    Returned immediately after an answer is processed. Contains the updated
-    session state and any topics that just became unlocked.
-    """
     updated_topic: TopicMasteryUpdate
     newly_unlocked_topics: list[str]
     state: SessionState
@@ -137,12 +88,7 @@ class SubmitAnswerResponse(BaseModel):
     diagnosis_triggered: bool
 
 
-# ---------------------------------------------------------------------------
-# End session — triggers async Diagnosis Agent
-# ---------------------------------------------------------------------------
-
 class EndSessionRequest(BaseModel):
-    # student_id is derived from the bearer token in the controller
     session_id: str
     state: SessionState
     started_at: datetime
@@ -154,10 +100,6 @@ class EndSessionResponse(BaseModel):
     diagnosis_triggered: bool
     message: str
 
-
-# ---------------------------------------------------------------------------
-# Student personality
-# ---------------------------------------------------------------------------
 
 class QuestionTypeStrengths(BaseModel):
     single_correct: float
@@ -183,14 +125,11 @@ class StudentPersonalityResponse(BaseModel):
     updated_at: Optional[datetime] = None
 
 
-# ---------------------------------------------------------------------------
-# Topic states
-# ---------------------------------------------------------------------------
-
 class TopicStateResponse(BaseModel):
     student_id: str
     topic_id: str
     chapter: str
+    subject: str = "mathematics"
     alpha: int
     beta: int
     mastery_mean: float
@@ -212,10 +151,6 @@ class AllTopicStatesResponse(BaseModel):
     unlocked_count: int
 
 
-# ---------------------------------------------------------------------------
-# Trend scores
-# ---------------------------------------------------------------------------
-
 class TopicTrendResponse(BaseModel):
     topic_id: str
     chapter: str
@@ -235,19 +170,11 @@ class AllTrendScoresResponse(BaseModel):
     computed_at: Optional[datetime] = None
 
 
-# ---------------------------------------------------------------------------
-# Admin — weekly trend update trigger
-# ---------------------------------------------------------------------------
-
 class TrendUpdateResponse(BaseModel):
     status: Literal["triggered", "completed", "failed"]
     topics_updated: Optional[int] = None
     message: str
 
-
-# ---------------------------------------------------------------------------
-# Session history
-# ---------------------------------------------------------------------------
 
 class SessionSummaryResponse(BaseModel):
     model_config = ConfigDict(extra="allow")
@@ -268,10 +195,6 @@ class SessionHistoryResponse(BaseModel):
     sessions: list[SessionSummaryResponse]
     total: int
 
-
-# ---------------------------------------------------------------------------
-# Question detail — fetched by PYQ question_id for in-session display
-# ---------------------------------------------------------------------------
 
 class QuestionOption(BaseModel):
     identifier: str
@@ -301,3 +224,44 @@ class StudentStatsResponse(BaseModel):
     topics_attempted: int
     topics_mastered: int
     unlocked_count: int
+
+
+# ── Attempted questions (correct / incorrect review) ─────────────────────────
+
+class AttemptedQuestionItem(BaseModel):
+    question_id: str
+    topic_id: str
+    chapter: str
+    subject: str = "mathematics"
+    correct: bool
+    difficulty: Any = None
+    question_type: str = "single_correct"
+    timestamp: Optional[datetime] = None
+    question_text: str = ""
+    options: list[QuestionOption] = []
+    correct_options: list[str] = []
+    correct_answer: Optional[str] = None
+    year: Optional[int] = None
+    is_image_question: bool = False
+
+
+class AttemptedQuestionsResponse(BaseModel):
+    items: list[AttemptedQuestionItem]
+    total: int
+
+
+# ── Catalog subjects (for Physics / Chemistry selection) ─────────────────────
+
+class CatalogChapterInfo(BaseModel):
+    chapter: str
+    topic_count: int
+
+
+class CatalogSubjectInfo(BaseModel):
+    subject: str
+    chapters: list[CatalogChapterInfo]
+    topic_count: int
+
+
+class CatalogSubjectsResponse(BaseModel):
+    subjects: list[CatalogSubjectInfo]
