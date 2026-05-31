@@ -125,8 +125,7 @@ const AppLayout = () => {
 
   return (
     <div className={styles.shell}>
-      {/* Quiet line-grid backdrop, matches the in-test ExamShell look so
-          the page texture stays consistent across all protected routes. */}
+      {/* Quiet line-grid backdrop */}
       <div className={styles.gridBg} aria-hidden="true" />
       <SideNav onLogout={handleLogout} />
 

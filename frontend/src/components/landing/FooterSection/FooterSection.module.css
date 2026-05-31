@@ -5,43 +5,34 @@
 .siteFooter {
   position: relative;
   padding: 5rem 1.5rem 4rem;
-  background: var(--footer-surface-from, #0a0a10);
-  color: var(--footer-text-color, #e5e7eb);
+  background: var(--color-bg-page);
+  color: var(--color-text-primary);
+  border-top: 1px solid var(--color-panel-border);
   overflow: hidden;
   isolation: isolate;
 }
 
-/* Make the dark slab a little richer when on the dark theme. Light
-   theme keeps a softer cream tone so the cards still stand out. */
-:root[data-theme='dark'] .siteFooter,
-:root:not([data-theme='light']) .siteFooter {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 35%),
-    #08080d;
-  color: #e7e9ee;
-}
-
 :root[data-theme='light'] .siteFooter {
-  background: #f1f1f4;
-  color: #1f2937;
+  background: var(--color-bg-page);
+  color: var(--color-text-primary);
 }
 
-/* Radial accent — pinkish-purple bloom behind the brand column, faint
-   amber bloom to the right. Sits behind the inner via z-index. */
+/* Teal + navy radial glow — matches the aurora palette used on the
+   rest of the landing page. */
 .glow {
   position: absolute;
   inset: 0;
   z-index: 0;
   background:
-    radial-gradient(640px 320px at 20% 30%, rgba(168, 85, 247, 0.18), transparent 65%),
-    radial-gradient(560px 280px at 80% 20%, rgba(245, 196, 81, 0.10), transparent 65%);
+    radial-gradient(640px 320px at 15% 40%, var(--color-glow-teal), transparent 65%),
+    radial-gradient(560px 280px at 85% 20%, var(--color-glow-navy), transparent 65%);
   pointer-events: none;
 }
 
 :root[data-theme='light'] .glow {
   background:
-    radial-gradient(640px 320px at 20% 30%, rgba(168, 85, 247, 0.06), transparent 65%),
-    radial-gradient(560px 280px at 80% 20%, rgba(245, 196, 81, 0.10), transparent 65%);
+    radial-gradient(640px 320px at 15% 40%, var(--color-glow-teal), transparent 65%),
+    radial-gradient(560px 280px at 85% 20%, var(--color-glow-cyan), transparent 65%);
 }
 
 /* ---------------------------------------------------------------- Inner grid */
@@ -130,9 +121,9 @@
 
 .socialLink:hover {
   opacity: 1;
-  color: #16a085;
-  background: rgba(22, 160, 133, 0.14);
-  border-color: rgba(22, 160, 133, 0.42);
+  color: var(--color-accent);
+  background: var(--color-glow-teal);
+  border-color: rgba(20, 184, 166, 0.42);
   transform: translateY(-2px);
 }
 
@@ -147,23 +138,16 @@
 /* ---------------------------------------------------------------- Link cards */
 
 .linkCard {
-  background: rgba(255, 255, 255, 0.035);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: var(--color-panel-bg);
+  border: 1px solid var(--color-panel-border);
   border-radius: 22px;
   padding: 1.85rem 2rem;
   min-width: 0;
-  /* Stretch to match the brand column height — the grid uses
-     `align-items: stretch` by default, so this just needs to be a
-     flex container so its inner list spans correctly. */
+  backdrop-filter: blur(14px);
   display: flex;
   flex-direction: column;
   justify-content: center;
   gap: 0.85rem;
-}
-
-:root[data-theme='light'] .linkCard {
-  background: rgba(15, 23, 42, 0.04);
-  border-color: rgba(15, 23, 42, 0.08);
 }
 
 /* Visually hidden column title (kept for SR / aria-label fallback). */
@@ -201,7 +185,7 @@
 }
 
 .linkItem:hover {
-  color: #16a085;
+  color: var(--color-accent);
   opacity: 1;
   transform: translateX(2px);
 }
