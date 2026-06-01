@@ -123,7 +123,7 @@
   opacity: 1;
   color: var(--color-accent);
   background: var(--color-glow-teal);
-  border-color: rgba(20, 184, 166, 0.42);
+  border-color: rgba(12, 193, 224, 0.42);
   transform: translateY(-2px);
 }
 

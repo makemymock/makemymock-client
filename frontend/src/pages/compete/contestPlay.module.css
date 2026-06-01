@@ -55,7 +55,7 @@
   justify-content: center;
   font-weight: 800;
   letter-spacing: 1px;
-  box-shadow: 0 6px 16px rgba(20, 184, 166, 0.32);
+  box-shadow: 0 6px 16px rgba(12, 193, 224, 0.32);
   flex-shrink: 0;
   font-size: 13px;
 }
@@ -127,7 +127,7 @@
   padding: 9px 16px;
   border-radius: 10px;
   font-size: 13px;
-  box-shadow: 0 8px 20px rgba(20, 184, 166, 0.32);
+  box-shadow: 0 8px 20px rgba(12, 193, 224, 0.32);
   transition: filter 0.15s ease;
 }
 @media (min-width: 640px) {

@@ -129,7 +129,7 @@
   border-radius: 12px;
   font-size: 15px;
   letter-spacing: 0.4px;
-  box-shadow: 0 12px 28px rgba(20, 184, 166, 0.32);
+  box-shadow: 0 12px 28px rgba(12, 193, 224, 0.32);
   transition: filter 0.15s ease, transform 0.15s ease;
 }
 .primaryBtn:hover { filter: brightness(1.08); transform: translateY(-1px); }

@@ -12,7 +12,7 @@ import { parseApiError } from '../../utils/validators';
 import styles from './chapterAnalytics.module.css';
 
 const TOPIC_COLORS = [
-  '#14b8a6',
+  '#0cc1e0',
   '#f59e0b',
   '#6366f1',
   '#ef4444',

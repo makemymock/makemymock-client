@@ -1,7 +1,7 @@
 import styles from './DonutChart.module.css';
 
 const PALETTE = [
-  '#14b8a6',
+  '#0cc1e0',
   '#f59e0b',
   '#ef4444',
   '#6366f1',

@@ -78,12 +78,12 @@
 }
 
 .faqCard:hover {
-  border-color: rgba(20, 184, 166, 0.4);
+  border-color: rgba(12, 193, 224, 0.4);
   box-shadow: 0 0 18px var(--color-glow-teal);
 }
 
 .faqCardExpanded {
-  border-color: rgba(20, 184, 166, 0.5);
+  border-color: rgba(12, 193, 224, 0.5);
   box-shadow: 0 0 22px var(--color-glow-teal);
 }
 
@@ -135,7 +135,7 @@
   transform: rotate(180deg);
   background: var(--color-glow-teal);
   color: var(--color-accent);
-  border-color: rgba(20, 184, 166, 0.4);
+  border-color: rgba(12, 193, 224, 0.4);
 }
 
 .faqCardAnswer {

@@ -108,7 +108,7 @@
   padding: 10px 12px;
   border-radius: 10px;
   border: 1.5px dashed var(--color-accent);
-  background: rgba(20, 184, 166, 0.08);
+  background: rgba(12, 193, 224, 0.08);
   color: var(--color-text-primary);
   user-select: all;
   min-width: 0;
@@ -130,7 +130,7 @@
 }
 
 .copyBtn:hover {
-  background: rgba(20, 184, 166, 0.16);
+  background: rgba(12, 193, 224, 0.16);
   border-color: var(--color-accent);
 }
 

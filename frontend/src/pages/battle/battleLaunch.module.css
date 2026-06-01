@@ -411,7 +411,7 @@
   padding: 12px 22px;
   border-radius: 14px;
   border: 1.5px solid var(--color-accent);
-  background: rgba(20, 184, 166, 0.10);
+  background: rgba(12, 193, 224, 0.10);
   color: var(--color-text-primary);
   cursor: pointer;
   font: inherit;
@@ -419,7 +419,7 @@
 }
 
 .friendButton:hover {
-  background: rgba(20, 184, 166, 0.20);
+  background: rgba(12, 193, 224, 0.20);
   transform: translateY(-1px);
 }
 

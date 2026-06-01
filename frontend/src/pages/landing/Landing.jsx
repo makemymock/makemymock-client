@@ -163,6 +163,9 @@ export default function Landing() {
   const logoSrc = theme === 'dark'
     ? '/logo_dark-removebg-preview.png'
     : '/logo_light-removebg-preview.png';
+  // Product screenshots ship in two captures so they match the active theme
+  // — the dark grabs looked out of place once the page is in light mode.
+  const shot = (name) => (theme === 'dark' ? `/${name}.png` : `/${name}_light.png`);
 
   return (
     <div className={styles.pageShell}>
@@ -231,7 +234,7 @@ export default function Landing() {
         {/* Dashboard screenshot preview */}
         <div className={styles.heroVisual} aria-hidden="true">
           <div className={styles.heroScreenshot}>
-            <img src="/Dashboard.png" alt="MakeMyMock dashboard" className={styles.heroScreenshotImg} />
+            <img src={shot('Dashboard')} alt="MakeMyMock dashboard" className={styles.heroScreenshotImg} />
           </div>
         </div>
       </section>
@@ -277,7 +280,7 @@ export default function Landing() {
             </a>
           </div>
           <div className={styles.screenshotFrame}>
-            <img src="/SolverX.png" alt="SolverX AI Tutor interface" className={styles.screenshotFrameImg} />
+            <img src={shot('SolverX')} alt="SolverX AI Tutor interface" className={styles.screenshotFrameImg} />
           </div>
         </div>
       </section>
@@ -286,7 +289,7 @@ export default function Landing() {
       <section className={`${styles.section} ${styles.sectionNarrow}`}>
         <div className={`${styles.showcaseCard} ${styles.showcaseCardCyan} ${styles.showcaseCardReverse}`}>
           <div className={styles.screenshotFrame}>
-            <img src="/Battle.png" alt="1-vs-1 Battle Mode arena" className={styles.screenshotFrameImg} />
+            <img src={shot('Battle')} alt="1-vs-1 Battle Mode arena" className={styles.screenshotFrameImg} />
           </div>
           <div className={styles.showcaseText}>
             <h2 className={styles.showcaseTitle}>
@@ -309,7 +312,7 @@ export default function Landing() {
       <section className={`${styles.section} ${styles.sectionNarrow}`}>
         <div className={`${styles.showcaseCard} ${styles.showcaseCardPrimary}`}>
           <div className={styles.screenshotFrame}>
-            <img src="/Analytics.png" alt="Deep analytics dashboard" className={styles.screenshotFrameImg} />
+            <img src={shot('Analytics')} alt="Deep analytics dashboard" className={styles.screenshotFrameImg} />
           </div>
           <div className={styles.showcaseText}>
             <h2 className={styles.showcaseTitle}>

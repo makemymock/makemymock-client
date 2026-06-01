@@ -79,7 +79,7 @@
 .tabBtnOn:hover {
   background: linear-gradient(135deg, var(--color-brand-grad-from), var(--color-brand-grad-to));
   color: #ffffff;
-  box-shadow: 0 6px 18px rgba(20, 184, 166, 0.22);
+  box-shadow: 0 6px 18px rgba(12, 193, 224, 0.22);
 }
 
 .tabLabel { font-weight: 700; }
@@ -515,7 +515,7 @@
   background: linear-gradient(135deg, var(--color-brand-grad-from), var(--color-brand-grad-to));
   color: #ffffff;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 8px 20px rgba(20, 184, 166, 0.28);
+  box-shadow: 0 8px 20px rgba(12, 193, 224, 0.28);
 }
 .cardCtaPrimary:hover { filter: brightness(1.08); transform: translateY(-1px); }
 
@@ -569,7 +569,7 @@
 .table tbody tr:last-child td { border-bottom: none; }
 
 .meRow {
-  background: rgba(20, 184, 166, 0.08);
+  background: rgba(12, 193, 224, 0.08);
   font-weight: 600;
 }
 .youTag {

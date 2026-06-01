@@ -313,7 +313,7 @@
 
 .sideNavItemActive {
   background: linear-gradient(135deg,
-    rgba(20, 184, 166, 0.18), rgba(245, 196, 81, 0.18));
+    rgba(12, 193, 224, 0.18), rgba(245, 196, 81, 0.18));
   color: var(--dash-sidebar-text-active);
 }
 
@@ -695,7 +695,7 @@
   background: var(--color-accent);
 }
 
-.statCard_teal::before  { background: linear-gradient(180deg, var(--color-accent), #6fd9bd); }
+.statCard_teal::before  { background: linear-gradient(180deg, var(--color-accent), #0c93b4); }
 .statCard_gold::before  { background: linear-gradient(180deg, var(--dash-accent-yellow-strong), var(--dash-accent-yellow)); }
 .statCard_brown::before { background: linear-gradient(180deg, var(--color-brand-grad-from), var(--color-brand-grad-to)); }
 
@@ -1251,7 +1251,7 @@
 }
 
 .primaryBtn {
-  background: linear-gradient(135deg, var(--color-accent), #6fd9bd);
+  background: linear-gradient(135deg, var(--color-accent), #0c93b4);
   color: var(--color-brand-contrast);
   border: none;
   padding: 9px 18px;

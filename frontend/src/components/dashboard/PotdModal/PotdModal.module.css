@@ -244,7 +244,7 @@
 .optionPicked {
   background: var(--color-glow-teal);
   border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.12);
+  box-shadow: 0 0 0 3px rgba(12, 193, 224, 0.12);
 }
 
 .optionCorrect {

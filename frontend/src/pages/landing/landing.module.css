@@ -430,8 +430,8 @@
   .showcaseCard { grid-template-columns: 1fr 1fr; }
 }
 
-.showcaseCardCyan  { border-color: rgba(20, 184, 166, 0.3); }
-.showcaseCardPrimary { border-color: rgba(20, 184, 166, 0.25); }
+.showcaseCardCyan  { border-color: rgba(12, 193, 224, 0.3); }
+.showcaseCardPrimary { border-color: rgba(12, 193, 224, 0.25); }
 
 .showcaseText {
   display: flex;
@@ -449,7 +449,7 @@
   letter-spacing: 0.1em;
   color: var(--color-accent);
   background: var(--color-glow-teal);
-  border: 1px solid rgba(20, 184, 166, 0.3);
+  border: 1px solid rgba(12, 193, 224, 0.3);
   padding: 0.3rem 0.75rem;
   border-radius: 999px;
   align-self: flex-start;
