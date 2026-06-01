@@ -446,16 +446,23 @@ class BrowsePerformance(BaseModel):
 
 
 class BrowseItem(BaseModel):
-    question_id: str                 # questions._id (ObjectId) as string
+    # `question_id` is a composite key: `"{obj_id}"` for standalone questions,
+    # `"{obj_id}_{sub_index}"` for passage sub-questions. ObjectIds are pure
+    # hex so `_` is an unambiguous separator. The same composite is used by
+    # the detail / attempt / view-solution endpoints.
+    question_id: str
+    obj_id: str                      # parent passage's _id (or own _id for standalones)
+    sub_index: Optional[int] = None  # set for passage sub-rows
+    is_passage_sub: bool = False
     subject: str
     chapter: str
     topic: str
     difficulty: str
-    question_type: str
+    question_type: str               # actual sub-Q type — passage subs are `single_correct`
     question_text: str = ""          # full text; the client clamps the preview
     attempted: bool = False
     viewed: bool = False
-    marked: bool = False             # in the user's notebook
+    marked: bool = False             # parent question is in the user's notebook
     performance: Optional[BrowsePerformance] = None
 
 
@@ -466,19 +473,17 @@ class BrowseListResponse(BaseModel):
     page_size: int
 
 
-class BrowseSubQuestion(BaseModel):
-    """A passage sub-question as rendered in Browse (single_correct)."""
-    sub_index: int
-    question_text: str = ""
-    options: list[QuestionPayloadOption] = Field(default_factory=list)
-    # Gated: only populated once attempted-or-viewed.
-    correct_option: Optional[str] = None
-    user_answer: Any = None
-    performance: Optional[BrowsePerformance] = None
-
-
 class BrowseQuestionDetail(BaseModel):
-    question_id: str
+    """One Browse problem page — always a single question (passages are
+    expanded into per-sub pages upstream, so a passage sub-Q renders here
+    as a `single_correct` with `passage_text` set)."""
+
+    question_id: str                 # composite — see BrowseItem
+    obj_id: str
+    sub_index: Optional[int] = None
+    is_passage_sub: bool = False
+    passage_text: Optional[str] = None
+
     subject: str
     chapter: str
     topic: str
@@ -490,42 +495,35 @@ class BrowseQuestionDetail(BaseModel):
     left_column: list[str] = Field(default_factory=list)
     right_column: list[str] = Field(default_factory=list)
 
-    passage_text: Optional[str] = None
-    sub_questions: list[BrowseSubQuestion] = Field(default_factory=list)
-
-    # Per-user gate state.
+    # Per-user "first-pass" status: what the badge shows. The detail page
+    # itself opens fresh (no auto-revealed answer / solution) even if the
+    # user has attempted this question before — they get to try again.
     attempted: bool = False
-    solution_viewed: bool = False
-    marked: bool = False             # in the user's notebook
-
-    # Gated reveal — present only when (attempted || solution_viewed). The
-    # worked `solution` text is NEVER sent here; it comes from the
-    # view-solution endpoint so opening a question can't leak it.
-    correct_answer: Any = None
-    user_answer: Any = None
+    marked: bool = False
+    # Last recorded outcome on this question for the user, used for the
+    # "Attempted ✓ / ✗ / partial" badge. None if never attempted.
     performance: Optional[BrowsePerformance] = None
 
 
 class BrowseAttemptRequest(BaseModel):
-    """Answer for a practice attempt.
-
-    Same wire shapes as `AnswerInput` for standalone questions. For passages,
-    `answers` maps a sub-index string ("0", "1", …) to that sub-question's
-    selected option key.
-    """
+    """Answer for a practice attempt — always for a single question; passage
+    sub-questions answer as `single_correct` (the page is one sub at a time)."""
     selected_option: Optional[str] = None
     selected_options: Optional[list[str]] = None
     integer_answer: Optional[Any] = None
     matching: Optional[dict[str, list[str]]] = None
-    answers: Optional[dict[str, str]] = None   # passage sub-index → option key
 
 
 class BrowseAttemptResponse(BaseModel):
+    """Result of grading a practice attempt.
+
+    The correct answer + worked solution are revealed only when the
+    attempt is fully correct — wrong answers let the student retry
+    without leaking either. Recommender feed decisions are not exposed.
+    """
     performance: BrowsePerformance
-    correct_answer: Any = None
-    recorded: bool                   # False when the solution was already viewed
-    # Per-sub breakdown for passages (empty otherwise).
-    sub_results: list[BrowseSubQuestion] = Field(default_factory=list)
+    correct_answer: Any = None       # set only when the attempt is correct
+    solution: Optional[str] = None   # set only when the attempt is correct
 
 
 class BrowseSolutionResponse(BaseModel):

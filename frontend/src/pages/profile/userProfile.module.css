@@ -1,0 +1,108 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.eyebrow {
+  margin: 0 0 4px;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--color-accent);
+  font-family: var(--font-secondary);
+}
+.title {
+  margin: 0;
+  font-size: clamp(1.45rem, 2.6vw, 1.9rem);
+  color: var(--color-text-primary);
+  font-family: var(--font-primary);
+}
+.subtitle {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.card {
+  background: var(--color-panel-bg);
+  border: 1px solid var(--color-panel-border);
+  border-radius: 16px;
+  padding: clamp(14px, 2.5vw, 22px);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+/* ---------- read-only view ---------- */
+.viewGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px 24px;
+  margin: 0;
+}
+@media (min-width: 640px) {
+  .viewGrid { grid-template-columns: repeat(2, 1fr); }
+}
+.viewRow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 0;
+  border-bottom: 1px dashed var(--color-panel-border);
+}
+.viewLabel {
+  font-size: 11px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+.viewValue {
+  font-size: 15px;
+  color: var(--color-text-primary);
+  margin: 0;
+  word-break: break-word;
+}
+
+/* ---------- edit form ---------- */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+@media (min-width: 640px) {
+  .grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.cancelBtn {
+  font: inherit;
+  font-size: 14px;
+  background: none;
+  border: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  padding: 6px 4px;
+}
+.cancelBtn:hover:not(:disabled) {
+  color: var(--color-text-primary);
+  text-decoration: underline;
+}
+.cancelBtn:disabled { opacity: 0.5; cursor: not-allowed; }

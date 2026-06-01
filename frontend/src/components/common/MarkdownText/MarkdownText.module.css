@@ -1,12 +1,8 @@
-/* Question prompts, options, passages, and solutions all render through
-   this component. The rest of the app uses Patrick Hand SC (the
-   handwritten brand font), but stems and options must stay crisp and
-   unambiguous (subscripts, italics, ratios, chemical formulae) — so we
-   override back to a clean sans-serif here. KaTeX brings its own
-   typeface via katex.css. */
+/* Question prompts, options, passages, and solutions render through
+   this component. Inherits the global Plus Jakarta Sans stack; KaTeX
+   brings its own typeface via katex.css. */
 .root {
-  font-family: 'Poppins', 'Inter', system-ui, -apple-system,
-    BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: inherit;
   font-size: inherit;
   line-height: 1.6;
   color: inherit;

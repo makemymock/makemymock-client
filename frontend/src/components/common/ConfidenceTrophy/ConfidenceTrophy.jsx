@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import styles from './ConfidenceTrophy.module.css';
 
 // Tier → visual treatment. The CSS module owns the actual colour
@@ -45,8 +45,6 @@ const TrophyIcon = ({ className }) => (
   </svg>
 );
 
-const formatPct = (n) => `${Math.round(n)}%`;
-
 /**
  * Gamified confidence card — headline score, trophy badge for the
  * current tier, progress bar to the next tier, and a breakdown of the
@@ -58,9 +56,7 @@ const formatPct = (n) => `${Math.round(n)}%`;
  *                tight slots like the dashboard hero card.
  *   className  — optional extra class for the wrapper.
  */
-const ConfidenceTrophy = ({ data, compact = false, className = '' }) => {
-  const [showDetail, setShowDetail] = useState(false);
-
+const ConfidenceTrophy = ({ data, compact = false, className = '', dataTour }) => {
   const view = useMemo(() => {
     if (!data) return null;
     const tierName = data.tier?.name || 'Doubter';
@@ -82,7 +78,10 @@ const ConfidenceTrophy = ({ data, compact = false, className = '' }) => {
 
   if (!view) {
     return (
-      <section className={`${styles.card} ${styles.skeleton} ${className}`}>
+      <section
+        className={`${styles.card} ${styles.skeleton} ${className}`}
+        data-tour={dataTour}
+      >
         <p className={styles.skeletonText}>Loading confidence…</p>
       </section>
     );
@@ -95,6 +94,7 @@ const ConfidenceTrophy = ({ data, compact = false, className = '' }) => {
     <section
       className={`${styles.card} ${tierClass} ${compact ? styles.cardCompact : ''} ${className}`}
       aria-label={`Confidence score ${Math.round(score)} out of 100, trophy ${tierName}`}
+      data-tour={dataTour}
     >
       <div className={styles.head}>
         <div className={styles.iconWrap}>
@@ -122,48 +122,6 @@ const ConfidenceTrophy = ({ data, compact = false, className = '' }) => {
         <span className={styles.progressLabel}>{nextLabel}</span>
       </div>
 
-      {!compact ? (
-        <>
-          <button
-            type="button"
-            className={styles.detailToggle}
-            onClick={() => setShowDetail((v) => !v)}
-            aria-expanded={showDetail}
-          >
-            {showDetail ? 'Hide breakdown' : 'Show breakdown'}
-            <span className={styles.detailChevron} aria-hidden="true">
-              {showDetail ? '▾' : '▸'}
-            </span>
-          </button>
-
-          {showDetail ? (
-            <ul className={styles.subList}>
-              {(data.sub_scores || []).map((s) => (
-                <li key={s.key} className={styles.subRow}>
-                  <div className={styles.subHead}>
-                    <span className={styles.subLabel}>{s.label}</span>
-                    <span className={styles.subMeta}>
-                      <span className={styles.subValue}>
-                        {Math.round(s.score)}
-                      </span>
-                      <span className={styles.subWeight}>
-                        · {formatPct(s.weight * 100)} weight
-                      </span>
-                    </span>
-                  </div>
-                  <div className={styles.subTrack} aria-hidden="true">
-                    <div
-                      className={styles.subFill}
-                      style={{ width: `${Math.max(0, Math.min(100, s.score))}%` }}
-                    />
-                  </div>
-                  <p className={styles.subDetail}>{s.detail}</p>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </>
-      ) : null}
     </section>
   );
 };

@@ -26,15 +26,9 @@ const TYPES = [
 ];
 
 const STATUSES = [
-  { value: '', label: 'All' },
+  { value: '', label: 'All attempts' },
   { value: 'true', label: 'Attempted' },
   { value: 'false', label: 'Not attempted' },
-];
-
-const MARKED_STATUSES = [
-  { value: '', label: 'All' },
-  { value: 'true', label: 'Marked' },
-  { value: 'false', label: 'Not marked' },
 ];
 
 function prettyType(t) {
@@ -48,16 +42,17 @@ function prettyType(t) {
   }
 }
 
-// Status glyph + label for a row, with attempted taking precedence over viewed.
+// Status glyph + label for a row. The label is the "previous attempt"
+// snapshot — the page itself always re-opens as a fresh attempt so the
+// student can try again. Recommender mechanics aren't surfaced.
 function rowStatus(item) {
   if (item.attempted && item.performance) {
     const s = item.performance.status;
-    if (s === 'correct') return { cls: 'stCorrect', glyph: '✓', label: 'Solved' };
-    if (s === 'partial') return { cls: 'stPartial', glyph: '◐', label: 'Partial' };
-    return { cls: 'stWrong', glyph: '✗', label: 'Wrong' };
+    if (s === 'correct') return { cls: 'stCorrect', glyph: '✓', label: 'Attempted ✓' };
+    if (s === 'partial') return { cls: 'stPartial', glyph: '◐', label: 'Attempted ◐' };
+    return { cls: 'stWrong', glyph: '✗', label: 'Attempted ✗' };
   }
-  if (item.viewed) return { cls: 'stViewed', glyph: '👁', label: 'Viewed' };
-  return { cls: 'stTodo', glyph: '○', label: 'Todo' };
+  return { cls: 'stTodo', glyph: '○', label: 'Not attempted' };
 }
 
 const BrowsePanel = ({ notebookMode = false }) => {
@@ -77,21 +72,22 @@ const BrowsePanel = ({ notebookMode = false }) => {
   const difficulty = searchParams.get('difficulty') || '';
   const qtype = searchParams.get('qtype') || '';
   const attempted = searchParams.get('attempted') || '';
-  // In notebook mode the list is always the marked set; otherwise it follows
-  // the Marked chip in the URL.
-  const markedParam = searchParams.get('marked') || '';
-  const marked = notebookMode ? 'true' : markedParam;
+  // Browse no longer surfaces a Marked filter — the Notebook tab IS the
+  // marked-questions view, so a separate filter here would be redundant.
+  // Notebook mode still pins `marked=true` on every query to the API.
+  const marked = notebookMode ? 'true' : '';
   const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1);
 
   // Search box is debounced into the URL.
   const [searchInput, setSearchInput] = useState(searchParams.get('q') || '');
 
-  // Patch the URL, always keeping tab=browse, resetting to page 1 unless the
-  // change IS the page.
+  // Patch the URL, preserving the active tab (browse / notebook) so a
+  // filter change inside Notebook doesn't bounce the user back to Browse.
+  // Resets the page param unless the change IS the page.
   const patch = (changes, { resetPage = true } = {}) => {
     setSearchParams((prev) => {
       const p = new URLSearchParams(prev);
-      p.set('tab', 'browse');
+      p.set('tab', notebookMode ? 'notebook' : 'browse');
       for (const [k, v] of Object.entries(changes)) {
         if (v === '' || v === null || v === undefined) p.delete(k);
         else p.set(k, v);
@@ -171,6 +167,25 @@ const BrowsePanel = ({ notebookMode = false }) => {
     navigate(`/tests/browse/${id}?${p.toString()}`);
   };
 
+  // Notebook-only — drop a question out of the saved set. Optimistically
+  // removes the row from the visible list so the action feels immediate;
+  // a background refetch reconciles totals + pagination.
+  const removeFromNotebook = async (id, e) => {
+    e?.stopPropagation();
+    setData((prev) => prev && ({
+      ...prev,
+      items: prev.items.filter((it) => it.question_id !== id),
+      total: Math.max(0, (prev.total || 0) - 1),
+    }));
+    try {
+      await mockTestService.removeFromNotebook(id);
+    } catch (err) {
+      // If the API call fails, refetch to put the row back in its
+      // correct place (and surface the error to the user).
+      setError(parseApiError(err, 'Could not remove from notebook.'));
+    }
+  };
+
   return (
     <div className={styles.wrap}>
       <div className={styles.filters}>
@@ -185,6 +200,10 @@ const BrowsePanel = ({ notebookMode = false }) => {
           />
         </div>
 
+        {/* Unified filter grid — all six (or seven, when not in notebook
+            mode) dropdowns share one auto-fit grid so they wrap cleanly
+            on every viewport. Replaces the old "3 selects + 4 chip
+            groups" mixed layout that didn't scale well on mobile. */}
         <div className={styles.selectRow}>
           <select
             className={styles.select}
@@ -217,45 +236,51 @@ const BrowsePanel = ({ notebookMode = false }) => {
             <option value="">All topics</option>
             {topics.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
           </select>
-        </div>
 
-        <div className={styles.chipGroups}>
-          <ChipGroup
-            options={DIFFICULTIES}
+          <select
+            className={styles.select}
             value={difficulty}
-            onChange={(v) => patch({ difficulty: v })}
-          />
-          <ChipGroup
-            options={TYPES}
+            onChange={(e) => patch({ difficulty: e.target.value })}
+            aria-label="Difficulty"
+          >
+            {DIFFICULTIES.map((o) => (
+              <option key={o.value || 'all'} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+
+          <select
+            className={styles.select}
             value={qtype}
-            onChange={(v) => patch({ qtype: v })}
-          />
-          <ChipGroup
-            options={STATUSES}
+            onChange={(e) => patch({ qtype: e.target.value })}
+            aria-label="Question type"
+          >
+            {TYPES.map((o) => (
+              <option key={o.value || 'all'} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+
+          <select
+            className={styles.select}
             value={attempted}
-            onChange={(v) => patch({ attempted: v })}
-          />
-          {!notebookMode ? (
-            <ChipGroup
-              options={MARKED_STATUSES}
-              value={markedParam}
-              onChange={(v) => patch({ marked: v })}
-            />
-          ) : null}
+            onChange={(e) => patch({ attempted: e.target.value })}
+            aria-label="Attempted"
+          >
+            {STATUSES.map((o) => (
+              <option key={o.value || 'all'} value={o.value}>{o.label}</option>
+            ))}
+          </select>
         </div>
       </div>
 
       <div className={styles.resultBar}>
         <span>{total} question{total === 1 ? '' : 's'}{notebookMode ? ' in your notebook' : ''}</span>
-        {(subject || chapter || topic || difficulty || qtype || attempted || q || (!notebookMode && markedParam)) ? (
+        {(subject || chapter || topic || difficulty || qtype || attempted || q) ? (
           <button
             type="button"
             className={styles.clearBtn}
             onClick={() => {
               setSearchInput('');
-              const reset = { subject: '', chapter: '', topic: '', difficulty: '', qtype: '', attempted: '', q: '' };
-              if (!notebookMode) reset.marked = '';
-              patch(reset);
+              patch({ subject: '', chapter: '', topic: '', difficulty: '', qtype: '', attempted: '', q: '' });
             }}
           >
             Clear filters
@@ -287,10 +312,21 @@ const BrowsePanel = ({ notebookMode = false }) => {
               const st = rowStatus(item);
               return (
                 <li key={item.question_id}>
-                  <button
-                    type="button"
+                  {/* Row is `<div role="button">` rather than `<button>` so
+                      the inner Remove control in notebook mode is valid
+                      (nested <button>s are invalid HTML). Keyboard accessibility
+                      is preserved via the Enter/Space handler. */}
+                  <div
+                    role="button"
+                    tabIndex={0}
                     className={styles.row}
                     onClick={() => openQuestion(item.question_id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        openQuestion(item.question_id);
+                      }
+                    }}
                   >
                     <span className={`${styles.status} ${styles[st.cls]}`} title={st.label} aria-label={st.label}>
                       {st.glyph}
@@ -311,8 +347,19 @@ const BrowsePanel = ({ notebookMode = false }) => {
                       <span className={`${styles.tag} ${styles[`diff_${(item.difficulty || 'medium').toLowerCase()}`]}`}>
                         {item.difficulty}
                       </span>
+                      {notebookMode ? (
+                        <button
+                          type="button"
+                          className={styles.removeBtn}
+                          aria-label="Remove from notebook"
+                          title="Remove from notebook"
+                          onClick={(e) => removeFromNotebook(item.question_id, e)}
+                        >
+                          ✕
+                        </button>
+                      ) : null}
                     </span>
-                  </button>
+                  </div>
                 </li>
               );
             })}
@@ -344,21 +391,5 @@ const BrowsePanel = ({ notebookMode = false }) => {
     </div>
   );
 };
-
-const ChipGroup = ({ options, value, onChange }) => (
-  <div className={styles.chips} role="group">
-    {options.map((o) => (
-      <button
-        key={o.value || 'all'}
-        type="button"
-        className={`${styles.chip} ${value === o.value ? styles.chipOn : ''}`}
-        aria-pressed={value === o.value}
-        onClick={() => onChange(o.value)}
-      >
-        {o.label}
-      </button>
-    ))}
-  </div>
-);
 
 export default BrowsePanel;

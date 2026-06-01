@@ -21,6 +21,7 @@ from starlette.websockets import WebSocketDisconnect, WebSocketState
 
 from modules.battle.constants import (
     BASE_POINTS_CORRECT,
+    COUNTDOWN_GO_PAUSE_SECONDS,
     COUNTDOWN_SECONDS,
     QUESTIONS_PER_BATTLE,
     REVEAL_PAUSE_SECONDS,
@@ -74,10 +75,14 @@ async def run_battle_loop(
             "opponent_for_b": {"username": battle.player_a.username},
         }, route_per_player=True)
 
-        # 3) Countdown.
+        # 3) Countdown — `5, 4, 3, 2, 1, GO!` so the tension builds. The
+        # client renders each value with its own animation; `value=0` is the
+        # "GO!" frame that briefly holds before the first question lands.
         for n in range(COUNTDOWN_SECONDS, 0, -1):
             await _send_both(battle, {"type": "countdown", "value": n})
             await asyncio.sleep(1.0)
+        await _send_both(battle, {"type": "countdown", "value": 0})
+        await asyncio.sleep(COUNTDOWN_GO_PAUSE_SECONDS)
 
         # 4) Question rounds.
         rounds: list[dict] = []

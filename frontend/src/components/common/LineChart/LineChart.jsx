@@ -1,9 +1,14 @@
-import { useId, useMemo } from 'react';
+import { useId, useMemo, useRef, useState } from 'react';
 import styles from './LineChart.module.css';
 
 const DEFAULT_HEIGHT = 220;
 const DEFAULT_WIDTH = 720;
 const PADDING = { top: 18, right: 18, bottom: 28, left: 36 };
+
+// X-distance (in SVG units) within which the cursor "snaps" to a data
+// point and the tooltip appears. Cursor outside this band shows only
+// the crosshair, mirroring GCP / Grafana metric chart behaviour.
+const SNAP_THRESHOLD = 22;
 
 const formatDate = (d) => {
   if (!d) return '';
@@ -23,6 +28,15 @@ const LineChart = ({
   ariaLabel = 'Trend chart',
 }) => {
   const gradId = useId();
+  const svgRef = useRef(null);
+  // Cursor position in SVG coordinates while inside the chart area.
+  // Null when the cursor is outside the chart bounds.
+  const [cursor, setCursor] = useState(null);
+  // Snapped point — set only when the cursor's x is within SNAP_THRESHOLD
+  // of a data point's x. Carries the rendered position and the formatted
+  // value so the tooltip can read it directly.
+  const [snap, setSnap] = useState(null);
+
   const flat = useMemo(
     () => series.flatMap((s) => (s.points || []).map((p) => ({ ...p, _sName: s.name }))),
     [series],
@@ -53,14 +67,77 @@ const LineChart = ({
     return { v, y: sy(v) };
   });
 
+  // Convert a DOM mouse event to SVG coordinates and update the cursor /
+  // snapped-point state. We use createSVGPoint + getScreenCTM rather
+  // than offsetX/offsetY so the math works regardless of how the SVG is
+  // scaled by `preserveAspectRatio="none"`.
+  const handleMove = (e) => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return;
+    const local = pt.matrixTransform(ctm.inverse());
+
+    const cx = local.x;
+    const cy = local.y;
+    const insideChart =
+      cx >= PADDING.left
+      && cx <= width - PADDING.right
+      && cy >= PADDING.top
+      && cy <= height - PADDING.bottom;
+
+    if (!insideChart) {
+      setCursor(null);
+      setSnap(null);
+      return;
+    }
+    setCursor({ x: cx, y: cy });
+
+    // Find the data point whose x is closest to the cursor's x. Across
+    // all series — if a chart has multiple series we pick the nearest
+    // single dot rather than stacking multiple tooltips.
+    let best = null;
+    let bestDist = Infinity;
+    for (const s of series) {
+      for (const p of s.points || []) {
+        if (p.x == null || p.y == null) continue;
+        const pxX = sx(p.x);
+        const dist = Math.abs(pxX - cx);
+        if (dist < bestDist) {
+          bestDist = dist;
+          best = {
+            seriesName: s.name || '',
+            x: p.x,
+            y: Number(p.y),
+            cx: pxX,
+            cy: sy(p.y),
+            color: s.dotColor || s.color || 'var(--color-accent)',
+          };
+        }
+      }
+    }
+    setSnap(best && bestDist <= SNAP_THRESHOLD ? best : null);
+  };
+
+  const handleLeave = () => {
+    setCursor(null);
+    setSnap(null);
+  };
+
   return (
     <div className={styles.wrap}>
       <svg
+        ref={svgRef}
         className={styles.svg}
         viewBox={`0 0 ${width} ${height}`}
         role="img"
         aria-label={ariaLabel}
         preserveAspectRatio="none"
+        onMouseMove={handleMove}
+        onMouseLeave={handleLeave}
       >
         <defs>
           <linearGradient id={`${gradId}-line`} x1="0" x2="1">
@@ -131,7 +208,7 @@ const LineChart = ({
             .join(' ');
           const stroke = s.color || `url(#${gradId}-line)`;
           return (
-            <g key={s.name || sIdx}>
+            <g key={s.name || sIdx} pointerEvents="none">
               <path
                 d={d}
                 fill="none"
@@ -148,16 +225,75 @@ const LineChart = ({
                   cy={sy(p.y)}
                   r="3"
                   fill={s.dotColor || 'var(--color-accent)'}
-                >
-                  <title>
-                    {`${s.name || ''}${s.name ? ' · ' : ''}${formatDate(p.x)} · ${yTickFormat(Number(p.y))}`}
-                  </title>
-                </circle>
+                />
               ))}
             </g>
           );
         })}
+
+        {/* Crosshair — dotted vertical + horizontal lines that follow the
+            cursor whenever it's inside the chart area. Always rendered
+            on hover, regardless of whether a data point is nearby. */}
+        {cursor ? (
+          <g pointerEvents="none">
+            <line
+              x1={cursor.x}
+              x2={cursor.x}
+              y1={PADDING.top}
+              y2={height - PADDING.bottom}
+              className={styles.crosshair}
+            />
+            <line
+              x1={PADDING.left}
+              x2={width - PADDING.right}
+              y1={cursor.y}
+              y2={cursor.y}
+              className={styles.crosshair}
+            />
+          </g>
+        ) : null}
+
+        {/* Snap-point highlight — enlarged ring drawn around the nearest
+            data point when the cursor's x is within SNAP_THRESHOLD. */}
+        {snap ? (
+          <g pointerEvents="none">
+            <circle
+              cx={snap.cx}
+              cy={snap.cy}
+              r="6"
+              fill="none"
+              stroke={snap.color}
+              strokeWidth="2"
+              opacity="0.55"
+            />
+            <circle
+              cx={snap.cx}
+              cy={snap.cy}
+              r="3.5"
+              fill={snap.color}
+            />
+          </g>
+        ) : null}
       </svg>
+
+      {/* HTML tooltip — only when the cursor is snapped to a data point.
+          Position via percentages so it tracks the SVG through resizes
+          (the SVG uses preserveAspectRatio="none"). */}
+      {snap ? (
+        <div
+          className={styles.tooltip}
+          style={{
+            left: `${(snap.cx / width) * 100}%`,
+            top: `${(snap.cy / height) * 100}%`,
+          }}
+        >
+          {snap.seriesName ? (
+            <span className={styles.tooltipTitle}>{snap.seriesName}</span>
+          ) : null}
+          <span className={styles.tooltipMeta}>{formatDate(snap.x)}</span>
+          <span className={styles.tooltipValue}>{yTickFormat(snap.y)}</span>
+        </div>
+      ) : null}
 
       {series.length > 1 ? (
         <ul className={styles.legend}>

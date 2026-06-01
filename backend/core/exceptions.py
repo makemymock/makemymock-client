@@ -82,14 +82,51 @@ class ProfileNotFound(AppException):
         super().__init__(detail, status.HTTP_404_NOT_FOUND)
 
 
+class InvalidTourSlug(AppException):
+    def __init__(self, detail: str = "Invalid tour identifier."):
+        super().__init__(detail, status.HTTP_400_BAD_REQUEST)
+
+
+# ---- Contests ----
+class ContestNotFound(AppException):
+    def __init__(self, detail: str = "Contest not found."):
+        super().__init__(detail, status.HTTP_404_NOT_FOUND)
+
+
+class ContestLobbyClosed(AppException):
+    """The lobby (and start button) only open within 5 min of start time."""
+    def __init__(self, detail: str = "Contest lobby is not open yet."):
+        super().__init__(detail, status.HTTP_403_FORBIDDEN)
+
+
+class ContestNotStarted(AppException):
+    def __init__(self, detail: str = "Contest has not started yet."):
+        super().__init__(detail, status.HTTP_403_FORBIDDEN)
+
+
+class ContestEnded(AppException):
+    def __init__(self, detail: str = "Contest has ended."):
+        super().__init__(detail, status.HTTP_410_GONE)
+
+
+class ContestAlreadySubmitted(AppException):
+    def __init__(self, detail: str = "You have already submitted this contest."):
+        super().__init__(detail, status.HTTP_409_CONFLICT)
+
+
+class ContestNotEntered(AppException):
+    def __init__(self, detail: str = "You must enter the contest lobby before starting."):
+        super().__init__(detail, status.HTTP_403_FORBIDDEN)
+
+
 # ---- Recommender ----
 class StudentNotInitialized(AppException):
-    def __init__(self, detail: str = "Student topic states not initialized. Call /recommender/student/{id}/initialize first."):
+    def __init__(self, detail: str = "Student not initialized. Call /recommender/initialize first."):
         super().__init__(detail, status.HTTP_404_NOT_FOUND)
 
 
 class StudentAlreadyInitialized(AppException):
-    def __init__(self, detail: str = "Student topic states already initialized."):
+    def __init__(self, detail: str = "Student already initialized."):
         super().__init__(detail, status.HTTP_409_CONFLICT)
 
 
@@ -99,15 +136,10 @@ class SessionNotFound(AppException):
 
 
 class NoUnlockedTopics(AppException):
-    def __init__(self, detail: str = "No unlocked topics available for this student yet."):
+    def __init__(self, detail: str = "No questions available for this topic."):
         super().__init__(detail, status.HTTP_404_NOT_FOUND)
 
 
 class RecommenderAgentError(AppException):
-    def __init__(self, detail: str = "Agent call failed. Check Groq API key and model availability."):
+    def __init__(self, detail: str = "Agent call failed."):
         super().__init__(detail, status.HTTP_502_BAD_GATEWAY)
-
-
-class TrendDataMissing(AppException):
-    def __init__(self, detail: str = "Trend scores not yet computed. Run /recommender/admin/run-trend-update first."):
-        super().__init__(detail, status.HTTP_404_NOT_FOUND)

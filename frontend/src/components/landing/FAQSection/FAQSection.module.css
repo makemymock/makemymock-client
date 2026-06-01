@@ -1,129 +1,90 @@
+/* ============================================================
+ * FAQSection — redesigned to match dark glassmorphism landing.
+ * Uses existing _variables.css tokens only.
+ * ============================================================ */
+
 .faqSection {
   position: relative;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4rem;
-  align-items: center;
-  background: transparent;
-  padding: 6rem 2rem;
-  min-height: 100vh;
-  overflow: hidden;
+  z-index: 1;
+  max-width: 860px;
+  margin: 0 auto;
+  padding: clamp(3rem, 6vw, 5rem) clamp(1rem, 5vw, 3rem);
 }
 
-.faqSectionGrid {
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(
-      0deg,
-      transparent 24%,
-      rgba(var(--color-primary-rgb), 0.05) 25%,
-      rgba(var(--color-primary-rgb), 0.05) 26%,
-      transparent 27%,
-      transparent 74%,
-      rgba(var(--color-primary-rgb), 0.05) 75%,
-      rgba(var(--color-primary-rgb), 0.05) 76%,
-      transparent 77%,
-      transparent
-    ),
-    linear-gradient(
-      90deg,
-      transparent 24%,
-      rgba(var(--color-primary-rgb), 0.05) 25%,
-      rgba(var(--color-primary-rgb), 0.05) 26%,
-      transparent 27%,
-      transparent 74%,
-      rgba(var(--color-primary-rgb), 0.05) 75%,
-      rgba(var(--color-primary-rgb), 0.05) 76%,
-      transparent 77%,
-      transparent
-    );
-  background-size: 50px 50px;
-  pointer-events: none;
-  z-index: -1;
-}
-
-.faqSectionQaCard {
-  position: absolute;
-  top: 2rem;
-  right: 2rem;
-  width: min(24rem, 55%);
-  z-index: 2;
-}
-
-@media (max-width: 640px) {
-  .faqSectionQaCard {
-    top: 1.5rem;
-    right: 1rem;
-    width: min(18rem, 65%);
-  }
-}
+/* ---- Header ---- */
 
 .faqSectionHeader {
   display: flex;
-  flex-direction: column;
-  gap: 2rem;
+  align-items: center;
+  gap: 1.25rem;
+  margin-bottom: clamp(2rem, 4vw, 3rem);
 }
 
 .faqSectionHeader h2 {
-  font-size: clamp(2.5rem, 8vw, 4rem);
-  font-weight: 800;
-  letter-spacing: -1px;
-  color: var(--color-text-primary);
   margin: 0;
+  font-family: var(--font-secondary);
+  font-size: clamp(1.8rem, 4vw, 2.8rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--color-text-primary);
   position: relative;
-  display: inline-block;
-  width: fit-content;
 }
 
 .faqSectionHeader h2::after {
   content: '';
-  position: absolute;
-  bottom: -1rem;
-  left: 0;
-  width: 60%;
-  height: 4px;
-  background: var(--color-primary);
+  display: block;
+  margin-top: 0.4rem;
+  width: 3rem;
+  height: 3px;
   border-radius: 2px;
+  background: var(--color-accent);
+  box-shadow: 0 0 10px var(--color-glow-teal);
 }
 
 .faqSectionIconContainer {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  width: 220px;
-  height: 220px;
+  flex: 0 0 auto;
+  width: clamp(3rem, 8vw, 5rem);
+  height: clamp(3rem, 8vw, 5rem);
 }
 
 .faqSectionIcon {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.18));
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.2));
 }
+
+/* ---- QaCard decorative — hidden in this layout ---- */
+
+.faqSectionGrid { display: none; }
+.faqSectionQaCard { display: none; }
+
+/* ---- Accordion list ---- */
 
 .faqSectionContent {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 0.75rem;
 }
 
 .faqCard {
-  background: #ffd166;
-  border-radius: 24px;
-  padding: 1.5rem;
-  transition: box-shadow 0.25s ease, transform 0.25s ease;
-  box-shadow: 0 4px 16px rgba(255, 209, 102, 0.2);
+  background: var(--color-panel-bg);
+  border: 1px solid var(--color-panel-border);
+  border-radius: 16px;
+  padding: 0;
   overflow: hidden;
+  backdrop-filter: blur(14px);
+  transition: border-color 200ms ease, box-shadow 200ms ease;
 }
 
 .faqCard:hover {
-  box-shadow: 0 8px 24px rgba(255, 209, 102, 0.35);
-  transform: translateY(-2px);
+  border-color: rgba(12, 193, 224, 0.4);
+  box-shadow: 0 0 18px var(--color-glow-teal);
 }
 
 .faqCardExpanded {
-  box-shadow: 0 8px 24px rgba(255, 209, 102, 0.35);
+  border-color: rgba(12, 193, 224, 0.5);
+  box-shadow: 0 0 22px var(--color-glow-teal);
 }
 
 .faqCardQuestion {
@@ -131,123 +92,82 @@
   justify-content: space-between;
   align-items: center;
   width: 100%;
-  background: none;
+  background: transparent;
   border: none;
-  padding: 0;
+  padding: 1.2rem 1.5rem;
   cursor: pointer;
-  font-family: 'Space Grotesk', sans-serif;
-  font-size: 1.1rem;
+  font-family: var(--font-secondary);
+  font-size: 1rem;
   font-weight: 700;
-  color: #333;
+  color: var(--color-text-primary);
   text-align: left;
-  transition: color 0.3s ease;
+  gap: 1rem;
+  transition: color 200ms ease;
 }
 
 .faqCardQuestion:hover {
-  color: #1a1a1a;
+  color: var(--color-accent);
 }
 
-.faqCardQuestion span:first-child {
-  flex: 1;
+.faqCardExpanded .faqCardQuestion {
+  color: var(--color-accent);
+  border-bottom: 1px solid var(--color-panel-border);
 }
+
+.faqCardQuestion span:first-child { flex: 1; }
 
 .faqCardChevron {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
-  margin-left: 1rem;
+  width: 28px;
+  height: 28px;
   flex-shrink: 0;
-  color: #333;
-  transition: transform 0.25s ease;
-  font-size: 0.8rem;
+  border-radius: 50%;
+  background: var(--color-chip-bg);
+  border: 1px solid var(--color-panel-border);
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+  transition: transform 250ms ease, background 200ms ease, color 200ms ease;
 }
 
 .faqCardExpanded .faqCardChevron {
   transform: rotate(180deg);
+  background: var(--color-glow-teal);
+  color: var(--color-accent);
+  border-color: rgba(12, 193, 224, 0.4);
 }
 
 .faqCardAnswer {
   max-height: 0;
   overflow: hidden;
-  transition: max-height 0.3s ease, opacity 0.25s ease, margin-top 0.25s ease;
+  transition: max-height 0.3s ease, opacity 0.25s ease;
   opacity: 0;
 }
 
 .faqCardExpanded .faqCardAnswer {
   max-height: 500px;
   opacity: 1;
-  margin-top: 1rem;
 }
 
 .faqCardAnswer p {
   margin: 0;
-  color: #2a2a2a;
+  padding: 1rem 1.5rem 1.25rem;
+  color: var(--color-text-muted);
   font-size: 0.95rem;
-  line-height: 1.6;
+  line-height: 1.7;
 }
 
-[data-theme='dark'] .faqSectionHeader h2 {
-  color: var(--color-text-primary);
-}
-
-[data-theme='dark'] .faqSectionIcon {
-  color: var(--color-primary);
-}
-
-[data-theme='dark'] .faqCard {
-  background: rgba(255, 209, 102, 0.85);
-}
-
-[data-theme='dark'] .faqCardQuestion {
-  color: #1a1a1a;
-}
-
-[data-theme='dark'] .faqCardAnswer p {
-  color: #2a2a2a;
-}
-
-@media (max-width: 1024px) {
-  .faqSection {
-    grid-template-columns: 1fr;
-    gap: 3rem;
-    padding: 4rem 2rem;
-  }
-
-  .faqSectionHeader {
-    display: flex;
-    flex-direction: row;
-    align-items: flex-start;
-    gap: 2rem;
-  }
-
-  .faqSectionIconContainer {
-    width: 120px;
-    height: 120px;
-    flex-shrink: 0;
-  }
-}
+/* ---- Responsive ---- */
 
 @media (max-width: 640px) {
-  .faqSection {
-    padding: 3rem 1.5rem;
-    min-height: auto;
-  }
-
-  .faqSectionHeader {
-    flex-direction: column;
-  }
-
-  .faqSectionHeader h2 {
-    font-size: 2rem;
-  }
-
   .faqCardQuestion {
-    font-size: 0.95rem;
+    font-size: 0.9rem;
+    padding: 1rem 1.25rem;
   }
 
   .faqCardAnswer p {
-    font-size: 0.85rem;
+    font-size: 0.875rem;
+    padding: 0.875rem 1.25rem 1rem;
   }
 }

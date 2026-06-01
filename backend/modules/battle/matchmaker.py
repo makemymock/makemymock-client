@@ -73,6 +73,11 @@ class BattleMatchmaker:
         # user_id (str) → role tag. Used to reject duplicate connections
         # (same user opening two tabs).
         self._active: set[str] = set()
+        # invite_code → _Waiter sitting on the host-side of a private
+        # battle, waiting for the invited friend to connect with the
+        # same code. Separate from the public queue so random matchmaker
+        # joiners never accidentally pair with an invite host.
+        self._invite_hosts: dict[str, _Waiter] = {}
 
     # ---- bookkeeping ----
 
@@ -153,6 +158,89 @@ class BattleMatchmaker:
             async with self._lock:
                 if waiter in self._queue:
                     self._queue.remove(waiter)
+            raise
+
+    # ---- invite pair-up ----
+
+    async def claim_invite(
+        self,
+        user: dict,
+        ws: WebSocket,
+        *,
+        code: str,
+        timeout: float,
+        db: AsyncIOMotorDatabase,
+        invite_repo,
+    ) -> Optional[Battle]:
+        """Private analog of `enqueue` driven by invite codes.
+
+        First connection with `code` becomes the host (parked, waits for
+        the friend). Second connection with the same `code` pairs with
+        the host and spawns the game loop just like normal matchmaking.
+
+        `invite_repo` is a `BattleInviteRepository` instance — passed in
+        so we can stamp the resulting `battle_id` onto the invite doc
+        for audit (and so an inviter who refreshes their browser can
+        recover the battle id without re-prompting).
+        """
+        loop = asyncio.get_event_loop()
+        future: asyncio.Future = loop.create_future()
+        waiter = _Waiter(user=user, ws=ws, future=future)
+
+        # Local import keeps the run_battle_loop dependency lazy.
+        from modules.battle.service import run_battle_loop
+
+        spawned: Optional[Battle] = None
+        async with self._lock:
+            host = self._invite_hosts.get(code)
+            if host is not None and str(host.user["_id"]) != str(user["_id"]):
+                # Friend arrived. Pair with the host.
+                del self._invite_hosts[code]
+                battle = _build_battle(host, waiter)
+                if not host.future.done():
+                    host.future.set_result(battle)
+                spawned = battle
+            elif host is not None and str(host.user["_id"]) == str(user["_id"]):
+                # Same user reconnecting (e.g. tab refresh) — replace
+                # the parked waiter with the new socket so the friend's
+                # eventual arrival pairs with the live WS.
+                self._invite_hosts[code] = waiter
+            else:
+                # No one is parked yet; this user becomes the host.
+                self._invite_hosts[code] = waiter
+
+        if spawned is not None:
+            # Mark the invite as accepted + stamp the battle id BEFORE
+            # spawning the loop, so the inviter's polling (if any) can
+            # observe the transition immediately. Best-effort — a Mongo
+            # hiccup here shouldn't block the battle.
+            try:
+                await invite_repo.mark_accepted(
+                    code,
+                    invitee_oid=user["_id"],
+                    invitee_username=user.get("username") or "Player",
+                )
+                await invite_repo.attach_battle_id(code, spawned.battle_id)
+            except Exception:  # noqa: BLE001
+                logger.exception("Invite mark-accepted failed for code=%s", code)
+            asyncio.create_task(
+                run_battle_loop(spawned, db, self),
+                name=f"battle-invite-{spawned.battle_id}",
+            )
+            return spawned
+
+        # Host path: park and wait for the friend.
+        try:
+            return await asyncio.wait_for(future, timeout=timeout)
+        except asyncio.TimeoutError:
+            async with self._lock:
+                if self._invite_hosts.get(code) is waiter:
+                    del self._invite_hosts[code]
+            return None
+        except asyncio.CancelledError:
+            async with self._lock:
+                if self._invite_hosts.get(code) is waiter:
+                    del self._invite_hosts[code]
             raise
 
 

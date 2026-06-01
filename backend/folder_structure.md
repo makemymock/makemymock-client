@@ -12,9 +12,20 @@ backend/
 ├── api/                  # Aggregates module routers under one APIRouter
 ├── config/               # Settings (.env) + MongoDB client/lifespan
 ├── core/                 # Cross-cutting concerns shared by all modules
+├── engine/               # Vendored synchronous question-recommender library
+│                         # (priority/decay/progression). Called only by
+│                         # modules/mock_test/.
 ├── modules/              # Feature modules (one folder per domain)
-│   ├── authentication/
-│   └── profile/
+│   ├── authentication/   # Signup, OTP, login, refresh, /me
+│   ├── profile/          # Student profile setup + retrieval
+│   ├── mock_test/        # Test create/submit/result/history/analytics,
+│   │                     #   Browse catalog, notebook. Sole engine caller.
+│   ├── potd/             # Problem of the Day + streak
+│   ├── battle/           # 1-vs-1 REST + WebSocket matchmaking & play
+│   ├── contest/          # Scheduled contests (lobby + play + leaderboard).
+│   │                     #   Admin writes to `contests`; this module owns
+│   │                     #   `contest_participations` + `contest_responses`.
+│   └── solverx/          # SSE-streamed LLM solver/tutor (Vertex AI)
 ├── services/             # Reserved for cross-module orchestration services
 ├── main.py               # FastAPI app factory + lifespan + global handlers
 ├── requirements.txt
@@ -61,6 +72,9 @@ Mounts `api_router` under `settings.API_V1_PREFIX` (`/api/v1`), wires CORS, regi
 
 ### `services/`
 Reserved for **cross-module** services (e.g. notification fan-out, analytics) that don't belong inside a single feature module. Leave empty until you actually need one.
+
+### `engine/`
+A vendored, **synchronous** question-recommender library. Holds priority weights, decay thresholds, and progression bands in [`config.py`](engine/config.py); pure value-object I/O via a `Repository` protocol ([`repository.py`](engine/repository.py)). **Only** [`modules/mock_test/`](modules/mock_test/) is allowed to import it — other features must go through `mock_test`'s HTTP API. The sync↔async bridge lives in [`modules/mock_test/engine_adapter.py`](modules/mock_test/engine_adapter.py).
 
 ---
 

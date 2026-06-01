@@ -8,8 +8,8 @@ import styles from './solverx.module.css';
 // the composer pill picker (ChatGPT-style), `label`/`sub` populate the
 // expanded menu rows.
 const MODES = [
-  { key: 'solve',  pill: 'Solve',  label: 'Solve a question',   sub: 'Step-by-step reasoning'   },
-  { key: 'theory', pill: 'Theory', label: 'Understand a theory', sub: 'Tutor-style explanation' },
+  { key: 'solve', pill: 'Solve', label: 'Solve a question', sub: 'Step-by-step answer' },
+  { key: 'theory', pill: 'Theory', label: 'Understand a theory', sub: 'Concept explained' },
 ];
 
 // Complexity options are mode-dependent. Solve uses Guided/Deep
@@ -18,12 +18,12 @@ const MODES = [
 // (`guided`, `easy`, `deep`) and routes by (mode, complexity).
 const COMPLEXITY_BY_MODE = {
   solve: [
-    { key: 'guided', pill: 'Guided', label: 'Guided Solve',   sub: 'Fast single-pass solver' },
-    { key: 'deep',   pill: 'Deep',   label: 'Deep Reasoning', sub: 'Multi-agent, thorough'   },
+    { key: 'guided', pill: 'Guided', label: 'Guided Solve', sub: 'Quick answer' },
+    { key: 'deep', pill: 'Deep', label: 'Deep Reasoning', sub: 'Detailed walkthrough' },
   ],
   theory: [
-    { key: 'easy',   pill: 'Easy',   label: 'Easy explanation', sub: 'Concise, just the idea'  },
-    { key: 'deep',   pill: 'Deep',   label: 'Deep explanation', sub: 'Intuition + derivation + example' },
+    { key: 'easy', pill: 'Easy', label: 'Easy explanation', sub: 'Brief overview' },
+    { key: 'deep', pill: 'Deep', label: 'Deep explanation', sub: 'Full breakdown' },
   ],
 };
 
@@ -421,9 +421,9 @@ const SolverX = () => {
 
   const placeholderHint = useMemo(() => {
     if (mode === 'theory') {
-      return 'Ask a concept — e.g. "Why is the integral of 1/x the natural log?"';
+      return 'Ask a concept';
     }
-    return 'Paste or type a question — e.g. "Find the equation of the tangent to x² + y² = 25 at (3, 4)."';
+    return 'Paste or type a question';
   }, [mode]);
 
   return (
@@ -442,6 +442,7 @@ const SolverX = () => {
       <aside
         className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ''}`}
         aria-hidden={sidebarOpen ? 'false' : 'true'}
+        data-tour="solverx.conv-list"
       >
         {/* The inner wrapper keeps content at a fixed 300px so the
             panel can collapse to zero width without re-flowing the
@@ -454,7 +455,12 @@ const SolverX = () => {
             </div>
           </header>
 
-          <button type="button" className={styles.newChatBtn} onClick={startNewConversation}>
+          <button
+            type="button"
+            className={styles.newChatBtn}
+            onClick={startNewConversation}
+            data-tour="solverx.new-chat"
+          >
             + New chat
           </button>
 
@@ -488,8 +494,8 @@ const SolverX = () => {
                       title="Delete conversation"
                     >
                       <svg viewBox="0 0 24 24" width="14" height="14" fill="none"
-                           stroke="currentColor" strokeWidth="2" strokeLinecap="round"
-                           strokeLinejoin="round" aria-hidden="true">
+                        stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+                        strokeLinejoin="round" aria-hidden="true">
                         <path d="M3 6h18" />
                         <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                         <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
@@ -526,7 +532,7 @@ const SolverX = () => {
         ) : null}
 
         {/* Composer */}
-        <footer className={styles.composer}>
+        <footer className={styles.composer} data-tour="solverx.composer">
           {attachedImage ? (
             <div className={styles.attachedRow}>
               <img
@@ -599,8 +605,8 @@ const SolverX = () => {
                 title={sidebarOpen ? 'Hide conversations' : 'Show conversations'}
               >
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none"
-                     stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"
-                     strokeLinejoin="round" aria-hidden="true">
+                  stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"
+                  strokeLinejoin="round" aria-hidden="true">
                   {sidebarOpen ? (
                     <path d="M15 6l-6 6 6 6" />
                   ) : (
@@ -620,8 +626,8 @@ const SolverX = () => {
                   title="Attach image (or paste with Ctrl+V)"
                 >
                   <svg viewBox="0 0 24 24" width="14" height="14" fill="none"
-                       stroke="currentColor" strokeWidth="2" strokeLinecap="round"
-                       strokeLinejoin="round" aria-hidden="true">
+                    stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+                    strokeLinejoin="round" aria-hidden="true">
                     <path d="M21.4 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
                   </svg>
                   <span>Attach</span>
@@ -639,8 +645,8 @@ const SolverX = () => {
                       }}
                     >
                       <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
-                           stroke="currentColor" strokeWidth="2" strokeLinecap="round"
-                           strokeLinejoin="round" aria-hidden="true">
+                        stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+                        strokeLinejoin="round" aria-hidden="true">
                         <rect x="3" y="3" width="18" height="18" rx="2" />
                         <circle cx="9" cy="9" r="2" />
                         <path d="M21 15l-5-5L5 21" />
@@ -657,8 +663,8 @@ const SolverX = () => {
                       }}
                     >
                       <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
-                           stroke="currentColor" strokeWidth="2" strokeLinecap="round"
-                           strokeLinejoin="round" aria-hidden="true">
+                        stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+                        strokeLinejoin="round" aria-hidden="true">
                         <path d="M3 7h4l2-2h6l2 2h4v12H3z" />
                         <circle cx="12" cy="13" r="3.5" />
                       </svg>
@@ -674,10 +680,11 @@ const SolverX = () => {
                 value={mode}
                 onChange={handleModeChange}
                 disabled={submitting}
+                dataTour="solverx.mode-pills"
                 icon={(
                   <svg viewBox="0 0 24 24" width="14" height="14" fill="none"
-                       stroke="currentColor" strokeWidth="2" strokeLinecap="round"
-                       strokeLinejoin="round" aria-hidden="true">
+                    stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+                    strokeLinejoin="round" aria-hidden="true">
                     <path d="M13 2L4 14h7l-1 8 9-12h-7z" />
                   </svg>
                 )}
@@ -691,8 +698,8 @@ const SolverX = () => {
                 disabled={submitting}
                 icon={(
                   <svg viewBox="0 0 24 24" width="14" height="14" fill="none"
-                       stroke="currentColor" strokeWidth="2" strokeLinecap="round"
-                       strokeLinejoin="round" aria-hidden="true">
+                    stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+                    strokeLinejoin="round" aria-hidden="true">
                     <circle cx="12" cy="12" r="9" />
                     <path d="M12 7v5l3 2" />
                   </svg>
@@ -752,7 +759,7 @@ const SolverX = () => {
 
 // Compact ChatGPT-style picker — shows the current selection as a
 // rounded pill; click opens a small menu above with full label + sub.
-const PickerPill = ({ ariaLabel, options, value, onChange, disabled, icon }) => {
+const PickerPill = ({ ariaLabel, options, value, onChange, disabled, icon, dataTour }) => {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
 
@@ -775,7 +782,7 @@ const PickerPill = ({ ariaLabel, options, value, onChange, disabled, icon }) => 
   const current = options.find((o) => o.key === value) || options[0];
 
   return (
-    <div className={styles.pickerWrap} ref={wrapRef}>
+    <div className={styles.pickerWrap} ref={wrapRef} data-tour={dataTour}>
       <button
         type="button"
         className={`${styles.pickerBtn} ${open ? styles.pickerBtnOn : ''}`}
@@ -789,9 +796,9 @@ const PickerPill = ({ ariaLabel, options, value, onChange, disabled, icon }) => 
         <span className={styles.pickerIcon}>{icon}</span>
         <span className={styles.pickerLabel}>{current.pill}</span>
         <svg viewBox="0 0 24 24" width="10" height="10" fill="none"
-             stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
-             strokeLinejoin="round" aria-hidden="true"
-             className={styles.pickerChevron}>
+          stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
+          strokeLinejoin="round" aria-hidden="true"
+          className={styles.pickerChevron}>
           <path d="M6 9l6 6 6-6" />
         </svg>
       </button>
@@ -822,14 +829,14 @@ const PickerPill = ({ ariaLabel, options, value, onChange, disabled, icon }) => 
 
 const EmptyState = ({ mode }) => (
   <div className={styles.empty}>
-    <span className={styles.emptyBadge}>SolverX · multi-agent</span>
+    <span className={styles.emptyBadge}>SolverX</span>
     <h2 className={styles.emptyTitle}>
       {mode === 'theory' ? 'Ask a concept.' : 'Drop your toughest question.'}
     </h2>
     <p className={styles.emptySub}>
       {mode === 'theory'
-        ? 'A tutor that breaks ideas down with intuition, examples, and the formal definition.'
-        : 'Step-by-step reasoning that flags traps and lands a clean final answer.'}
+        ? 'Breaks ideas down with intuition and examples.'
+        : 'Step-by-step reasoning to a clear answer.'}
     </p>
     <div className={styles.emptyChips}>
       <span className={styles.emptyChip}>

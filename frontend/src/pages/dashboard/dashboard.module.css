@@ -313,7 +313,7 @@
 
 .sideNavItemActive {
   background: linear-gradient(135deg,
-    rgba(20, 184, 166, 0.18), rgba(245, 196, 81, 0.18));
+    rgba(12, 193, 224, 0.18), rgba(245, 196, 81, 0.18));
   color: var(--dash-sidebar-text-active);
 }
 
@@ -429,8 +429,11 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+  justify-content: center;
   position: relative;
   overflow: hidden;
+  height: 100%;
+  min-height: 0;
 }
 
 /* Subtle teal/yellow accent glow inside the hero card. */
@@ -490,6 +493,14 @@
 /* ----- POTD banner ----- */
 
 .potdBanner {
+  /* Whole card is the click target — applied to a <button>, so reset
+     defaults and add a hover state to communicate clickability. */
+  appearance: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -497,6 +508,7 @@
   gap: 14px;
   padding: 18px;
   border-radius: 18px;
+  transition: transform 0.12s ease, box-shadow 0.18s ease;
   background:
     linear-gradient(135deg,
       var(--color-glow-yellow) 0%,
@@ -609,8 +621,18 @@
   .potdBtn { align-self: auto; }
 }
 
-.potdBtn:hover {
-  transform: translateY(-1px);
+/* Drive hover from the card itself so any hover region lights the cue. */
+.potdBanner:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.12);
+}
+
+.potdBanner:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+}
+
+.potdBanner:hover .potdBtn {
   filter: brightness(1.08);
 }
 
@@ -619,7 +641,7 @@
   transition: transform 0.2s ease;
 }
 
-.potdBtn:hover .potdBtnArrow {
+.potdBanner:hover .potdBtnArrow {
   transform: translateX(3px);
 }
 
@@ -673,7 +695,7 @@
   background: var(--color-accent);
 }
 
-.statCard_teal::before  { background: linear-gradient(180deg, var(--color-accent), #6fd9bd); }
+.statCard_teal::before  { background: linear-gradient(180deg, var(--color-accent), #0c93b4); }
 .statCard_gold::before  { background: linear-gradient(180deg, var(--dash-accent-yellow-strong), var(--dash-accent-yellow)); }
 .statCard_brown::before { background: linear-gradient(180deg, var(--color-brand-grad-from), var(--color-brand-grad-to)); }
 
@@ -700,14 +722,23 @@
 
 .statCardIcon { width: 20px; height: 20px; }
 
+/* Right-side meta — promoted from tiny corner text to a proper stretched
+   panel with a subtle divider. Fills the previously empty right half of
+   each stat card on wide screens. */
 .statCardRightTop {
   flex: 0 0 auto;
-  align-self: flex-start;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--dash-text-muted);
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-left: 14px;
+  border-left: 1px solid var(--dash-card-border);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--dash-text-strong);
   text-align: right;
   white-space: nowrap;
+  min-width: 90px;
 }
 
 .statCardValue {
@@ -733,16 +764,14 @@
   color: var(--dash-text-muted);
 }
 
-/* ----- Grid (Performance + Side panel) ----- */
+/* ----- Grid wrapper kept for the gap rhythm; rows are now stacked.
+   Performance card takes the full row; the activity row beneath it
+   splits into heatmap + pending + battles across the same full width. */
 
 .grid {
   display: grid;
   grid-template-columns: 1fr;
   gap: clamp(12px, 2vw, 18px);
-}
-
-@media (min-width: 1080px) {
-  .grid { grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); }
 }
 
 /* Top row — Welcome + Confidence trophy. Both are light on content, so on
@@ -758,8 +787,8 @@
 
 @media (min-width: 1024px) {
   .topRow {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
-    align-items: start;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: stretch;
   }
 }
 
@@ -1032,11 +1061,21 @@
  * Side panel — Pending tests + Recent battles
  * ============================================================ */
 
+/* Activity row — Heatmap + Pending tests + Recent battles share a full
+   row. Stacks on phones, splits into three columns on desktop. Heatmap
+   gets a little more room because its calendar is wider. */
 .sidePanel {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr;
   gap: clamp(12px, 2vw, 18px);
   min-width: 0;
+}
+
+@media (min-width: 900px) {
+  .sidePanel {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+  }
 }
 
 .sidePanelCard {
@@ -1212,7 +1251,7 @@
 }
 
 .primaryBtn {
-  background: linear-gradient(135deg, var(--color-accent), #6fd9bd);
+  background: linear-gradient(135deg, var(--color-accent), #0c93b4);
   color: var(--color-brand-contrast);
   border: none;
   padding: 9px 18px;

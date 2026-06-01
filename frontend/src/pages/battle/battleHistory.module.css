@@ -1,7 +1,13 @@
+/* Battle history is a regular review page (not gameplay), so it follows
+   the app's light/dark theme instead of the arena's fixed dark stage.
+   All surfaces, borders, and text colours come from theme tokens; the
+   win/loss/draw accents stay vivid in both modes via per-theme colour
+   overrides. */
+
 .page {
   min-height: 100vh;
-  background: #0a121e;
-  color: #f6f8ec;
+  background: var(--color-bg-page);
+  color: var(--color-text-primary);
   font-family: var(--font-secondary);
 }
 
@@ -11,20 +17,21 @@
   justify-content: space-between;
   gap: 8px;
   padding: 14px clamp(12px, 4vw, 56px);
-  background: rgba(255, 255, 255, 0.04);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--color-panel-bg);
+  border-bottom: 1px solid var(--color-panel-border);
 }
 
 .back {
-  background: transparent;
-  color: inherit;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: var(--color-chip-bg);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-chip-border);
   border-radius: 999px;
   padding: 7px 14px;
   font-family: inherit;
   font-size: 12px;
   cursor: pointer;
   white-space: nowrap;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 
 @media (min-width: 540px) {
@@ -32,7 +39,8 @@
 }
 
 .back:hover {
-  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--color-border-strong);
+  background: var(--color-panel-bg-soft);
 }
 
 .title {
@@ -46,6 +54,7 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  color: var(--color-text-primary);
 }
 
 @media (min-width: 540px) {
@@ -53,8 +62,8 @@
 }
 
 .playAgain {
-  background: linear-gradient(135deg, #0d9678, #1ebd97);
-  color: #07101a;
+  background: linear-gradient(135deg, var(--color-brand-grad-from), var(--color-brand-grad-to));
+  color: var(--color-brand-contrast);
   border: none;
   border-radius: 999px;
   padding: 7px 16px;
@@ -70,8 +79,14 @@
   .playAgain { padding: 8px 22px; font-size: 13px; }
 }
 
+.playAgain:hover {
+  filter: brightness(1.05);
+}
+
 .main {
-  max-width: 760px;
+  /* Widened from 760px so the two-column battle list (kicks in at 960px)
+     has room to breathe without sprawling across a 1920px laptop. */
+  max-width: 1100px;
   margin: 0 auto;
   padding: clamp(20px, 4vw, 48px);
   display: flex;
@@ -86,8 +101,8 @@
 }
 
 .summaryStat {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--color-panel-bg);
+  border: 1px solid var(--color-panel-border);
   border-radius: 14px;
   padding: 14px;
   text-align: center;
@@ -98,7 +113,7 @@
   font-size: 11px;
   letter-spacing: 2px;
   text-transform: uppercase;
-  color: rgba(246, 248, 236, 0.6);
+  color: var(--color-text-muted);
   font-weight: 700;
 }
 
@@ -107,15 +122,15 @@
   font-family: var(--font-secondary);
   font-size: 28px;
   font-weight: 800;
-  background: linear-gradient(135deg, #6fd9bd, #f7c66b);
+  background: linear-gradient(135deg, var(--color-brand-grad-from), var(--color-brand-grad-to));
   background-clip: text;
   -webkit-background-clip: text;
   color: transparent;
 }
 
 .emptyCard {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px dashed rgba(255, 255, 255, 0.15);
+  background: var(--color-panel-bg);
+  border: 1px dashed var(--color-panel-border);
   border-radius: 16px;
   padding: 36px 20px;
   text-align: center;
@@ -124,11 +139,12 @@
 .emptyTitle {
   margin: 0 0 4px 0;
   font-weight: 700;
+  color: var(--color-text-primary);
 }
 
 .emptySub {
   margin: 0;
-  color: rgba(246, 248, 236, 0.55);
+  color: var(--color-text-muted);
   font-size: 14px;
 }
 
@@ -136,9 +152,19 @@
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr;
   gap: 8px;
+}
+
+/* On laptop+, show two battles per row so each card doesn't stretch
+   across half the screen with a huge empty middle. Single column on
+   phones / narrow tablets keeps things scannable. */
+@media (min-width: 720px) {
+  .list {
+    grid-template-columns: 1fr 1fr;
+    column-gap: 12px;
+  }
 }
 
 .row {
@@ -148,8 +174,15 @@
   gap: 10px;
   padding: 12px 14px;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.04);
-  border-left: 4px solid transparent;
+  background: var(--color-panel-bg);
+  border: 1px solid var(--color-panel-border);
+  border-left-width: 4px;
+  border-left-color: transparent;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.row:hover {
+  background: var(--color-panel-bg-soft);
 }
 
 @media (min-width: 540px) {
@@ -160,6 +193,9 @@
   }
 }
 
+/* Win / loss / draw accents — dark-theme defaults are the bright "arena"
+   colours; light-theme overrides drop saturation so they sit comfortably
+   on a white background instead of glowing. */
 .rowWin  { border-left-color: #6fd9bd; }
 .rowLoss { border-left-color: #ff7a59; }
 .rowDraw { border-left-color: #a39bff; }
@@ -175,9 +211,16 @@
   .rowResult { font-size: 12px; letter-spacing: 2px; }
 }
 
-.rowWin .rowResult  { color: #6fd9bd; }
-.rowLoss .rowResult { color: #ff7a59; }
-.rowDraw .rowResult { color: #a39bff; }
+.rowWin .rowResult  { color: #1ebd97; }
+.rowLoss .rowResult { color: #ff6a45; }
+.rowDraw .rowResult { color: #7d70ff; }
+
+:global([data-theme='light']) .rowWin  { border-left-color: #15803d; }
+:global([data-theme='light']) .rowLoss { border-left-color: #c2410c; }
+:global([data-theme='light']) .rowDraw { border-left-color: #5b4dd6; }
+:global([data-theme='light']) .rowWin  .rowResult { color: #15803d; }
+:global([data-theme='light']) .rowLoss .rowResult { color: #c2410c; }
+:global([data-theme='light']) .rowDraw .rowResult { color: #5b4dd6; }
 
 .rowMid {
   min-width: 0;
@@ -189,12 +232,13 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--color-text-primary);
 }
 
 .rowDate {
   margin: 4px 0 0 0;
   font-size: 12px;
-  color: rgba(246, 248, 236, 0.5);
+  color: var(--color-text-muted);
 }
 
 .rowScore {
@@ -205,6 +249,7 @@
   font-weight: 800;
   font-size: 15px;
   white-space: nowrap;
+  color: var(--color-text-primary);
 }
 
 @media (min-width: 540px) {
@@ -214,4 +259,5 @@
 .rowDash {
   opacity: 0.5;
   font-weight: 400;
+  color: var(--color-text-muted);
 }

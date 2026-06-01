@@ -4,6 +4,7 @@ import Signup from '../pages/signup/Signup';
 import Login from '../pages/login/Login';
 import Dashboard from '../pages/dashboard/Dashboard';
 import ProfileSetup from '../pages/profile/ProfileSetup';
+import UserProfile from '../pages/profile/UserProfile';
 import TestsLaunch from '../pages/tests/TestsLaunch';
 import TakeTest from '../pages/tests/TakeTest';
 import Result from '../pages/tests/Result';
@@ -12,9 +13,13 @@ import Analytics from '../pages/analytics/Analytics';
 import ChapterAnalytics from '../pages/analytics/ChapterAnalytics';
 import TopicAnalytics from '../pages/analytics/TopicAnalytics';
 import History from '../pages/history/History';
-import BattleLaunch from '../pages/battle/BattleLaunch';
 import BattleArena from '../pages/battle/BattleArena';
 import BattleHistory from '../pages/battle/BattleHistory';
+import BattleJoin from '../pages/battle/BattleJoin';
+import Compete from '../pages/compete/Compete';
+import ContestLobby from '../pages/compete/ContestLobby';
+import ContestPlay from '../pages/compete/ContestPlay';
+import ContestResult from '../pages/compete/ContestResult';
 import SolverX from '../pages/solverx/SolverX';
 import Recommender from '../pages/recommender/Recommender';
 import AppLayout from '../components/layout/AppLayout';
@@ -72,6 +77,7 @@ const AppRoutes = () => {
         }
       >
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/profile" element={<UserProfile />} />
         <Route path="/tests" element={<TestsLaunch />} />
         <Route path="/tests/browse/:questionId" element={<BrowseQuestion />} />
         <Route path="/tests/:sessionId" element={<TakeTest />} />
@@ -80,9 +86,18 @@ const AppRoutes = () => {
         <Route path="/analytics/chapter/:chapterId" element={<ChapterAnalytics />} />
         <Route path="/analytics/topic/:topicId" element={<TopicAnalytics />} />
         <Route path="/history" element={<History />} />
-        <Route path="/battle" element={<BattleLaunch />} />
+        <Route path="/compete" element={<Compete />} />
+        {/* Legacy /battle entry — keep the URL working but land on
+            the new Compete > Battle tab. Deep links to /battle/play
+            and /battle/history are unchanged. */}
+        <Route path="/battle" element={<Navigate to="/compete?tab=battle" replace />} />
         <Route path="/battle/play" element={<BattleArena />} />
         <Route path="/battle/history" element={<BattleHistory />} />
+        <Route path="/battle/join/:code" element={<BattleJoin />} />
+        {/* Contest — lobby + fullscreen play + result. */}
+        <Route path="/contest/:contestId" element={<ContestLobby />} />
+        <Route path="/contest/:contestId/play" element={<ContestPlay />} />
+        <Route path="/contest/:contestId/result" element={<ContestResult />} />
         <Route path="/solverx" element={<SolverX />} />
         <Route path="/recommender" element={<Recommender />} />
       </Route>

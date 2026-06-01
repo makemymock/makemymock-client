@@ -76,5 +76,6 @@ class ProfileResponse(BaseModel):
     preferred_language: str
     phone_number: str
     gender: Gender
+    tours_completed: list[str] = []
     created_at: datetime
     updated_at: datetime = Field(...)

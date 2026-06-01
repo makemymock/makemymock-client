@@ -94,6 +94,7 @@
 .topicChip {
   margin: 0;
   display: inline-block;
+  max-width: 100%;
   font-size: 12px;
   font-weight: 600;
   padding: 4px 10px;
@@ -102,6 +103,10 @@
   border: 1px solid var(--dash-card-border);
   color: var(--dash-text-muted);
   text-transform: capitalize;
+  line-height: 1.4;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: break-word;
 }
 
 .closeBtn {
@@ -119,6 +124,58 @@
 }
 
 .closeBtn:hover { background: var(--color-chip-bg); }
+
+/* ----- Phone layout — stack actions above the title so the title block
+   doesn't get squeezed into a one-word-per-line column. ----- */
+@media (max-width: 600px) {
+  .dialogHeader {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: 12px;
+    padding: 14px 16px 12px;
+  }
+
+  .titleWrap {
+    width: 100%;
+  }
+
+  .headerRight {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .closeBtn {
+    margin-left: auto;
+  }
+
+  .title {
+    font-size: 20px;
+    line-height: 1.2;
+    letter-spacing: -0.2px;
+  }
+
+  .eyebrow {
+    letter-spacing: 1.5px;
+  }
+
+  .body {
+    padding: 14px 16px;
+  }
+
+  .footer {
+    padding: 12px 14px;
+    gap: 6px;
+  }
+
+  .primaryBtn,
+  .secondaryBtn,
+  .dangerBtn {
+    padding: 9px 14px;
+    font-size: 13px;
+  }
+}
 
 /* ----- Body (scrolls) ----- */
 
@@ -187,7 +244,7 @@
 .optionPicked {
   background: var(--color-glow-teal);
   border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.12);
+  box-shadow: 0 0 0 3px rgba(12, 193, 224, 0.12);
 }
 
 .optionCorrect {
@@ -401,13 +458,22 @@
     var(--color-brand-grad-from), var(--color-brand-grad-to));
   color: var(--color-brand-contrast);
   border: none;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-accent) 28%, transparent);
 }
 
-.primaryBtn:hover { filter: brightness(1.08); }
+.primaryBtn:hover { filter: brightness(1.05); }
+
+/* Disabled — theme-aware muted look instead of a `filter` chain that
+   looks washed-out in light mode. */
 .primaryBtn:disabled {
-  filter: grayscale(0.6) brightness(0.85);
+  background: var(--color-chip-bg);
+  color: var(--color-text-muted);
+  box-shadow: none;
+  border: 1px solid var(--dash-card-border);
   cursor: not-allowed;
 }
+
+.primaryBtn:disabled:hover { filter: none; }
 
 .secondaryBtn {
   background: transparent;
@@ -416,3 +482,639 @@
 }
 
 .secondaryBtn:hover { background: var(--color-chip-bg); }
+
+/* ============================================================
+ * Streak chip + header right group
+ * ============================================================ */
+
+.headerRight {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.streakChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--color-chip-bg);
+  border: 1px solid var(--dash-card-border);
+  color: var(--dash-text-muted);
+  font-family: var(--font-secondary);
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  white-space: nowrap;
+}
+
+.streakChip:hover {
+  border-color: var(--color-accent);
+  background: var(--color-glow-yellow);
+}
+
+.streakChipOn {
+  color: var(--dash-accent-yellow-strong);
+  border-color: var(--dash-accent-yellow-strong);
+  background: var(--color-glow-yellow);
+}
+
+/* Stat-only streak pill (no click) — sits next to the calendar button. */
+.streakBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--color-glow-yellow);
+  border: 1px solid var(--dash-accent-yellow-strong);
+  color: var(--dash-accent-yellow-strong);
+  font-family: var(--font-secondary);
+  font-weight: 800;
+  font-size: 13px;
+  cursor: default;
+  white-space: nowrap;
+}
+
+/* Explicit "Past POTDs" navigation button — visibly different from the
+   stat badge so users know this is the clickable thing. */
+.calendarBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--color-accent) 14%, transparent),
+    color-mix(in srgb, var(--color-accent) 4%, transparent));
+  border: 1px solid var(--color-accent);
+  color: var(--color-accent);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+  white-space: nowrap;
+}
+
+.calendarBtn:hover {
+  background: color-mix(in srgb, var(--color-accent) 22%, transparent);
+  transform: translateY(-1px);
+}
+
+.calendarBtnActive {
+  background: var(--color-chip-bg);
+  border-color: var(--dash-card-border);
+  color: var(--dash-text-strong);
+}
+
+.calendarBtnText {
+  font-weight: 700;
+}
+
+/* ============================================================
+ * Anchored cell popover — appears next to a clicked calendar
+ * cell so the choice ("see solution" vs "practice in Browse")
+ * is visually tied to the day the user picked. Positioned via
+ * inline `top/left` from JS measurements; an arrow points at
+ * the cell. Flips above the cell when there's no room below.
+ * ============================================================ */
+
+/* The calendar grid is the popover's positioning ancestor. */
+.calendarGrid { position: relative; }
+
+.cellPicked {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+  transform: scale(1.08);
+  z-index: 2;
+}
+
+/* The anchor owns positioning + the centering / flip transform. JS sets
+   the inline `top`, `left`, and `transform` based on the cell's geometry. */
+.cellPopoverAnchor {
+  position: absolute;
+  z-index: 10;
+}
+
+/* The visible popover — animates scale + opacity from its anchor.
+   No transform here, so the animation never fights with the anchor's
+   positioning transform (which is what caused the visible "jump" when
+   the popover was placed above the cell). */
+.cellPopover {
+  min-width: 240px;
+  max-width: 320px;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--color-panel-bg);
+  border: 1.5px solid var(--color-accent);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.28);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transform-origin: top center;
+  animation: popoverPop 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.popoverAbove .cellPopover { transform-origin: bottom center; }
+
+@keyframes popoverPop {
+  0%   { opacity: 0; transform: scale(0.85); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* Arrow — a small rotated square that punches through the popover edge
+   to point at the cell. Border colour matches the popover's accent so
+   it reads as part of the same shape. */
+.popoverArrow {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  background: var(--color-panel-bg);
+  border: 1.5px solid var(--color-accent);
+  transform: translateX(-50%) rotate(45deg);
+  left: 50%;
+}
+
+.popoverBelow .popoverArrow {
+  top: -8px;
+  border-right: none;
+  border-bottom: none;
+}
+
+.popoverAbove .popoverArrow {
+  bottom: -8px;
+  border-left: none;
+  border-top: none;
+}
+
+.popoverHead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--dash-card-border);
+}
+
+.popoverDate {
+  font-family: var(--font-secondary);
+  font-weight: 800;
+  font-size: 13px;
+  color: var(--dash-text-strong);
+}
+
+.popoverStatus {
+  flex: 1;
+  font-size: 12px;
+  color: var(--dash-text-muted);
+  text-transform: capitalize;
+}
+
+.popoverClose {
+  appearance: none;
+  background: transparent;
+  border: none;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--dash-text-muted);
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.popoverClose:hover { color: var(--dash-text-strong); }
+
+.popoverActions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.popoverActionsSingle {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+@media (max-width: 380px) {
+  .popoverActions { grid-template-columns: 1fr; }
+}
+
+.popoverActionAttempt {
+  border-color: var(--color-accent);
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--color-accent) 18%, transparent),
+    color-mix(in srgb, var(--color-accent) 6%, transparent));
+}
+
+.popoverActionAttempt:hover {
+  background: var(--color-glow-teal);
+}
+
+.popoverAction {
+  appearance: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 8px;
+  border-radius: 10px;
+  border: 1.5px solid var(--dash-card-border);
+  background: var(--color-chip-bg);
+  font-family: inherit;
+  cursor: pointer;
+  transition: transform 0.1s ease, border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  text-align: center;
+}
+
+.popoverAction:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.12);
+}
+
+.popoverActionReview {
+  border-color: var(--color-accent);
+}
+
+.popoverActionReview:hover {
+  background: var(--color-glow-teal);
+}
+
+.popoverActionPractice {
+  border-color: var(--dash-accent-yellow-strong);
+}
+
+.popoverActionPractice:hover {
+  background: var(--color-glow-yellow);
+}
+
+.popoverActionIcon {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.popoverActionText {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  line-height: 1.25;
+}
+
+.popoverActionText strong {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--dash-text-strong);
+}
+
+.popoverActionText span {
+  font-size: 11px;
+  color: var(--dash-text-muted);
+}
+
+/* ============================================================
+ * Attempt counter strip (single_correct)
+ * ============================================================ */
+
+.attemptStrip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--color-chip-bg);
+  border: 1px solid var(--dash-card-border);
+  font-size: 12px;
+  color: var(--dash-text-muted);
+}
+
+.attemptStrip strong {
+  color: var(--dash-text-strong);
+  font-weight: 800;
+}
+
+.attemptStripFinal {
+  background: rgba(239, 68, 68, 0.10);
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #b91c1c;
+}
+
+:global([data-theme='dark']) .attemptStripFinal {
+  color: #fca5a5;
+}
+
+.attemptStripBadge {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: white;
+}
+
+/* ============================================================
+ * Wrong-attempt banner
+ * ============================================================ */
+
+.retryBanner {
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(245, 158, 11, 0.14);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  color: #92400e;
+  font-size: 13px;
+  font-weight: 600;
+  animation: shakeOnce 0.32s ease;
+}
+
+:global([data-theme='dark']) .retryBanner {
+  color: #fcd34d;
+}
+
+@keyframes shakeOnce {
+  0%, 100% { transform: translateX(0); }
+  25%      { transform: translateX(-4px); }
+  75%      { transform: translateX(4px); }
+}
+
+/* ============================================================
+ * View-solution confirmation footer
+ * ============================================================ */
+
+.footerConfirm {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.confirmText {
+  margin: 0;
+  font-size: 13px;
+  color: var(--dash-text-strong);
+  line-height: 1.5;
+}
+
+.footerBtns {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+.linkBtn {
+  appearance: none;
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 13px;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 8px 4px;
+}
+
+.linkBtn:hover { color: var(--color-accent); }
+
+.dangerBtn {
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.3px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  cursor: pointer;
+  background: #dc2626;
+  color: white;
+  border: none;
+  transition: filter 0.15s ease;
+}
+
+.dangerBtn:hover { filter: brightness(1.08); }
+.dangerBtn:disabled { filter: grayscale(0.4); cursor: not-allowed; }
+
+/* ============================================================
+ * Calendar
+ * ============================================================ */
+
+.calendar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Month navigation bar above the grid. */
+.monthNav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.monthLabel {
+  font-family: var(--font-secondary);
+  font-weight: 800;
+  font-size: 15px;
+  color: var(--dash-text-strong);
+  flex: 1;
+  text-align: center;
+}
+
+.monthNavBtn {
+  appearance: none;
+  background: var(--color-chip-bg);
+  border: 1px solid var(--dash-card-border);
+  border-radius: 999px;
+  width: 32px;
+  height: 32px;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--dash-text-strong);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.monthNavBtn:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  background: var(--color-glow-teal);
+}
+
+.monthNavBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.calendarLegend {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--dash-text-muted);
+  align-items: center;
+}
+
+.legendDot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.dotSolved    { background: #22c55e; }
+.dotAttempted { background: #fbbf24; }
+.dotViewed    { background: #a78bfa; }
+.dotMissed    { background: var(--color-chip-bg); border: 1px solid var(--dash-card-border); }
+
+.weekdayRow {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  padding: 0 2px;
+}
+
+.weekdayLabel {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--dash-text-muted);
+  text-align: center;
+}
+
+.calendarGrid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.calendarPad {
+  /* Empty cells before the first day so DOW alignment is correct */
+}
+
+.calendarCell {
+  aspect-ratio: 1 / 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--color-chip-bg);
+  border: 1px solid var(--dash-card-border);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dash-text-muted);
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.1s ease, border-color 0.15s ease;
+}
+
+@media (min-width: 540px) {
+  .calendarCell { font-size: 13px; }
+}
+
+.cellDim {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.cellClickable:hover {
+  transform: translateY(-1px);
+  border-color: var(--color-accent);
+}
+
+.cell_solved {
+  background: rgba(34, 197, 94, 0.22);
+  color: #15803d;
+  border-color: rgba(34, 197, 94, 0.5);
+}
+
+:global([data-theme='dark']) .cell_solved {
+  color: #86efac;
+}
+
+.cell_in_progress {
+  background: rgba(251, 191, 36, 0.22);
+  color: #b45309;
+  border-color: rgba(251, 191, 36, 0.5);
+}
+
+:global([data-theme='dark']) .cell_in_progress {
+  color: #fde68a;
+}
+
+.cell_exhausted {
+  background: rgba(239, 68, 68, 0.18);
+  color: #b91c1c;
+  border-color: rgba(239, 68, 68, 0.45);
+}
+
+:global([data-theme='dark']) .cell_exhausted {
+  color: #fca5a5;
+}
+
+.cell_viewed {
+  background: rgba(167, 139, 250, 0.18);
+  color: #6d28d9;
+  border-color: rgba(167, 139, 250, 0.45);
+}
+
+:global([data-theme='dark']) .cell_viewed {
+  color: #c4b5fd;
+}
+
+.cell_missed {
+  /* default — fall through to base styles */
+}
+
+.cell_future,
+.cellFuture {
+  opacity: 0.35;
+  cursor: default;
+  background: transparent;
+  border: 1px dashed var(--dash-card-border);
+}
+
+.cellToday {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+/* ============================================================
+ * Past-date view
+ * ============================================================ */
+
+.backLink {
+  align-self: flex-start;
+  appearance: none;
+  background: none;
+  border: none;
+  color: var(--color-accent);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 2px;
+}
+
+.backLink:hover { text-decoration: underline; }
+
+.pastDateChip {
+  margin: 0;
+  align-self: flex-start;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--color-chip-bg);
+  border: 1px solid var(--dash-card-border);
+  color: var(--dash-text-muted);
+  text-transform: capitalize;
+}

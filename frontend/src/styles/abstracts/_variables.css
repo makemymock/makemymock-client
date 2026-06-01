@@ -5,23 +5,31 @@
   color: #f8fafc;
   background: #09090f;
 
-  /* Both font tokens resolve to the handwritten brand font so every
-     component picks it up — labels, buttons, stat cards, headings. The
-     readable sans-serif fallback is kept on the question-rendering
-     surface (MarkdownText) and on monospace contexts (code, timer). */
-  --font-primary: 'Patrick Hand', cursive;
-  --font-secondary: 'Patrick Hand', cursive,
-                    'Jost', 'Avenir Next', sans-serif;
+  /* Two-token type system:
+       --font-primary   → Plus Jakarta Sans for general UI, body, labels,
+                          buttons, headings. Friendly geometric sans
+                          that reads as a professional product.
+       --font-secondary → Space Grotesk for stats, scores, big numbers,
+                          and the brand wordmark. Has the "data display"
+                          character that complements the body text.
+     Monospace surfaces (code blocks, timer) stay on JetBrains Mono via
+     the App.css rules. */
+  --font-primary: 'Plus Jakarta Sans', system-ui, -apple-system,
+                  BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-secondary: 'Space Grotesk', 'Plus Jakarta Sans', system-ui,
+                    sans-serif;
 
   --color-bg-page: #09090f;
   --color-text-primary: #f8fafc;
   --color-text-secondary: rgba(248, 250, 252, 0.84);
   --color-text-muted: rgba(226, 232, 240, 0.76);
-  --color-accent: #14b8a6;
+  /* Accent is anchored to the logo cyan (#0cc1e0) so the whole UI reads
+     as one brand. On the dark page the bright logo cyan pops directly. */
+  --color-accent: #0cc1e0;
 
   --color-glow-yellow: rgba(245, 193, 80, 0.247);
   --color-glow-cyan: rgba(56, 189, 248, 0.18);
-  --color-glow-teal: rgba(45, 212, 191, 0.14);
+  --color-glow-teal: rgba(12, 193, 224, 0.16);
   --color-glow-navy: rgba(30, 58, 138, 0.09);
 
   --color-panel-bg: rgba(15, 15, 23, 0.56);
@@ -36,14 +44,14 @@
   --color-chip-border: rgba(255, 255, 255, 0.09);
   --color-action-primary-bg: rgba(255, 255, 255, 0.08);
 
-  --color-brand-grad-from: #045181;
-  --color-brand-grad-to: #14b8a6;
-  --color-brand-contrast: #06161c;
+  --color-brand-grad-from: #0e9ec0;
+  --color-brand-grad-to: #0cc1e0;
+  --color-brand-contrast: #04161c;
   --color-cta-grad-from: #fbfdf4;
   --color-cta-grad-to: #f7e78e;
   --color-cta-contrast: #1a1a1a;
 
-  --color-focus: #14b8a6;
+  --color-focus: #0cc1e0;
   /* Muted slate so the wave grid reads on dark backgrounds without
      being blindingly white. Glow is dimmer still, keeping the soft
      halo without overpowering the surrounding content. */
@@ -94,11 +102,14 @@
   --color-text-primary: #101828;
   --color-text-secondary: rgba(16, 24, 40, 0.82);
   --color-text-muted: rgba(44, 53, 72, 0.76);
-  --color-accent: #03545a;
+  /* A deep cyan from the logo's hue family — light enough to read as the
+     brand colour, dark enough to stay legible as text/icons on the cream
+     page and to carry white text when used as a button fill. */
+  --color-accent: #0a7693;
 
   --color-glow-yellow: rgba(255, 251, 28, 0.707);
   --color-glow-cyan: rgba(6, 182, 212, 0.16);
-  --color-glow-teal: rgba(20, 184, 166, 0.12);
+  --color-glow-teal: rgba(12, 193, 224, 0.12);
   --color-glow-navy: rgba(30, 64, 175, 0.06);
 
   --color-panel-bg: rgba(255, 255, 255, 0.68);
@@ -111,14 +122,19 @@
   --color-chip-border: rgba(71, 85, 105, 0.18);
   --color-action-primary-bg: rgba(255, 255, 255, 0.72);
 
-  --color-brand-grad-from: #865e33;
-  --color-brand-grad-to: #0d9678;
-  --color-brand-contrast: #042a26;
+  /* Two-stop cyan ramp (deep → mid) so gradient pills read as the brand
+     and keep white text legible across the whole pill. Replaces the old
+     brown→green ramp that looked muddy on the History/FAB/action pills. */
+  --color-brand-grad-from: #0a6e8c;
+  --color-brand-grad-to: #0c93b4;
+  /* White text on the cyan accent/gradient fills (was near-black, which
+     read as dark-on-dark and made buttons look muddy in light mode). */
+  --color-brand-contrast: #ffffff;
   --color-cta-grad-from: #fbfdf4;
   --color-cta-grad-to: #f7e78e;
   --color-cta-contrast: #1a1a1a;
 
-  --color-focus: #0d9678;
+  --color-focus: #0a7693;
   --waves-line-color: rgba(194, 203, 216, 0.92);
   --waves-glow-color: rgba(59, 130, 246, 0.75);
   --waves-core-color: rgba(168, 175, 187, 0.72);
@@ -133,9 +149,11 @@
 
   /* Dashboard tokens — light theme matches the Figma cream/teal/yellow palette */
   --dash-bg: #f6f4ec;
-  /* Sidebar uses a deep slate even in light mode — the saturated teal felt
-     too loud / "glittering" against the cream page background. */
-  --dash-sidebar-bg: #1e293b;
+  /* Sidebar / mobile bottom-bar: a deep cyan-slate tinted toward the logo
+     so the nav rail reads as part of the brand against the cream page —
+     without the loud "glittering" of a fully-saturated teal. Keeping it
+     dark also lets the light nav icons + cyan active glow stay legible. */
+  --dash-sidebar-bg: #0e2a33;
   --dash-sidebar-text: rgba(226, 232, 240, 0.86);
   --dash-sidebar-text-active: #ffffff;
   --dash-card-bg: #ffffff;

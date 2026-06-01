@@ -67,42 +67,48 @@ const Analytics = () => {
     };
   }, []);
 
+  const overviewV   = overview;
+  const chaptersV   = chapters;
+  const topicsV     = topics;
+  const heatmapV    = heatmap;
+  const confidenceV = confidence;
+
   const accuracyTrendSeries = useMemo(() => {
-    if (!overview) return [];
+    if (!overviewV) return [];
     return [{
       name: 'Accuracy %',
-      points: overview.trend.map((t) => ({
+      points: overviewV.trend.map((t) => ({
         x: t.completed_at,
         y: t.accuracy_pct,
       })),
     }];
-  }, [overview]);
+  }, [overviewV]);
 
   const scoreTrendSeries = useMemo(() => {
-    if (!overview) return [];
+    if (!overviewV) return [];
     return [{
       name: 'Score',
-      points: overview.trend.map((t) => ({
+      points: overviewV.trend.map((t) => ({
         x: t.completed_at,
         y: t.score,
       })),
       color: 'var(--color-brand-grad-from)',
     }];
-  }, [overview]);
+  }, [overviewV]);
 
   const masteredCount = useMemo(() => {
-    if (!topics) return 0;
-    return topics.topics.filter(
+    if (!topicsV) return 0;
+    return topicsV.topics.filter(
       (t) => t.attempts >= 3 && t.accuracy_pct >= 75,
     ).length;
-  }, [topics]);
+  }, [topicsV]);
 
   const needsWorkCount = useMemo(() => {
-    if (!topics) return 0;
-    return topics.topics.filter(
+    if (!topicsV) return 0;
+    return topicsV.topics.filter(
       (t) => t.attempts >= 1 && t.accuracy_pct < 50,
     ).length;
-  }, [topics]);
+  }, [topicsV]);
 
   if (loading) {
     return (
@@ -120,7 +126,7 @@ const Analytics = () => {
     );
   }
 
-  const empty = (overview?.total_tests || 0) === 0;
+  const empty = (overviewV?.total_tests || 0) === 0;
 
   return (
     <ExamShell chromeless
@@ -140,9 +146,9 @@ const Analytics = () => {
       ) : (
         <>
           {/* ----- Confidence trophy ----- */}
-          {confidence ? (
-            <section className={styles.trophySection}>
-              <ConfidenceTrophy data={confidence} />
+          {confidenceV ? (
+            <section className={styles.trophySection} data-tour="analytics.trophy">
+              <ConfidenceTrophy data={confidenceV} />
             </section>
           ) : null}
 
@@ -151,26 +157,29 @@ const Analytics = () => {
               (≥ 1080px) the stat grid sits on the left in a 3×2 layout
               and the heatmap card sits on the right at a compact size. */}
           <section className={styles.heroRow}>
-            <section className={`${styles.overviewGrid} ${styles.overviewGridInHero}`}>
-              <StatCard label="Tests submitted" value={overview.total_tests} />
+            <section
+              className={`${styles.overviewGrid} ${styles.overviewGridInHero}`}
+              data-tour="analytics.overview"
+            >
+              <StatCard label="Tests submitted" value={overviewV.total_tests} />
               <StatCard
                 label="Questions attempted"
-                value={overview.total_questions}
+                value={overviewV.total_questions}
               />
               <StatCard
                 label="Overall accuracy"
-                value={`${overview.overall_accuracy_pct.toFixed(1)}%`}
+                value={`${overviewV.overall_accuracy_pct.toFixed(1)}%`}
                 tone={
-                  overview.overall_accuracy_pct >= 70
+                  overviewV.overall_accuracy_pct >= 70
                     ? 'good'
-                    : overview.overall_accuracy_pct >= 50
+                    : overviewV.overall_accuracy_pct >= 50
                     ? 'warn'
                     : 'bad'
                 }
               />
               <StatCard
                 label="Total score"
-                value={overview.total_score.toFixed(1)}
+                value={overviewV.total_score.toFixed(1)}
               />
               <StatCard
                 label="Topics mastered"
@@ -186,22 +195,22 @@ const Analytics = () => {
               />
             </section>
 
-            <section className={styles.heatmapSection}>
+            <section className={styles.heatmapSection} data-tour="analytics.heatmap">
               <Heatmap
-                days={heatmap?.days || []}
-                maxCount={heatmap?.max_count || 0}
+                days={heatmapV?.days || []}
+                maxCount={heatmapV?.max_count || 0}
                 defaultRange="month"
               />
             </section>
           </section>
 
           {/* ----- Trend charts ----- */}
-          <div className={styles.twoCol}>
+          <div className={styles.twoCol} data-tour="analytics.trends">
             <section className={styles.card}>
               <header className={styles.cardHead}>
                 <h2 className={styles.cardTitle}>Accuracy over time</h2>
                 <span className={styles.cardSub}>
-                  {overview.trend.length} sessions
+                  {overviewV.trend.length} sessions
                 </span>
               </header>
               <LineChart
@@ -230,14 +239,14 @@ const Analytics = () => {
           </div>
 
           {/* ----- Difficulty / Type distributions ----- */}
-          <div className={styles.twoCol}>
+          <div className={styles.twoCol} data-tour="analytics.breakdown">
             <section className={styles.card}>
               <header className={styles.cardHead}>
                 <h2 className={styles.cardTitle}>Difficulty breakdown</h2>
                 <span className={styles.cardSub}>Accuracy per difficulty</span>
               </header>
               <BarChart
-                rows={overview.by_difficulty.map((d) => ({
+                rows={overviewV.by_difficulty.map((d) => ({
                   label: d.difficulty,
                   meta: `${d.attempts} qns`,
                   value: d.accuracy_pct,
@@ -252,11 +261,11 @@ const Analytics = () => {
                 <h2 className={styles.cardTitle}>Question type mix</h2>
               </header>
               <DonutChart
-                segments={overview.by_type.map((d) => ({
+                segments={overviewV.by_type.map((d) => ({
                   label: prettyType(d.question_type),
                   value: d.attempts,
                 }))}
-                centerLabel={overview.total_questions}
+                centerLabel={overviewV.total_questions}
                 centerSub="attempts"
               />
             </section>
@@ -270,9 +279,9 @@ const Analytics = () => {
                 Sorted by recommender priority — weakest first
               </span>
             </header>
-            {chapters && chapters.chapters.length > 0 ? (
-              <ul className={styles.chapterGrid}>
-                {chapters.chapters.map((c) => {
+            {chaptersV && chaptersV.chapters.length > 0 ? (
+              <ul className={styles.chapterGrid} data-tour="analytics.chapter-grid">
+                {chaptersV.chapters.map((c) => {
                   const coverage = c.total_topic_count
                     ? Math.round(
                         (c.attempted_topic_count / c.total_topic_count) * 100,
@@ -344,13 +353,13 @@ const Analytics = () => {
 
           {/* ----- Weakest / strongest topics shortcuts ----- */}
           <div className={styles.twoCol}>
-            <section className={styles.card}>
+            <section className={styles.card} data-tour="analytics.weakest">
               <header className={styles.cardHead}>
                 <h2 className={styles.cardTitle}>Top 5 weakest topics</h2>
                 <span className={styles.cardSub}>Get more questions next</span>
               </header>
               <ul className={styles.miniList}>
-                {overview.weakest_topics.map((t) => (
+                {overviewV.weakest_topics.map((t) => (
                   <li key={t.topic_id}>
                     <Link to={`/analytics/topic/${t.topic_id}`}>
                       <strong>{t.topic_name}</strong>
@@ -370,7 +379,7 @@ const Analytics = () => {
                 <span className={styles.cardSub}>Reliably right</span>
               </header>
               <ul className={styles.miniList}>
-                {overview.strongest_topics.map((t) => (
+                {overviewV.strongest_topics.map((t) => (
                   <li key={t.topic_id}>
                     <Link to={`/analytics/topic/${t.topic_id}`}>
                       <strong>{t.topic_name}</strong>

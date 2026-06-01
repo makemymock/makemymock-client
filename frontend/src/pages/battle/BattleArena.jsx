@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { battleService } from '../../services/battleService';
 import { authService } from '../../services/authService';
+import { tokenStorage } from '../../utils/token';
 import MarkdownText from '../../components/common/MarkdownText/MarkdownText';
 import styles from './battleArena.module.css';
 
@@ -20,8 +21,18 @@ const PHASE = {
 
 const BattleArena = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  // When set, this is a private battle-a-friend session — both sides
+  // connect with the same code and the matchmaker pairs them
+  // directly (no public queue).
+  const inviteCode = searchParams.get('invite') || '';
   const wsRef = useRef(null);
   const [phase, setPhase] = useState(PHASE.CONNECTING);
+  // The logged-in user's own username — read from local session so the score
+  // card shows the actual name (instead of a generic "YOU"). Falls back to
+  // "You" only if we somehow don't have it cached.
+  const me = tokenStorage.getUser();
+  const yourUsername = me?.username || 'You';
   const [opponent, setOpponent] = useState(null);
   const [countdown, setCountdown] = useState(null);
   const [question, setQuestion] = useState(null); // {index, total, question_id, ...}
@@ -38,6 +49,75 @@ const BattleArena = () => {
   const [correctOption, setCorrectOption] = useState(null);
   const [finalState, setFinalState] = useState(null); // {result, your_score, ...}
   const [errorMessage, setErrorMessage] = useState('');
+  // Gamification: per-player consecutive-correct streak (resets on a wrong
+  // or missed answer) and who locked first on the current question.
+  const [yourStreak, setYourStreak] = useState(0);
+  const [opponentStreak, setOpponentStreak] = useState(0);
+  const [firstLocker, setFirstLocker] = useState(null); // 'you' | 'opp' | null
+
+  // ---------- Server → client dispatcher ----------
+  // Declared before the WebSocket effect that references it: the effect
+  // captures this callback in `ws.onmessage`, and a forward reference would
+  // trip the `react-hooks/immutability` rule even though useCallback([],)
+  // keeps the identity stable.
+  const handleServerMessage = useCallback((msg) => {
+    switch (msg.type) {
+      case 'queued':
+        setPhase(PHASE.QUEUED);
+        break;
+      case 'matched':
+        setOpponent(msg.opponent);
+        setPhase(PHASE.MATCHED);
+        break;
+      case 'countdown':
+        setCountdown(msg.value);
+        setPhase(PHASE.COUNTDOWN);
+        break;
+      case 'question':
+        setQuestion(msg);
+        setSelected(null);
+        setOpponentLocked(false);
+        setFirstLocker(null);
+        setQuestionStartedAt(Date.now());
+        setTimeLeft(msg.time_limit_seconds);
+        setCorrectOption(null);
+        setPhase(PHASE.QUESTION);
+        break;
+      case 'opponent_answered':
+        setOpponentLocked(true);
+        // If you haven't locked yet, the opponent beat you to the lock.
+        setFirstLocker((cur) => cur ?? 'opp');
+        break;
+      case 'question_result':
+        setCorrectOption(msg.correct_option);
+        setYourCorrect(msg.your_correct);
+        setOpponentCorrect(msg.opponent_correct);
+        setYourDelta(msg.your_score_delta);
+        setOppDelta(msg.opponent_score_delta);
+        setYourScore(msg.your_total_score);
+        setOpponentScore(msg.opponent_total_score);
+        // Consecutive-correct streak: bump on a right answer, reset on a
+        // wrong / missed one — gives a visible "🔥 N" chip when momentum
+        // is building.
+        setYourStreak((s) => (msg.your_correct ? s + 1 : 0));
+        setOpponentStreak((s) => (msg.opponent_correct ? s + 1 : 0));
+        setPhase(PHASE.RESULT);
+        break;
+      case 'battle_complete':
+        setFinalState(msg);
+        setPhase(PHASE.COMPLETE);
+        break;
+      case 'queue_timeout':
+        setPhase(PHASE.TIMEOUT);
+        break;
+      case 'error':
+        setErrorMessage(msg.message || 'Something went wrong.');
+        setPhase(PHASE.ERROR);
+        break;
+      default:
+        break;
+    }
+  }, []);
 
   // ---------- WebSocket lifecycle ----------
   useEffect(() => {
@@ -63,7 +143,7 @@ const BattleArena = () => {
       }
       if (cancelled) return;
 
-      ws = battleService.openSocket();
+      ws = battleService.openSocket(inviteCode || undefined);
       wsRef.current = ws;
 
       ws.onmessage = (ev) => {
@@ -145,63 +225,14 @@ const BattleArena = () => {
     return () => clearInterval(id);
   }, [phase, question, questionStartedAt]);
 
-  // ---------- Server → client dispatcher ----------
-  const handleServerMessage = useCallback((msg) => {
-    switch (msg.type) {
-      case 'queued':
-        setPhase(PHASE.QUEUED);
-        break;
-      case 'matched':
-        setOpponent(msg.opponent);
-        setPhase(PHASE.MATCHED);
-        break;
-      case 'countdown':
-        setCountdown(msg.value);
-        setPhase(PHASE.COUNTDOWN);
-        break;
-      case 'question':
-        setQuestion(msg);
-        setSelected(null);
-        setOpponentLocked(false);
-        setQuestionStartedAt(Date.now());
-        setTimeLeft(msg.time_limit_seconds);
-        setCorrectOption(null);
-        setPhase(PHASE.QUESTION);
-        break;
-      case 'opponent_answered':
-        setOpponentLocked(true);
-        break;
-      case 'question_result':
-        setCorrectOption(msg.correct_option);
-        setYourCorrect(msg.your_correct);
-        setOpponentCorrect(msg.opponent_correct);
-        setYourDelta(msg.your_score_delta);
-        setOppDelta(msg.opponent_score_delta);
-        setYourScore(msg.your_total_score);
-        setOpponentScore(msg.opponent_total_score);
-        setPhase(PHASE.RESULT);
-        break;
-      case 'battle_complete':
-        setFinalState(msg);
-        setPhase(PHASE.COMPLETE);
-        break;
-      case 'queue_timeout':
-        setPhase(PHASE.TIMEOUT);
-        break;
-      case 'error':
-        setErrorMessage(msg.message || 'Something went wrong.');
-        setPhase(PHASE.ERROR);
-        break;
-      default:
-        break;
-    }
-  }, []);
-
   // ---------- Client → server: submit answer ----------
   const submitAnswer = useCallback(
     (optionKey) => {
       if (phase !== PHASE.QUESTION || selected) return;
       setSelected(optionKey);
+      // First-to-lock: if the opponent's "answered" ping hasn't arrived,
+      // we beat them to the buzzer for this question.
+      setFirstLocker((cur) => cur ?? 'you');
       const ws = wsRef.current;
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(
@@ -221,7 +252,9 @@ const BattleArena = () => {
     <div className={styles.page}>
       {phase === PHASE.CONNECTING && <ConnectingView />}
       {phase === PHASE.QUEUED && <QueuedView onLeave={() => navigate('/battle')} />}
-      {phase === PHASE.MATCHED && <MatchedView opponent={opponent} />}
+      {phase === PHASE.MATCHED && (
+        <MatchedView yourUsername={yourUsername} opponent={opponent} />
+      )}
       {phase === PHASE.COUNTDOWN && <CountdownView value={countdown} />}
       {(phase === PHASE.QUESTION || phase === PHASE.RESULT) && (
         <QuestionView
@@ -231,6 +264,7 @@ const BattleArena = () => {
           correctOption={correctOption}
           opponentLocked={opponentLocked}
           timeLeft={timeLeft}
+          yourUsername={yourUsername}
           yourScore={yourScore}
           opponentScore={opponentScore}
           opponent={opponent}
@@ -238,12 +272,16 @@ const BattleArena = () => {
           opponentCorrect={opponentCorrect}
           yourDelta={yourDelta}
           oppDelta={oppDelta}
+          yourStreak={yourStreak}
+          opponentStreak={opponentStreak}
+          firstLocker={firstLocker}
           onSelect={submitAnswer}
         />
       )}
       {phase === PHASE.COMPLETE && finalState && (
         <CompleteView
           state={finalState}
+          yourUsername={yourUsername}
           onPlayAgain={() => window.location.reload()}
           onHome={() => navigate('/battle')}
           onHistory={() => navigate('/battle/history')}
@@ -303,22 +341,46 @@ const QueuedView = ({ onLeave }) => {
   );
 };
 
-const MatchedView = ({ opponent }) => (
+const MatchedView = ({ yourUsername, opponent }) => (
   <div className={styles.centeredCard}>
     <p className={styles.eyebrow}>Match found</p>
-    <h2 className={styles.cardTitle}>
-      vs <span className={styles.opponentName}>{opponent?.username || 'Opponent'}</span>
-    </h2>
+    <div className={styles.matchedDuel}>
+      <span className={styles.yourName}>{yourUsername}</span>
+      <span className={styles.matchedVs}>VS</span>
+      <span className={styles.opponentName}>{opponent?.username || 'Opponent'}</span>
+    </div>
     <p className={styles.cardSubtitle}>Get ready…</p>
   </div>
 );
 
-const CountdownView = ({ value }) => (
-  <div className={styles.centeredCard}>
-    <div key={value} className={styles.countdown}>{value}</div>
-    <p className={styles.cardSubtitle}>Steady…</p>
-  </div>
-);
+// Countdown phase. Each value gets its own visual treatment so the tension
+// ramps as the clock burns down — calm green at 5/4, amber warning at 3/2,
+// red shake at 1, and a celebratory "GO!" burst at 0.
+const CountdownView = ({ value }) => {
+  const variant =
+    value === 0 ? styles.countdownGo
+      : value === 1 ? styles.countdown1
+        : value === 2 ? styles.countdown2
+          : value === 3 ? styles.countdown3
+            : styles.countdownCalm;
+  const label =
+    value === 0 ? "Let's go."
+      : value === 1 ? 'Hands on the buzzer.'
+        : value === 2 ? 'Lock in.'
+          : value === 3 ? 'Almost there…'
+            : 'Steady…';
+  const display = value === 0 ? 'GO!' : value;
+  return (
+    <div className={styles.centeredCard}>
+      <div className={styles.countdownRing} aria-hidden="true">
+        <div />
+        <div />
+      </div>
+      <div key={value} className={`${styles.countdown} ${variant}`}>{display}</div>
+      <p className={styles.cardSubtitle}>{label}</p>
+    </div>
+  );
+};
 
 const QuestionView = ({
   phase,
@@ -327,6 +389,7 @@ const QuestionView = ({
   correctOption,
   opponentLocked,
   timeLeft,
+  yourUsername,
   yourScore,
   opponentScore,
   opponent,
@@ -334,6 +397,9 @@ const QuestionView = ({
   opponentCorrect,
   yourDelta,
   oppDelta,
+  yourStreak,
+  opponentStreak,
+  firstLocker,
   onSelect,
 }) => {
   const total = question?.total || 0;
@@ -342,28 +408,68 @@ const QuestionView = ({
     if (!question || timeLeft === null) return 100;
     return Math.max(0, Math.min(100, (timeLeft / question.time_limit_seconds) * 100));
   }, [question, timeLeft]);
+  const opponentName = opponent?.username || 'Opponent';
+  // Crown the leader so it's immediately obvious who's ahead.
+  const youLead = yourScore > opponentScore;
+  const oppLead = opponentScore > yourScore;
+  // Tier the timer drama against the question's total budget: warning at
+  // the final quarter, critical at the last five seconds. Scaling by the
+  // question's own `time_limit_seconds` keeps tuning sane if the round
+  // duration changes — the thresholds always sit at the end of the timer.
+  const totalSec = question?.time_limit_seconds ?? 0;
+  const warnAt = Math.max(8, totalSec * 0.25);
+  const criticalAt = 5;
+  const timerTier =
+    timeLeft === null ? ''
+      : timeLeft < criticalAt ? styles.timerCritical
+        : timeLeft < warnAt ? styles.timerWarn
+          : '';
+  // Render question-position pips so progress through the round is glanceable.
+  const pips = Array.from({ length: total }, (_, i) => i);
 
   return (
     <div className={styles.arena}>
       <header className={styles.arenaHeader}>
-        <div className={styles.scoreCard}>
-          <span className={styles.scoreName}>YOU</span>
+        <div className={`${styles.scoreCard} ${youLead ? styles.scoreCardLead : ''}`}>
+          <span className={styles.scoreName} title={yourUsername}>
+            {youLead ? '👑 ' : ''}{yourUsername}
+          </span>
           <span className={styles.scoreValue}>{yourScore}</span>
+          {yourStreak >= 2 ? (
+            <span className={styles.streakChip} title={`${yourStreak} in a row`}>
+              🔥 {yourStreak}
+            </span>
+          ) : null}
         </div>
         <div className={styles.questionMeta}>
-          <p className={styles.questionPos}>Question {idx} / {total}</p>
+          <p className={styles.questionPos}>Round {idx} / {total}</p>
+          <div className={styles.pipRow} aria-hidden="true">
+            {pips.map((i) => (
+              <span
+                key={i}
+                className={`${styles.pip} ${i + 1 < idx ? styles.pipDone : ''} ${i + 1 === idx ? styles.pipNow : ''}`}
+              />
+            ))}
+          </div>
           <p className={styles.difficultyTag}>{question?.difficulty}</p>
         </div>
-        <div className={styles.scoreCard}>
-          <span className={styles.scoreName}>{opponent?.username || 'OPP'}</span>
+        <div className={`${styles.scoreCard} ${oppLead ? styles.scoreCardLead : ''}`}>
+          <span className={styles.scoreName} title={opponentName}>
+            {oppLead ? '👑 ' : ''}{opponentName}
+          </span>
           <span className={styles.scoreValue}>{opponentScore}</span>
+          {opponentStreak >= 2 ? (
+            <span className={styles.streakChip} title={`${opponentStreak} in a row`}>
+              🔥 {opponentStreak}
+            </span>
+          ) : null}
         </div>
       </header>
 
-      <div className={styles.timerTrack}>
+      <div className={`${styles.timerTrack} ${timerTier}`}>
         <div
           className={`${styles.timerFill} ${
-            timeLeft !== null && timeLeft < 4 ? styles.timerLow : ''
+            timeLeft !== null && timeLeft < criticalAt ? styles.timerLow : ''
           }`}
           style={{ width: `${pctRemaining}%` }}
         />
@@ -418,6 +524,9 @@ const QuestionView = ({
           <div className={styles.statusRow}>
             <span className={selected ? styles.lockedChip : styles.thinkingChip}>
               {selected ? `🔒 You locked ${selected}` : 'Pick an option…'}
+              {firstLocker === 'you' ? (
+                <span className={styles.firstBadge} title="First to lock in">⚡ First!</span>
+              ) : null}
             </span>
             <span
               className={
@@ -425,8 +534,11 @@ const QuestionView = ({
               }
             >
               {opponentLocked
-                ? `🔒 ${opponent?.username || 'Opponent'} locked in`
-                : `⏳ ${opponent?.username || 'Opponent'} thinking…`}
+                ? `🔒 ${opponentName} locked in`
+                : `⏳ ${opponentName} thinking…`}
+              {firstLocker === 'opp' ? (
+                <span className={styles.firstBadge} title="First to lock in">⚡ First!</span>
+              ) : null}
             </span>
           </div>
         ) : null}
@@ -438,15 +550,14 @@ const QuestionView = ({
                 yourCorrect ? styles.deltaWin : styles.deltaLose
               }`}
             >
-              YOU {yourCorrect ? `+${yourDelta}` : '+0'}
+              {yourUsername} {yourCorrect ? `+${yourDelta}` : '+0'}
             </div>
             <div
               className={`${styles.deltaChip} ${
                 opponentCorrect ? styles.deltaWin : styles.deltaLose
               }`}
             >
-              {opponent?.username || 'OPP'}{' '}
-              {opponentCorrect ? `+${oppDelta}` : '+0'}
+              {opponentName} {opponentCorrect ? `+${oppDelta}` : '+0'}
             </div>
           </div>
         ) : null}
@@ -455,7 +566,7 @@ const QuestionView = ({
   );
 };
 
-const CompleteView = ({ state, onPlayAgain, onHome, onHistory }) => {
+const CompleteView = ({ state, yourUsername, onPlayAgain, onHome, onHistory }) => {
   const isWin = state.result === 'win';
   const isDraw = state.result === 'draw';
   const headline = isWin ? 'VICTORY!' : isDraw ? "IT'S A DRAW" : 'DEFEAT';
@@ -477,7 +588,7 @@ const CompleteView = ({ state, onPlayAgain, onHome, onHistory }) => {
 
       <div className={styles.completeScores}>
         <div className={styles.completeScoreCard}>
-          <p className={styles.completeScoreLabel}>YOU</p>
+          <p className={styles.completeScoreLabel} title={yourUsername}>{yourUsername}</p>
           <p className={styles.completeScoreValue}>{state.your_score}</p>
           <p className={styles.completeScoreSub}>
             {state.your_correct} correct
@@ -485,8 +596,11 @@ const CompleteView = ({ state, onPlayAgain, onHome, onHistory }) => {
         </div>
         <div className={styles.completeVs}>VS</div>
         <div className={styles.completeScoreCard}>
-          <p className={styles.completeScoreLabel}>
-            {state.opponent_username || 'OPPONENT'}
+          <p
+            className={styles.completeScoreLabel}
+            title={state.opponent_username || 'Opponent'}
+          >
+            {state.opponent_username || 'Opponent'}
           </p>
           <p className={styles.completeScoreValue}>{state.opponent_score}</p>
           <p className={styles.completeScoreSub}>

@@ -245,6 +245,31 @@ class MockTestRepository:
     async def lookup_question_int(self, int_id: int) -> Optional[dict]:
         return await self.qid_map.find_one({"_id": int(int_id)})
 
+    async def find_question_int_id(
+        self, obj_id: str, sub_index: Optional[int] = None,
+    ) -> Optional[int]:
+        """Return the int id for a question/sub-question if one has been
+        allocated, without creating one."""
+        q: dict[str, Any] = {"obj_id": obj_id}
+        q["sub_index"] = None if sub_index is None else int(sub_index)
+        doc = await self.qid_map.find_one(q)
+        return int(doc["_id"]) if doc else None
+
+    async def view_times_for_obj_ids(
+        self, user_id: ObjectId, obj_ids: Iterable[str],
+    ) -> dict[str, Any]:
+        """obj_id → last `viewed_at` for that user (missing keys = never viewed)."""
+        ids = [o for o in obj_ids if o]
+        if not ids:
+            return {}
+        out: dict[str, Any] = {}
+        async for v in self.practice_views.find(
+            {"user_id": user_id, "obj_id": {"$in": ids}},
+            {"obj_id": 1, "viewed_at": 1},
+        ):
+            out[str(v["obj_id"])] = v.get("viewed_at")
+        return out
+
     async def bulk_lookup_question_int_to_obj(
         self, int_ids: Iterable[int],
     ) -> dict[int, dict]:
@@ -334,27 +359,89 @@ class MockTestRepository:
         return results
 
     # ---------- browse (practice catalog) ----------
+    # The Browse list expands a passage doc into one row per sub-question
+    # (each sub becomes its own browseable card), so pagination has to count
+    # post-expansion. Both helpers below run aggregation pipelines that
+    # treat a passage as `N` rows where N = subQuestions length.
 
-    async def count_browse(self, filt: dict) -> int:
-        q = _translate_pyq_filter(filt) if self._is_pyq else filt
-        return await self.questions.count_documents(q)
+    def _browse_expansion_stages(self) -> list[dict]:
+        """Stages that turn a `questions` match into one row per sub-question.
+
+        After these stages, each pipeline doc has `_sub_index` (None for
+        standalones, int for passage subs) and `_composite_key`
+        ("{obj_id}" or "{obj_id}_{sub_index}") — usable in a follow-up
+        `$match` to filter at sub-question granularity.
+        """
+        return [
+            {"$addFields": {
+                "_isPassage": {"$eq": [
+                    {"$ifNull": ["$questionType", "single_correct"]}, "passage",
+                ]},
+            }},
+            {"$addFields": {
+                "_subRange": {
+                    "$cond": [
+                        "$_isPassage",
+                        {"$range": [
+                            0,
+                            {"$size": {"$ifNull": ["$passageData.subQuestions", []]}},
+                        ]},
+                        [None],
+                    ]
+                }
+            }},
+            {"$unwind": "$_subRange"},
+            {"$addFields": {
+                "_sub_index": "$_subRange",
+                "_composite_key": {
+                    "$cond": [
+                        {"$eq": ["$_subRange", None]},
+                        {"$toString": "$_id"},
+                        {"$concat": [
+                            {"$toString": "$_id"}, "_",
+                            {"$toString": "$_subRange"},
+                        ]},
+                    ]
+                },
+            }},
+        ]
+
+    async def count_browse(
+        self, filt: dict, *, post_filter: Optional[dict] = None,
+    ) -> int:
+        pipeline: list[dict] = [{"$match": filt}]
+        pipeline += self._browse_expansion_stages()
+        if post_filter:
+            pipeline.append({"$match": post_filter})
+        pipeline.append({"$count": "total"})
+        async for row in self.questions.aggregate(pipeline):
+            return int(row.get("total") or 0)
+        return 0
 
     async def find_browse(
-        self, filt: dict, *, skip: int, limit: int,
+        self,
+        filt: dict,
+        *,
+        skip: int,
+        limit: int,
+        post_filter: Optional[dict] = None,
     ) -> list[dict]:
-        """Page of questions matching `filt`, ordered by `_id` for a stable
-        prev/next sequence across requests."""
-        q = _translate_pyq_filter(filt) if self._is_pyq else filt
-        cursor = (
-            self.questions.find(q)
-            .sort("_id", 1)
-            .skip(max(0, skip))
-            .limit(max(1, limit))
-        )
-        docs = [doc async for doc in cursor]
-        if self._is_pyq:
-            docs = [_normalize_pyq_doc(d) for d in docs]
-        return docs
+        """Paginated rows — one per standalone question and one per passage
+        sub-question. Each row carries the original question doc fields plus
+        `_sub_index` (None or int) and `_composite_key`.
+
+        `post_filter` is applied after expansion, so callers can constrain
+        by per-sub attributes (e.g., a specific set of composite keys)."""
+        pipeline: list[dict] = [{"$match": filt}]
+        pipeline += self._browse_expansion_stages()
+        if post_filter:
+            pipeline.append({"$match": post_filter})
+        pipeline += [
+            {"$sort": {"_id": 1, "_sub_index": 1}},
+            {"$skip": max(0, skip)},
+            {"$limit": max(1, limit)},
+        ]
+        return [doc async for doc in self.questions.aggregate(pipeline)]
 
     async def get_question_by_obj_id(self, obj_id: str) -> Optional[dict]:
         doc = await self.questions.find_one({"_id": ObjectId(obj_id)})
@@ -393,11 +480,13 @@ class MockTestRepository:
             out[int(doc["question_id"])] = doc
         return out
 
-    async def attempted_obj_ids(self, user_id: ObjectId) -> set[str]:
-        """All questions `_id`s (str) the user has a genuine attempt on.
+    async def attempted_composite_keys(self, user_id: ObjectId) -> set[str]:
+        """All composite question keys the user has a genuine attempt on.
 
-        Walks attempts → int question_ids → `obj_id`s, so passage sub-Q
-        attempts resolve to their parent question's obj_id.
+        Standalones map to `"{obj_id}"`; passage sub-Qs map to
+        `"{obj_id}_{sub_index}"`. Walks attempts → int question_ids →
+        qid_map rows so passage sub-attempts stay sub-precise rather than
+        rolling up to the parent passage's obj_id.
         """
         int_ids: list[int] = []
         async for a in self.attempts.find(
@@ -407,7 +496,14 @@ class MockTestRepository:
         if not int_ids:
             return set()
         id_to_doc = await self.bulk_lookup_question_int_to_obj(int_ids)
-        return {str(d["obj_id"]) for d in id_to_doc.values() if d.get("obj_id")}
+        out: set[str] = set()
+        for d in id_to_doc.values():
+            obj = d.get("obj_id")
+            if not obj:
+                continue
+            sub = d.get("sub_index")
+            out.add(str(obj) if sub is None else f"{obj}_{int(sub)}")
+        return out
 
     # ---------- practice solution views ----------
 
@@ -558,6 +654,58 @@ class MockTestRepository:
                 upsert=True,
             ))
         await self.attempts.bulk_write(ops, ordered=False)
+
+    async def mark_attempt_non_feeding(
+        self,
+        *,
+        user_id: ObjectId,
+        question_id: int,
+        topic_id: int,
+        is_correct: bool,
+        correctness: Optional[float],
+        difficulty: str,
+        attempted_at: Any,
+        session_id: int,
+    ) -> None:
+        """Write a cooldown (non-feeding) attempt.
+
+        Updates only the user-visible "latest attempt" fields and the
+        cooldown clock — leaves the `e_*` engine-mirror fields untouched
+        so a prior feeding attempt's signal stays authoritative for the
+        recommender. If no row exists yet (first event was a solution
+        view, then attempt within 24h), inserts a row with engine fields
+        absent so engine queries skip it.
+        """
+        await self.attempts.update_one(
+            {"user_id": user_id, "question_id": int(question_id)},
+            {
+                "$set": {
+                    "is_correct": bool(is_correct),
+                    "correctness": correctness,
+                    "difficulty": difficulty,
+                    "score_contribution": 0,
+                    "attempted_at": attempted_at,
+                    "session_id": int(session_id),
+                    "last_event_at": attempted_at,
+                },
+                "$setOnInsert": {
+                    "user_id": user_id,
+                    "question_id": int(question_id),
+                    "topic_id": int(topic_id),
+                    # Mark the engine-mirror fields as explicitly empty
+                    # so a recommender query (which filters on a non-null
+                    # `e_attempted_at`) can tell a fresh cooldown-only
+                    # row from a legacy pre-cooldown row.
+                    "e_is_correct": None,
+                    "e_correctness": None,
+                    "e_difficulty": None,
+                    "e_score_contribution": None,
+                    "e_attempted_at": None,
+                    "e_session_id": None,
+                },
+            },
+            upsert=True,
+        )
 
     # ---------- session reads ----------
 

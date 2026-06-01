@@ -28,6 +28,7 @@ from fastapi import status
 from modules.mock_test.constants import (
     COUNTER_SESSION,
     PRACTICE_SESSION_ID,
+    RECOMMENDER_COOLDOWN_HOURS,
     SECONDS_PER_QUESTION,
 )
 from modules.mock_test.engine_adapter import BufferedRepository
@@ -60,7 +61,6 @@ from modules.mock_test.schema import (
     BrowsePerformance,
     BrowseQuestionDetail,
     BrowseSolutionResponse,
-    BrowseSubQuestion,
     NotebookCountResponse,
     NotebookToggleResponse,
     CatalogChapter,
@@ -293,6 +293,27 @@ def _aggregate_perf(attempts: list[dict]) -> Optional[BrowsePerformance]:
     )
 
 
+# ---------------------------------------------------------------------------
+# Composite question-id helpers — the Browse layer addresses standalone
+# questions by their Mongo `_id` and passage sub-questions by a synthetic
+# `"{obj_id}_{sub_index}"` key. ObjectIds are pure hex (no underscores), so
+# the separator is unambiguous.
+# ---------------------------------------------------------------------------
+
+def _parse_composite_qid(qid: str) -> tuple[str, Optional[int]]:
+    if "_" in qid:
+        obj_id, sub_str = qid.rsplit("_", 1)
+        try:
+            return obj_id, int(sub_str)
+        except ValueError:
+            return qid, None
+    return qid, None
+
+
+def _make_composite(obj_id: str, sub_index: Optional[int]) -> str:
+    return obj_id if sub_index is None else f"{obj_id}_{int(sub_index)}"
+
+
 def _correct_answer_for(doc: dict, qtype: str) -> Any:
     """Correct answer in the shape `QuestionViewer` expects in readOnly mode."""
     if qtype == "single_correct":
@@ -401,79 +422,93 @@ class MockTestService:
         if search and search.strip():
             filt["questionText"] = {"$regex": re.escape(search.strip()), "$options": "i"}
 
-        # The attempted + marked filters each constrain `_id` to a set derived
-        # from another collection. Collect "must be in" sets (intersected) and
-        # "must not be in" ids (unioned) so both filters can apply together.
-        in_sets: list[set[str]] = []
-        nin_ids: set[str] = set()
-        if attempted is not None:
-            ids = await self.repo.attempted_obj_ids(user_id)
-            (in_sets.append(ids) if attempted else nin_ids.update(ids))
+        # `marked` is a notebook flag stored at the parent obj_id level, so it
+        # constrains the pre-expansion `_id`. `attempted` is sub-precise (a
+        # passage's other unattempted subs shouldn't be hidden because one sub
+        # was attempted), so it's a post-expansion filter on `_composite_key`.
         if marked is not None:
             ids = await self.repo.marked_obj_ids(user_id)
-            (in_sets.append(ids) if marked else nin_ids.update(ids))
-        if in_sets or nin_ids:
-            id_clause: dict[str, Any] = {}
-            if in_sets:
-                allowed = set.intersection(*in_sets)
-                id_clause["$in"] = [ObjectId(x) for x in allowed]
-            if nin_ids:
-                id_clause["$nin"] = [ObjectId(x) for x in nin_ids]
-            filt["_id"] = id_clause
+            filt["_id"] = (
+                {"$in": [ObjectId(x) for x in ids]}
+                if marked else {"$nin": [ObjectId(x) for x in ids]}
+            )
 
-        total = await self.repo.count_browse(filt)
-        docs = await self.repo.find_browse(
+        post_filter: Optional[dict[str, Any]] = None
+        if attempted is not None:
+            ck = await self.repo.attempted_composite_keys(user_id)
+            post_filter = {"_composite_key": (
+                {"$in": list(ck)} if attempted else {"$nin": list(ck)}
+            )}
+
+        total = await self.repo.count_browse(filt, post_filter=post_filter)
+        rows = await self.repo.find_browse(
             filt, skip=(page - 1) * page_size, limit=page_size,
+            post_filter=post_filter,
         )
 
-        obj_ids = [str(d["_id"]) for d in docs]
-        qid_entries = await self.repo.qid_entries_for_obj_ids(obj_ids)
-        all_int_ids = [
-            int(e["_id"]) for rows in qid_entries.values() for e in rows
+        # Collect the (obj_id, sub_index) pairs we need to look up to build
+        # per-row attempt + marked status.
+        pairs: list[tuple[str, Optional[int]]] = [
+            (str(r["_id"]), r.get("_sub_index")) for r in rows
         ]
-        attempts = await self.repo.attempts_for_int_ids(user_id, all_int_ids)
-        viewed = await self.repo.viewed_obj_ids(user_id, obj_ids)
-        marked_ids = await self.repo.marked_obj_ids(user_id, obj_ids)
+        obj_id_set = list({p[0] for p in pairs})
+        qid_entries = await self.repo.qid_entries_for_obj_ids(obj_id_set)
+        pair_to_int_id: dict[tuple[str, Optional[int]], int] = {}
+        for obj_id, entries in qid_entries.items():
+            for e in entries:
+                si = e.get("sub_index")
+                pair_to_int_id[(obj_id, None if si is None else int(si))] = int(e["_id"])
+        int_ids = [pair_to_int_id[p] for p in pairs if p in pair_to_int_id]
+        attempts = await self.repo.attempts_for_int_ids(user_id, int_ids)
+        viewed = await self.repo.viewed_obj_ids(user_id, obj_id_set)
+        marked_ids = await self.repo.marked_obj_ids(user_id, obj_id_set)
 
         items: list[BrowseItem] = []
-        for d in docs:
-            obj_id = str(d["_id"])
-            its_int_ids = [int(e["_id"]) for e in qid_entries.get(obj_id, [])]
-            its_attempts = [attempts[i] for i in its_int_ids if i in attempts]
-            is_attempted = len(its_attempts) > 0
+        for r in rows:
+            obj_id = str(r["_id"])
+            sub_index = r.get("_sub_index")
+            is_passage_sub = sub_index is not None
+            si = int(sub_index) if is_passage_sub else None
+            int_id = pair_to_int_id.get((obj_id, si))
+            att = attempts.get(int_id) if int_id is not None else None
+            # Surface the sub-question's own text on passage rows so the
+            # list preview shows what each sub asks (not the passage stem).
+            if is_passage_sub:
+                subs = (r.get("passageData") or {}).get("subQuestions") or []
+                q_text = subs[si].get("questionText", "") if si is not None and si < len(subs) else ""
+                q_type = "single_correct"
+            else:
+                q_text = r.get("questionText") or ""
+                q_type = (r.get("questionType") or "single_correct")
             items.append(BrowseItem(
-                question_id=obj_id,
-                subject=(d.get("subject") or "").strip(),
-                chapter=(d.get("chapter") or "").strip(),
-                topic=(d.get("topic") or "").strip(),
-                difficulty=(d.get("difficulty") or "medium"),
-                question_type=(d.get("questionType") or "single_correct"),
-                question_text=d.get("questionText") or "",
-                attempted=is_attempted,
+                question_id=_make_composite(obj_id, si),
+                obj_id=obj_id,
+                sub_index=si,
+                is_passage_sub=is_passage_sub,
+                subject=(r.get("subject") or "").strip(),
+                chapter=(r.get("chapter") or "").strip(),
+                topic=(r.get("topic") or "").strip(),
+                difficulty=(r.get("difficulty") or "medium"),
+                question_type=q_type,
+                question_text=q_text,
+                attempted=att is not None,
                 viewed=obj_id in viewed,
                 marked=obj_id in marked_ids,
-                performance=_aggregate_perf(its_attempts) if is_attempted else None,
+                performance=_perf_from_attempt(att) if att is not None else None,
             ))
 
         return BrowseListResponse(
             items=items, total=total, page=page, page_size=page_size,
         )
 
-    async def _question_attempts(
-        self, user_id: ObjectId, obj_id: str,
-    ) -> dict[Optional[int], dict]:
-        """Return {sub_index: attempt_doc} for one question (sub_index None for
-        a standalone question), pulling only allocated int ids."""
-        entries = (await self.repo.qid_entries_for_obj_ids([obj_id])).get(obj_id, [])
-        if not entries:
-            return {}
-        by_int = {int(e["_id"]): e.get("sub_index") for e in entries}
-        attempts = await self.repo.attempts_for_int_ids(user_id, list(by_int.keys()))
-        return {by_int[i]: a for i, a in attempts.items()}
+    async def _resolve_browse_target(
+        self, composite_id: str,
+    ) -> tuple[dict, str, Optional[int], bool]:
+        """Look up the underlying question doc and confirm composite-id shape.
 
-    async def get_browse_detail(
-        self, user_id: ObjectId, obj_id: str,
-    ) -> BrowseQuestionDetail:
+        Returns (doc, obj_id, sub_index, is_passage_sub). Raises on mismatch
+        between composite id and the doc's question type."""
+        obj_id, sub_index = _parse_composite_qid(composite_id)
         try:
             doc = await self.repo.get_question_by_obj_id(obj_id)
         except Exception:
@@ -482,123 +517,124 @@ class MockTestService:
             raise AppException(
                 "Question not found.", status_code=status.HTTP_404_NOT_FOUND,
             )
-
         qtype = (doc.get("questionType") or "single_correct").lower()
-        attempts_by_sub = await self._question_attempts(user_id, obj_id)
-        solution_viewed = await self.repo.has_viewed(user_id, obj_id)
+        is_passage = (qtype == "passage")
+        if is_passage and sub_index is None:
+            raise AppException(
+                "Passage requires a sub-question index.",
+                status.HTTP_400_BAD_REQUEST,
+            )
+        if not is_passage and sub_index is not None:
+            raise AppException(
+                "This question is not a passage.",
+                status.HTTP_400_BAD_REQUEST,
+            )
+        if is_passage:
+            subs = (doc.get("passageData") or {}).get("subQuestions") or []
+            if sub_index is None or sub_index < 0 or sub_index >= len(subs):
+                raise AppException(
+                    "Sub-question not found.",
+                    status.HTTP_404_NOT_FOUND,
+                )
+        return doc, obj_id, sub_index, is_passage
+
+    async def _attempt_feeds_recommender(
+        self,
+        *,
+        user_id: ObjectId,
+        obj_id: str,
+        int_id: Optional[int],
+        now: datetime,
+    ) -> bool:
+        """True when a fresh attempt at this question should feed the
+        recommender. Returns False if any recorded event (attempt or
+        solution view) on this specific (obj_id, sub_index) — or a
+        solution view on the parent obj_id — falls inside the cooldown
+        window. Mechanics are internal; never surfaced to the client."""
+        cutoff = now - timedelta(hours=RECOMMENDER_COOLDOWN_HOURS)
+        last_events: list[datetime] = []
+        if int_id is not None:
+            att = await self.repo.attempts.find_one(
+                {"user_id": user_id, "question_id": int(int_id)},
+                {"last_event_at": 1, "attempted_at": 1},
+            )
+            if att:
+                last = att.get("last_event_at") or att.get("attempted_at")
+                if isinstance(last, datetime):
+                    last_events.append(last)
+        view = await self.repo.practice_views.find_one(
+            {"user_id": user_id, "obj_id": obj_id},
+            {"viewed_at": 1},
+        )
+        if view and isinstance(view.get("viewed_at"), datetime):
+            last_events.append(view["viewed_at"])
+        if not last_events:
+            return True
+        return max(last_events) <= cutoff
+
+    async def get_browse_detail(
+        self, user_id: ObjectId, composite_id: str,
+    ) -> BrowseQuestionDetail:
+        doc, obj_id, sub_index, is_passage_sub = await self._resolve_browse_target(composite_id)
+        qtype = (doc.get("questionType") or "single_correct").lower()
+
+        int_id = await self.repo.find_question_int_id(obj_id, sub_index)
+        attempt = None
+        if int_id is not None:
+            attempts = await self.repo.attempts_for_int_ids(user_id, [int_id])
+            attempt = attempts.get(int_id)
         marked = await self.repo.is_in_notebook(user_id, obj_id)
 
         detail = BrowseQuestionDetail(
-            question_id=obj_id,
+            question_id=composite_id,
+            obj_id=obj_id,
+            sub_index=sub_index,
+            is_passage_sub=is_passage_sub,
             subject=(doc.get("subject") or "").strip(),
             chapter=(doc.get("chapter") or "").strip(),
             topic=(doc.get("topic") or "").strip(),
             difficulty=(doc.get("difficulty") or "medium"),
-            question_type=qtype,
-            question_text=doc.get("questionText") or "",
-            solution_viewed=solution_viewed,
+            question_type=("single_correct" if is_passage_sub else qtype),
             marked=marked,
+            attempted=attempt is not None,
+            performance=_perf_from_attempt(attempt) if attempt else None,
         )
 
-        if qtype == "passage":
-            pdata = doc.get("passageData") or {}
-            subs = pdata.get("subQuestions") or []
-            detail.passage_text = pdata.get("passageText") or ""
-            any_attempt = False
-            for i, sub in enumerate(subs):
-                att = attempts_by_sub.get(i)
-                gate_open = att is not None or solution_viewed
-                bs = BrowseSubQuestion(
-                    sub_index=i,
-                    question_text=sub.get("questionText") or "",
-                    options=_options_from_doc(sub),
-                    correct_option=(sub.get("correctOption") if gate_open else None),
-                )
-                if att is not None:
-                    any_attempt = True
-                    bs.performance = _perf_from_attempt(att)
-                detail.sub_questions.append(bs)
-            detail.attempted = any_attempt
-            return detail
-
-        # Standalone question
-        if qtype in ("single_correct", "multi_correct"):
-            detail.options = _options_from_doc(doc)
-        elif qtype == "matching":
-            detail.left_column, detail.right_column = _matching_cols(doc)
-
-        att = attempts_by_sub.get(None)
-        detail.attempted = att is not None
-        gate_open = detail.attempted or solution_viewed
-        if gate_open:
-            detail.correct_answer = _correct_answer_for(doc, qtype)
-        if att is not None:
-            detail.performance = _perf_from_attempt(att)
+        if is_passage_sub:
+            subs = (doc.get("passageData") or {}).get("subQuestions") or []
+            sub = subs[sub_index]
+            detail.passage_text = (doc.get("passageData") or {}).get("passageText") or ""
+            detail.question_text = sub.get("questionText") or ""
+            detail.options = _options_from_doc(sub)
+        else:
+            detail.question_text = doc.get("questionText") or ""
+            if qtype in ("single_correct", "multi_correct"):
+                detail.options = _options_from_doc(doc)
+            elif qtype == "matching":
+                detail.left_column, detail.right_column = _matching_cols(doc)
         return detail
 
     async def record_practice_attempt(
-        self, user_id: ObjectId, obj_id: str, req: BrowseAttemptRequest,
+        self, user_id: ObjectId, composite_id: str, req: BrowseAttemptRequest,
     ) -> BrowseAttemptResponse:
-        try:
-            doc = await self.repo.get_question_by_obj_id(obj_id)
-        except Exception:
-            doc = None
-        if doc is None:
-            raise AppException(
-                "Question not found.", status_code=status.HTTP_404_NOT_FOUND,
-            )
-
+        doc, obj_id, sub_index, is_passage_sub = await self._resolve_browse_target(composite_id)
         qtype = (doc.get("questionType") or "single_correct").lower()
-        # Peek rule: a genuine attempt is recorded only if the solution has
-        # NOT been viewed for this question. Viewing downgrades to "seen".
-        recorded = not await self.repo.has_viewed(user_id, obj_id)
         difficulty = str(doc.get("difficulty") or "medium")
         now = datetime.now(timezone.utc)
 
-        # Resolve the question's topic int id once (shared by all sub-Qs).
         _sid, _cid, topic_id = await self.repo.get_or_create_topic_id(
             (doc.get("subject") or "").strip(),
             (doc.get("chapter") or "").strip(),
             (doc.get("topic") or "").strip(),
         )
 
-        if qtype == "passage":
+        # Grade the single (sub-)question.
+        sub_doc: Optional[dict] = None
+        if is_passage_sub:
             subs = (doc.get("passageData") or {}).get("subQuestions") or []
-            answers = req.answers or {}
-            sub_results: list[BrowseSubQuestion] = []
-            attempt_docs: list[dict] = []
-            for i, sub in enumerate(subs):
-                graded = grade_passage_sub(answers.get(str(i)), sub)
-                sub_results.append(BrowseSubQuestion(
-                    sub_index=i,
-                    question_text=sub.get("questionText") or "",
-                    options=_options_from_doc(sub),
-                    correct_option=sub.get("correctOption"),
-                    user_answer=graded.user_answer,
-                    performance=_perf_from_graded(graded),
-                ))
-                if recorded:
-                    int_id = await self.repo.get_or_create_question_int_id(obj_id, i)
-                    attempt_docs.append(new_attempt_doc(
-                        user_id=user_id, question_id=int_id, topic_id=topic_id,
-                        is_correct=graded.is_correct, correctness=graded.correctness,
-                        difficulty=difficulty, score_contribution=0,
-                        attempted_at=now, session_id=PRACTICE_SESSION_ID,
-                    ))
-            if recorded and attempt_docs:
-                await self.repo.bulk_upsert_attempts(attempt_docs)
-            agg = _aggregate_perf([
-                {"is_correct": sr.performance.status == "correct",
-                 "correctness": sr.performance.correctness}
-                for sr in sub_results if sr.performance
-            ]) or BrowsePerformance(status="incorrect", correctness=0.0)
-            return BrowseAttemptResponse(
-                performance=agg, correct_answer=None,
-                recorded=recorded, sub_results=sub_results,
-            )
-
-        # Standalone question
-        if qtype == "single_correct":
+            sub_doc = subs[sub_index]
+            graded = grade_passage_sub(req.selected_option, sub_doc)
+        elif qtype == "single_correct":
             graded = grade_single_correct(req.selected_option, doc)
         elif qtype == "multi_correct":
             graded = grade_multi_correct(req.selected_options, doc)
@@ -609,43 +645,213 @@ class MockTestService:
         else:
             graded = grade_single_correct(req.selected_option, doc)
 
-        if recorded:
-            int_id = await self.repo.get_or_create_question_int_id(obj_id, None)
+        # Cooldown check decides whether this attempt feeds the recommender.
+        int_id = await self.repo.get_or_create_question_int_id(obj_id, sub_index)
+        feeds = await self._attempt_feeds_recommender(
+            user_id=user_id, obj_id=obj_id, int_id=int_id, now=now,
+        )
+
+        if feeds:
             await self.repo.bulk_upsert_attempts([new_attempt_doc(
                 user_id=user_id, question_id=int_id, topic_id=topic_id,
                 is_correct=graded.is_correct, correctness=graded.correctness,
                 difficulty=difficulty, score_contribution=0,
                 attempted_at=now, session_id=PRACTICE_SESSION_ID,
             )])
+        else:
+            await self.repo.mark_attempt_non_feeding(
+                user_id=user_id, question_id=int_id, topic_id=topic_id,
+                is_correct=graded.is_correct, correctness=graded.correctness,
+                difficulty=difficulty, attempted_at=now,
+                session_id=PRACTICE_SESSION_ID,
+            )
 
-        return BrowseAttemptResponse(
+        response = BrowseAttemptResponse(
             performance=_perf_from_graded(graded),
-            correct_answer=graded.correct_answer,
-            recorded=recorded,
+            correct_answer=None,
+            solution=None,
         )
 
-    async def view_solution(
-        self, user_id: ObjectId, obj_id: str,
-    ) -> BrowseSolutionResponse:
+        # Reveal the answer + worked solution only when the attempt is
+        # correct. A wrong attempt sends the user back to the same prompt
+        # so they can try again (still wrong → still no reveal). Viewing
+        # the solution explicitly via the view-solution endpoint is the
+        # only other way to surface either.
+        if graded.is_correct:
+            await self.repo.record_view(user_id, obj_id)
+            if is_passage_sub:
+                response.correct_answer = sub_doc.get("correctOption") if sub_doc else None
+                response.solution = (
+                    (sub_doc.get("solution") if sub_doc else None)
+                    or (sub_doc.get("explanation") if sub_doc else None)
+                    or doc.get("solution")
+                    or ""
+                )
+            else:
+                response.correct_answer = _correct_answer_for(doc, qtype)
+                response.solution = doc.get("solution") or doc.get("explanation") or ""
+        return response
+
+    async def pick_potd_candidate(
+        self, user_oid: ObjectId, topic_id: int,
+    ) -> Optional[dict]:
+        """Pick a single question for POTD using the recommender engine
+        WITHOUT creating a mock-test session.
+
+        The engine is the right picker for "what should this user see next"
+        — it factors in cooldown / recency / difficulty mix. We feed it
+        exactly the same inputs `create_test` does, then take its first
+        pick and skip the persistence machinery.
+
+        Passages are excluded — POTD's one-question framing doesn't fit a
+        multi-part question. Returns the raw question doc + topic_id, or
+        None if the engine couldn't assemble a pick from the topic.
+        """
+        trip = await self.repo.lookup_topic_triple(topic_id)
+        if trip is None:
+            return None
+        raw_docs = await self.repo.fetch_questions_for_triples([trip])
+        if not raw_docs:
+            return None
+
+        # Build engine_questions, excluding passage-type docs entirely.
+        engine_questions: list[tuple[EngineQuestion, int]] = []
+        int_to_obj: dict[int, str] = {}
+        for doc in raw_docs:
+            qtype = (doc.get("questionType") or "single_correct").lower()
+            if qtype == "passage":
+                continue
+            obj_id = str(doc["_id"])
+            difficulty = (doc.get("difficulty") or "medium").lower()
+            int_id = await self.repo.get_or_create_question_int_id(obj_id)
+            int_to_obj[int_id] = obj_id
+            engine_questions.append((EngineQuestion(
+                id=int_id,
+                topic_ids=(topic_id,),
+                difficulty=difficulty,
+                question_type=qtype,
+            ), topic_id))
+
+        if not engine_questions:
+            return None
+        engine_questions.sort(key=lambda pair: (pair[1], pair[0].id))
+
+        # Same feeding-only attempt filter as `create_test` (engine-mirror
+        # fields when present; legacy rows fall back to user-visible).
+        attempt_docs = await self.db["user_topic_attempts"].find(
+            {"user_id": user_oid, "topic_id": topic_id},
+        ).to_list(length=None)
+        engine_attempts: list[EngineAttempt] = []
+        for ad in attempt_docs:
+            has_engine_fields = "e_attempted_at" in ad
+            if has_engine_fields:
+                if ad.get("e_attempted_at") is None:
+                    continue
+                e_is_correct = ad.get("e_is_correct")
+                if e_is_correct is None:
+                    continue
+                engine_attempts.append(EngineAttempt(
+                    user_id=user_oid,
+                    topic_id=int(ad["topic_id"]),
+                    question_id=int(ad["question_id"]),
+                    is_correct=bool(e_is_correct),
+                    difficulty=str(ad.get("e_difficulty") or "medium"),
+                    score_contribution=int(ad.get("e_score_contribution") or 0),
+                    attempted_at=ad["e_attempted_at"],
+                    correctness=ad.get("e_correctness"),
+                ))
+            else:
+                if ad.get("is_correct") is None:
+                    continue
+                engine_attempts.append(EngineAttempt(
+                    user_id=user_oid,
+                    topic_id=int(ad["topic_id"]),
+                    question_id=int(ad["question_id"]),
+                    is_correct=bool(ad.get("is_correct", False)),
+                    difficulty=str(ad.get("difficulty", "medium")),
+                    score_contribution=int(ad.get("score_contribution", 0)),
+                    attempted_at=ad.get("attempted_at") or datetime.now(timezone.utc),
+                    correctness=ad.get("correctness"),
+                ))
+
+        topic_chapter_map = await self.repo.topic_chapter_map([topic_id])
+        # PRACTICE_SESSION_ID is the sentinel for "no real session" — we
+        # don't drain the buffered repo so this id never gets persisted.
+        buffered = BufferedRepository(
+            user_id=user_oid,
+            preallocated_session_id=PRACTICE_SESSION_ID,
+            attempts_for_topics=engine_attempts,
+            attempts_for_user=[],
+            available_questions=engine_questions,
+            topic_chapters=topic_chapter_map,
+        )
         try:
-            doc = await self.repo.get_question_by_obj_id(obj_id)
-        except Exception:
-            doc = None
-        if doc is None:
-            raise AppException(
-                "Question not found.", status_code=status.HTTP_404_NOT_FOUND,
+            mock_test = engine_create_mock_test(
+                buffered,
+                user_id=user_oid,
+                topic_ids=[topic_id],
+                total_questions=1,
+                include_extra=False,
+                extra_count=0,
+                shuffle_seed=int(time.time()),
             )
+        except Exception:
+            logger.exception("POTD engine pick failed for topic %s", topic_id)
+            return None
+        if not mock_test.questions:
+            return None
+        picked, _tid = mock_test.questions[0]
+        obj_id_str = int_to_obj.get(picked.id)
+        if obj_id_str is None:
+            return None
+        chosen_doc = next((d for d in raw_docs if str(d["_id"]) == obj_id_str), None)
+        if chosen_doc is None:
+            return None
+        return chosen_doc
+
+    async def get_catalog_raw(self) -> list[dict]:
+        """Flat list of (subject, chapter, topic, topic_id, question_count)
+        rows — used by POTD's random-fallback picker for users with no
+        attempts yet. Materialises topic ids on the way out so the caller
+        doesn't have to do another round-trip per topic."""
+        rows = await self.repo.list_all_catalog_topics()
+        out: list[dict] = []
+        for row in rows:
+            _sid, _cid, tid = await self.repo.get_or_create_topic_id(
+                row["subject"], row["chapter"], row["topic"],
+            )
+            out.append({
+                "topic_id": int(tid),
+                "subject": row["subject"],
+                "chapter": row["chapter"],
+                "topic": row["topic"],
+                "question_count": int(row["question_count"]),
+            })
+        return out
+
+    async def view_solution(
+        self, user_id: ObjectId, composite_id: str,
+    ) -> BrowseSolutionResponse:
+        doc, obj_id, sub_index, is_passage_sub = await self._resolve_browse_target(composite_id)
         await self.repo.record_view(user_id, obj_id)
 
-        qtype = (doc.get("questionType") or "single_correct").lower()
-        if qtype == "passage":
+        if is_passage_sub:
             subs = (doc.get("passageData") or {}).get("subQuestions") or []
-            correct_answer = {str(i): sub.get("correctOption") for i, sub in enumerate(subs)}
-        else:
-            correct_answer = _correct_answer_for(doc, qtype)
+            sub_doc = subs[sub_index]
+            solution_text = (
+                sub_doc.get("solution")
+                or sub_doc.get("explanation")
+                or doc.get("solution")
+                or ""
+            )
+            return BrowseSolutionResponse(
+                solution=solution_text,
+                correct_answer=sub_doc.get("correctOption"),
+            )
+        qtype = (doc.get("questionType") or "single_correct").lower()
         return BrowseSolutionResponse(
             solution=doc.get("solution") or "",
-            correct_answer=correct_answer,
+            correct_answer=_correct_answer_for(doc, qtype),
         )
 
     # ------------------------------------------------------------------
@@ -663,15 +869,20 @@ class MockTestService:
             )
 
     async def add_to_notebook(
-        self, user_id: ObjectId, obj_id: str,
+        self, user_id: ObjectId, composite_id: str,
     ) -> NotebookToggleResponse:
+        # Notebook is stored at the parent obj_id level — marking any sub
+        # of a passage tags the whole passage so the notebook view shows
+        # all its subs together.
+        obj_id, _sub = _parse_composite_qid(composite_id)
         await self._assert_question_exists(obj_id)
         await self.repo.add_to_notebook(user_id, obj_id)
         return NotebookToggleResponse(marked=True)
 
     async def remove_from_notebook(
-        self, user_id: ObjectId, obj_id: str,
+        self, user_id: ObjectId, composite_id: str,
     ) -> NotebookToggleResponse:
+        obj_id, _sub = _parse_composite_qid(composite_id)
         await self.repo.remove_from_notebook(user_id, obj_id)
         return NotebookToggleResponse(marked=False)
 
@@ -766,22 +977,46 @@ class MockTestService:
         # Stable order — by topic_id then int id.
         engine_questions.sort(key=lambda pair: (pair[1], pair[0].id))
 
-        # Fetch user's prior attempts on these topics.
+        # Fetch user's prior attempts on these topics. Non-feeding cooldown
+        # rows (`e_attempted_at` exists but is None) are skipped so the
+        # recommender stays on honest signal; legacy pre-cooldown rows
+        # (no `e_*` fields at all) fall back to the user-visible fields.
         attempt_docs = await self.db["user_topic_attempts"].find(
             {"user_id": user_oid, "topic_id": {"$in": topic_ids}},
         ).to_list(length=None)
         engine_attempts: list[EngineAttempt] = []
         for ad in attempt_docs:
-            engine_attempts.append(EngineAttempt(
-                user_id=user_oid,
-                topic_id=int(ad["topic_id"]),
-                question_id=int(ad["question_id"]),
-                is_correct=bool(ad.get("is_correct", False)),
-                difficulty=str(ad.get("difficulty", "medium")),
-                score_contribution=int(ad.get("score_contribution", 0)),
-                attempted_at=ad.get("attempted_at") or datetime.now(timezone.utc),
-                correctness=ad.get("correctness"),
-            ))
+            has_engine_fields = "e_attempted_at" in ad
+            if has_engine_fields:
+                if ad.get("e_attempted_at") is None:
+                    continue  # cooldown-only row — engine ignores it
+                e_is_correct = ad.get("e_is_correct")
+                if e_is_correct is None:
+                    continue
+                engine_attempts.append(EngineAttempt(
+                    user_id=user_oid,
+                    topic_id=int(ad["topic_id"]),
+                    question_id=int(ad["question_id"]),
+                    is_correct=bool(e_is_correct),
+                    difficulty=str(ad.get("e_difficulty") or "medium"),
+                    score_contribution=int(ad.get("e_score_contribution") or 0),
+                    attempted_at=ad["e_attempted_at"],
+                    correctness=ad.get("e_correctness"),
+                ))
+            else:
+                # Legacy row (pre-cooldown) — treat as feeding.
+                if ad.get("is_correct") is None:
+                    continue
+                engine_attempts.append(EngineAttempt(
+                    user_id=user_oid,
+                    topic_id=int(ad["topic_id"]),
+                    question_id=int(ad["question_id"]),
+                    is_correct=bool(ad.get("is_correct", False)),
+                    difficulty=str(ad.get("difficulty", "medium")),
+                    score_contribution=int(ad.get("score_contribution", 0)),
+                    attempted_at=ad.get("attempted_at") or datetime.now(timezone.utc),
+                    correctness=ad.get("correctness"),
+                ))
 
         # Pre-allocate the session id (engine needs an int back from save_session).
         session_id = await self.repo.next_id(COUNTER_SESSION)
@@ -1155,7 +1390,33 @@ class MockTestService:
                 correctness=graded.correctness,
             )
 
-        # Run engine submit on a fresh buffered repo (writes only).
+        # Cooldown gate — split the evaluations into feeding / non-feeding.
+        # Each question that the user has recently touched (attempt or
+        # solution view within RECOMMENDER_COOLDOWN_HOURS) is silently
+        # excluded from the engine so its prior signal stays authoritative.
+        now = datetime.now(timezone.utc)
+        feeds_map: dict[int, bool] = {}
+        for qid in responses_by_qid.keys():
+            md = map_docs.get(qid)
+            if md is None:
+                continue
+            feeds_map[qid] = await self._attempt_feeds_recommender(
+                user_id=user_oid,
+                obj_id=str(md["obj_id"]),
+                int_id=int(qid),
+                now=now,
+            )
+
+        feeding_evaluations = [e for e in evaluations if feeds_map.get(int(e.question_id), True)]
+        non_feeding_qids = [
+            int(e.question_id) for e in evaluations
+            if not feeds_map.get(int(e.question_id), True)
+        ]
+
+        # Run engine submit on a fresh buffered repo (writes only). The
+        # engine only sees the feeding subset, so its score totals reflect
+        # those alone — we recompute the user-facing test totals from
+        # `graded_results` below.
         buffered = BufferedRepository(
             user_id=user_oid,
             preallocated_session_id=session_id,
@@ -1165,11 +1426,11 @@ class MockTestService:
             buffered,
             session_id=session_id,
             user_id=user_oid,
-            evaluations=evaluations,
+            evaluations=feeding_evaluations,
             difficulty_by_question=difficulty_by_q,
         )
 
-        # Persist attempt rows.
+        # Persist feeding attempt rows (full overwrite — engine signal).
         attempt_docs = []
         attempt_sc_by_qid: dict[int, int] = {}
         for ea in result.new_attempts:
@@ -1187,32 +1448,67 @@ class MockTestService:
             ))
         await self.repo.bulk_upsert_attempts(attempt_docs)
 
-        # Backfill score_contribution into per-question results.
+        # Cooldown attempts: update the user-visible "latest attempt"
+        # fields but leave the engine-mirror fields untouched.
+        eval_by_qid = {int(e.question_id): e for e in evaluations}
+        for qid in non_feeding_qids:
+            ev = eval_by_qid.get(qid)
+            if ev is None:
+                continue
+            md = map_docs.get(qid)
+            if md is None:
+                continue
+            await self.repo.mark_attempt_non_feeding(
+                user_id=user_oid,
+                question_id=qid,
+                topic_id=int(responses_by_qid[qid]["topic_id"]),
+                is_correct=ev.is_correct,
+                correctness=ev.correctness,
+                difficulty=difficulty_by_q.get(qid, "medium"),
+                attempted_at=now,
+                session_id=session_id,
+            )
+
+        # Backfill score_contribution into per-question results. Cooldown
+        # questions contributed 0 to the recommender; their grade is still
+        # reflected in the user's test score below.
         for r in graded_results:
             r.score_contribution = attempt_sc_by_qid.get(r.question_id, 0)
+
+        # Compute the user-facing test totals from ALL graded results so
+        # the score the student sees reflects what they actually answered,
+        # not just the engine-fed subset.
+        total = len(graded_results)
+        correct_count = sum(1 for r in graded_results if r.is_correct)
+        partial_count = sum(
+            1 for r in graded_results
+            if not r.is_correct and (r.correctness or 0) > 0
+        )
+        incorrect_count = total - correct_count - partial_count
+        total_score = sum(float(r.correctness) for r in graded_results)
 
         await self.repo.update_session_status(
             session_id,
             status="completed",
-            score=result.total_score,
-            correct=result.correct,
-            incorrect=result.incorrect,
-            partial=result.partial,
+            score=total_score,
+            correct=correct_count,
+            incorrect=incorrect_count,
+            partial=partial_count,
         )
 
-        max_score = float(result.total) if result.total else 1.0
-        accuracy_pct = (result.total_score / max_score) * 100 if max_score else 0.0
+        max_score = float(total) if total else 1.0
+        accuracy_pct = (total_score / max_score) * 100 if max_score else 0.0
 
         # Sort results by display order so the client maps cleanly.
         graded_results.sort(key=lambda r: r.display_order)
 
         return SubmitMockTestResponse(
             session_id=session_id,
-            total=result.total,
-            correct=result.correct,
-            incorrect=result.incorrect,
-            partial=result.partial,
-            total_score=result.total_score,
+            total=total,
+            correct=correct_count,
+            incorrect=incorrect_count,
+            partial=partial_count,
+            total_score=total_score,
             max_score=max_score,
             accuracy_pct=accuracy_pct,
             results=graded_results,
@@ -1659,19 +1955,18 @@ class MockTestService:
             engagement = min(50.0, battle_count * 5.0)
             b_score = min(100.0, engagement + win_rate * 50.0)
 
-        # ---- POTD (P) — distinct IST days w/ ≥ 1 single-question session ----
-        potd_days_30: set = set()
-        for s in sessions:
-            if int(s.get("total_questions") or 0) != 1:
-                continue
-            ts = s.get("completed_at") or s.get("created_at")
-            if not isinstance(ts, datetime):
-                continue
-            if ts.tzinfo is None:
-                ts = ts.replace(tzinfo=timezone.utc)
-            ts_ist = ts.astimezone(IST)
-            if ts_ist >= cutoff:
-                potd_days_30.add(ts_ist.date())
+        # ---- POTD (P) — distinct IST days the user actually SOLVED POTD.
+        # Pulled from the dedicated `potd_user_state` collection (where
+        # status='solved' is the strict signal), rather than counting any
+        # 1-question mock-test session like we used to. Same 30-day window
+        # and same 0–100 scaling — just a stricter "engaged" predicate.
+        from modules.potd.repository import PotdRepository  # local import: avoid cycle
+        cutoff_date_iso = cutoff.date().isoformat()
+        potd_repo = PotdRepository(self.db)
+        solved_iso_dates = await potd_repo.list_solved_dates_since(
+            user_oid, cutoff_date_iso,
+        )
+        potd_days_30 = {d for d in solved_iso_dates}
         p_score = min(100.0, len(potd_days_30) / 30.0 * 100.0)
 
         # ---- Weighted total ----

@@ -140,6 +140,22 @@ async def _ensure_indexes() -> None:
         unique=True,
     )
 
+    # POTD — one assignment + one engagement-state row per (user, date_ist).
+    # The streak / calendar reads filter by user_id then range over
+    # date_ist (ISO string ordering = chronological), so the compound
+    # indexes serve both lookups cleanly.
+    await mongo.db["potd_assignments"].create_index(
+        [("user_id", ASCENDING), ("date_ist", ASCENDING)],
+        unique=True,
+    )
+    await mongo.db["potd_user_state"].create_index(
+        [("user_id", ASCENDING), ("date_ist", ASCENDING)],
+        unique=True,
+    )
+    await mongo.db["potd_user_state"].create_index(
+        [("user_id", ASCENDING), ("status", ASCENDING)],
+    )
+
     await mongo.db["mock_test_sessions"].create_index([("user_id", ASCENDING)])
     await mongo.db["mock_test_sessions"].create_index(
         [("user_id", ASCENDING), ("created_at", -1)],
@@ -188,6 +204,22 @@ async def _ensure_indexes() -> None:
     )
     await mongo.db["battles"].create_index(
         [("player_b.user_id", ASCENDING), ("completed_at", -1)],
+    )
+
+    # ---------- Battle invites (battle-a-friend) ----------
+    # `code` is the public token — unique so two pending invites can't
+    # collide. `expires_at` doubles as a TTL key so Mongo auto-evicts
+    # invites after their 10-min window (status is still updated to
+    # `expired` at lookup time for any stragglers that read between
+    # expiry and eviction).
+    await mongo.db["battle_invites"].create_index(
+        [("code", ASCENDING)], unique=True,
+    )
+    await mongo.db["battle_invites"].create_index(
+        "expires_at", expireAfterSeconds=0,
+    )
+    await mongo.db["battle_invites"].create_index(
+        [("inviter_user_id", ASCENDING), ("status", ASCENDING)],
     )
 
     # ---------- SolverX ----------

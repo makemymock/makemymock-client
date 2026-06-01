@@ -1,0 +1,176 @@
+/* ========================================================
+ * Invite-a-friend modal — overlays BattleLaunch when the
+ * user clicks "Battle a friend".
+ * ======================================================== */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(7, 10, 18, 0.85);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 80;
+}
+
+.card {
+  width: min(480px, 100%);
+  background: #0f1622;
+  background: var(--color-panel-bg, #0f1622);
+  border: 1px solid var(--color-panel-border);
+  border-radius: 18px;
+  padding: 22px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--color-text-primary);
+}
+
+.closeBtn {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: var(--color-chip-bg);
+  border: 1px solid var(--color-panel-border);
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.closeBtn:hover { color: var(--color-text-primary); }
+
+.subtitle {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.fieldLabel {
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin-top: 4px;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.input {
+  flex: 1;
+  font: inherit;
+  font-size: 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--color-panel-border);
+  background: var(--color-chip-bg);
+  color: var(--color-text-primary);
+  min-width: 0;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.codeBig {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 4px;
+  font-variant-numeric: tabular-nums;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1.5px dashed var(--color-accent);
+  background: rgba(12, 193, 224, 0.08);
+  color: var(--color-text-primary);
+  user-select: all;
+  min-width: 0;
+  line-height: 1.4;
+}
+
+.copyBtn {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-panel-bg);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.copyBtn:hover {
+  background: rgba(12, 193, 224, 0.16);
+  border-color: var(--color-accent);
+}
+
+.meta {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.primary {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 10px 18px;
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(135deg, var(--color-brand-grad-from), var(--color-brand-grad-to));
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.primary:hover { filter: brightness(1.06); }
+
+.secondary {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 18px;
+  border-radius: 999px;
+  border: 1px solid var(--color-panel-border);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.secondary:hover { color: var(--color-text-primary); }

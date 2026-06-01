@@ -4,6 +4,7 @@ import { authService } from '../../services/authService';
 import { profileService } from '../../services/profileService';
 import { mockTestService } from '../../services/mockTestService';
 import { battleService } from '../../services/battleService';
+import { potdService } from '../../services/potdService';
 import { tokenStorage } from '../../utils/token';
 import { parseApiError } from '../../utils/validators';
 import Loader from '../../components/common/Loader/Loader';
@@ -171,17 +172,18 @@ const Dashboard = () => {
           {confidence ? (
             <section className={styles.topRow}>
               <HeroCard user={user} profile={profile} />
-              <ConfidenceTrophy data={confidence} />
+              <ConfidenceTrophy data={confidence} dataTour="dashboard.confidence" />
             </section>
           ) : (
             <HeroCard user={user} profile={profile} />
           )}
 
           <div className={styles.quickRow}>
-            <PotdBanner onOpen={() => setPotdOpen(true)} userId={user?.id} />
+            <PotdBanner onOpen={() => setPotdOpen(true)} />
             <NotebookCard
               count={notebookCount}
               onClick={() => navigate('/tests?tab=notebook')}
+              dataTour="dashboard.notebook"
             />
           </div>
 
@@ -213,10 +215,15 @@ const Dashboard = () => {
             />
           </section>
 
-          {/* Main two-column body: the big performance card on the left, a
-              dense side column (heatmap + pending + battles) on the right. */}
+          {/* Stacked layout: Performance fills the row, then an activity
+              row beneath splits into Heatmap + Pending tests + Recent
+              battles, each taking a column on desktop. */}
           <section className={styles.grid}>
-            <PerformanceCard overview={overview} pendingCount={stats.pending.length} />
+            <PerformanceCard
+              overview={overview}
+              pendingCount={stats.pending.length}
+              dataTour="dashboard.performance"
+            />
             <SidePanel
               heatmap={heatmap}
               pending={stats.pending}
@@ -224,6 +231,7 @@ const Dashboard = () => {
               onResume={(sid) => navigate(`/tests/${sid}`)}
               onNewTest={() => navigate('/tests')}
               onBattle={() => navigate('/battle')}
+              dataTour="dashboard.side-panel"
             />
           </section>
         </>
@@ -231,7 +239,6 @@ const Dashboard = () => {
 
       <PotdModal
         open={potdOpen}
-        userId={user?.id}
         onClose={() => setPotdOpen(false)}
       />
     </>
@@ -244,47 +251,55 @@ const Dashboard = () => {
 // ============================================================================
 
 // ---- Problem of the Day banner ----
-const PotdBanner = ({ onOpen, userId }) => {
-  // Read today's stored POTD entry to reflect "already done" vs. "ready".
-  // The modal owns the source of truth; this is just a hint for the CTA.
-  const todayKey = useMemo(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const PotdBanner = ({ onOpen }) => {
+  // Fetch the streak so the card can advertise momentum directly.
+  // The backend owns the streak math — this is just a read.
+  const [streak, setStreak] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const s = await potdService.getStreak();
+        if (!cancelled) setStreak(s);
+      } catch {
+        /* non-fatal — the banner still works without the chip */
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
-  const storageKey = `mmm_potd_${userId || 'anon'}_${todayKey}`;
-  const stored = (() => {
-    try {
-      const raw = localStorage.getItem(storageKey);
-      return raw ? JSON.parse(raw) : null;
-    } catch { return null; }
-  })();
-  const hasSessionToday = stored?.sessionId != null;
 
+  const current = streak?.current ?? 0;
   return (
-    <section className={styles.potdBanner}>
-      <div className={styles.potdLeft}>
+    <button
+      type="button"
+      className={styles.potdBanner}
+      data-tour="dashboard.potd"
+      onClick={onOpen}
+    >
+      <span className={styles.potdLeft}>
         <span className={styles.potdEmoji} aria-hidden="true">⚡</span>
-        <div className={styles.potdText}>
-          <p className={styles.potdEyebrow}>Daily Challenge</p>
-          <h2 className={styles.potdTitle}>Problem of the Day</h2>
-          <p className={styles.potdSub}>
-            {hasSessionToday
-              ? 'Pick up where you left off — review your challenge.'
+        <span className={styles.potdText}>
+          <span className={styles.potdEyebrow}>Daily Challenge</span>
+          <span className={styles.potdTitle}>Problem of the Day</span>
+          <span className={styles.potdSub}>
+            {current > 0
+              ? `🔥 ${current}-day streak. Keep it going.`
               : 'One question, picked to attack your weakest topic.'}
-          </p>
-        </div>
-      </div>
-      <button type="button" className={styles.potdBtn} onClick={onOpen}>
-        {hasSessionToday ? 'Open challenge' : 'Start now'}
-        <span aria-hidden="true" className={styles.potdBtnArrow}>→</span>
-      </button>
-    </section>
+          </span>
+        </span>
+      </span>
+      {/* Visual cue only — the whole card is the click target. */}
+      <span className={styles.potdBtn} aria-hidden="true">
+        {current > 0 ? 'Continue streak' : 'Start now'}
+        <span className={styles.potdBtnArrow}>→</span>
+      </span>
+    </button>
   );
 };
 
 // ---- Notebook quick-access (revise-later) ----
-const NotebookCard = ({ count, onClick }) => (
-  <button type="button" className={styles.notebookCard} onClick={onClick}>
+const NotebookCard = ({ count, onClick, dataTour }) => (
+  <button type="button" className={styles.notebookCard} onClick={onClick} data-tour={dataTour}>
     <span className={styles.notebookIcon} aria-hidden="true">🔖</span>
     <span className={styles.notebookMeta}>
       <span className={styles.notebookTitle}>Notebook</span>
@@ -303,10 +318,14 @@ const HeroCard = ({ user, profile }) => {
   const cls = profile?.class_grade
     ? (profile.class_grade === 'dropper' ? 'Dropper' : `Class ${profile.class_grade}`)
     : null;
+  // Prefer the user's real first name from the profile; fall back to the
+  // signup handle only while the profile is still loading.
+  const firstName = profile?.full_name?.trim().split(/\s+/)[0];
+  const greeting = firstName || user?.username || 'there';
   return (
     <section className={styles.hero}>
       <p className={styles.heroEyebrow}>Welcome back</p>
-      <h1 className={styles.heroTitle}>Hi, {user?.username || 'there'} 👋</h1>
+      <h1 className={styles.heroTitle}>Hi, {greeting} 👋</h1>
       <div className={styles.heroMeta}>
         {exam ? <span className={styles.metaTag}>🎯 {exam}</span> : null}
         {cls ? <span className={styles.metaTag}>🎓 {cls}</span> : null}
@@ -332,15 +351,15 @@ const StatCard = ({ accent, label, sub, value, rightTop, Icon }) => (
   </article>
 );
 
-const PerformanceCard = ({ overview, pendingCount }) => {
+const PerformanceCard = ({ overview, pendingCount, dataTour }) => {
   if (!overview || overview.total_tests === 0) {
     return (
-      <section className={styles.perfCard}>
+      <section className={styles.perfCard} data-tour={dataTour}>
         <header className={styles.cardHeader}>
           <h2 className={styles.cardTitle}>Performance Overview</h2>
           <p className={styles.cardSubtitle}>Track your learning journey</p>
         </header>
-        <div className={styles.emptyState}>
+        <div className={styles.emptyState} data-tour="dashboard.focus-areas">
           <p>No mock tests completed yet.</p>
           <p className={styles.emptyStateHint}>
             Take your first test to start seeing your accuracy, weak topics, and progress here.
@@ -355,7 +374,7 @@ const PerformanceCard = ({ overview, pendingCount }) => {
   const totalQ = overview.total_questions || 0;
 
   return (
-    <section className={styles.perfCard}>
+    <section className={styles.perfCard} data-tour={dataTour}>
       <header className={styles.cardHeader}>
         <div>
           <h2 className={styles.cardTitle}>Performance Overview</h2>
@@ -402,6 +421,7 @@ const PerformanceCard = ({ overview, pendingCount }) => {
           accent="warn"
           empty="Not enough data yet."
           topics={(overview.weakest_topics || []).slice(0, 3)}
+          dataTour="dashboard.focus-areas"
         />
         <TopicList
           title="Your strengths"
@@ -414,8 +434,11 @@ const PerformanceCard = ({ overview, pendingCount }) => {
   );
 };
 
-const TopicList = ({ title, accent, topics, empty }) => (
-  <div className={`${styles.topicList} ${styles[`topicList_${accent}`] || ''}`}>
+const TopicList = ({ title, accent, topics, empty, dataTour }) => (
+  <div
+    className={`${styles.topicList} ${styles[`topicList_${accent}`] || ''}`}
+    data-tour={dataTour}
+  >
     <p className={styles.topicListTitle}>{title}</p>
     {topics.length === 0 ? (
       <p className={styles.emptyHint}>{empty}</p>
@@ -469,8 +492,8 @@ const AccuracyDonut = ({ value }) => {
   );
 };
 
-const SidePanel = ({ heatmap, pending, battles, onResume, onNewTest, onBattle }) => (
-  <aside className={styles.sidePanel}>
+const SidePanel = ({ heatmap, pending, battles, onResume, onNewTest, onBattle, dataTour }) => (
+  <aside className={styles.sidePanel} data-tour={dataTour}>
     <Heatmap
       days={heatmap?.days || []}
       maxCount={heatmap?.max_count || 0}

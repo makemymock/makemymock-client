@@ -73,41 +73,39 @@ const History = () => {
         <ul className={styles.list}>
           {items.map((it) => {
             const completed = it.status === 'completed';
+            const href = completed ? `/tests/${it.session_id}/result` : `/tests/${it.session_id}`;
             return (
-              <li key={it.session_id} className={styles.item}>
-                <div className={styles.itemMain}>
-                  <div className={styles.itemHead}>
-                    <span className={styles.itemId}>#{it.session_id}</span>
-                    <span className={`${styles.statusPill} ${completed ? styles.completed : styles.pending}`}>
-                      {it.status}
-                    </span>
-                  </div>
-                  <div className={styles.itemMeta}>
-                    {it.total_questions} questions · started {formatDate(it.created_at)}
-                    {completed && it.completed_at ? ` · finished ${formatDate(it.completed_at)}` : ''}
-                  </div>
-                </div>
-
-                {completed ? (
-                  <div className={styles.itemScoreCol}>
-                    <div className={styles.score}>{it.score != null ? Number(it.score).toFixed(2) : '—'}</div>
-                    <div className={styles.scoreSub}>
-                      {it.correct ?? 0}✓ · {it.partial ?? 0}~ · {it.incorrect ?? 0}✗
+              <li key={it.session_id}>
+                <Link to={href} className={styles.item}>
+                  <div className={styles.itemMain}>
+                    <div className={styles.itemHead}>
+                      <span className={styles.itemId}>#{it.session_id}</span>
+                      <span className={`${styles.statusPill} ${completed ? styles.completed : styles.pending}`}>
+                        {it.status}
+                      </span>
+                    </div>
+                    <div className={styles.itemMeta}>
+                      {it.total_questions} questions · started {formatDate(it.created_at)}
+                      {completed && it.completed_at ? ` · finished ${formatDate(it.completed_at)}` : ''}
                     </div>
                   </div>
-                ) : null}
 
-                <div className={styles.itemActions}>
                   {completed ? (
-                    <Link to={`/tests/${it.session_id}/result`} className={styles.actionBtn}>
-                      View result
-                    </Link>
-                  ) : (
-                    <Link to={`/tests/${it.session_id}`} className={`${styles.actionBtn} ${styles.actionPrimary}`}>
-                      Resume
-                    </Link>
-                  )}
-                </div>
+                    <div className={styles.itemScoreCol}>
+                      <div className={styles.score}>{it.score != null ? Number(it.score).toFixed(2) : '—'}</div>
+                      <div className={styles.scoreSub}>
+                        {it.correct ?? 0}✓ · {it.partial ?? 0}~ · {it.incorrect ?? 0}✗
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {/* Visual cue only — the whole row is the click target. */}
+                  <span className={styles.itemActions} aria-hidden="true">
+                    <span className={`${styles.actionBtn} ${!completed ? styles.actionPrimary : ''}`}>
+                      {completed ? 'View result' : 'Resume'}
+                    </span>
+                  </span>
+                </Link>
               </li>
             );
           })}

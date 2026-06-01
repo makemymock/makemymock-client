@@ -1,0 +1,172 @@
+/* Three-tile podium for the top 3 finishers.
+   Visual order: silver | gold | bronze (gold is centred & tallest).
+   Each tile is a flex column anchored to its bottom-aligned bar,
+   so the heights stagger naturally:
+     gold   → 220px
+     silver → 180px
+     bronze → 150px
+*/
+
+.podium {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  align-items: end;
+  gap: 12px;
+  padding: 18px 12px 0;
+}
+
+.slot {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 10px 12px;
+  border-radius: 14px 14px 0 0;
+  text-align: center;
+  border: 1px solid var(--color-panel-border);
+  border-bottom: none;
+  background: var(--surface-opaque);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  min-height: 150px;
+  transition: transform 0.2s ease;
+}
+.slot:hover { transform: translateY(-2px); }
+
+/* The trailing `.bar` is the coloured ribbon at the bottom — gives
+   the tile its "podium step" look. */
+.bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 5px;
+}
+
+.rank_1 {
+  min-height: 220px;
+  border-color: rgba(245, 158, 11, 0.45);
+  background: linear-gradient(180deg,
+    rgba(245, 158, 11, 0.06),
+    var(--surface-opaque) 40%);
+  box-shadow: 0 14px 36px rgba(245, 158, 11, 0.18);
+}
+.rank_1 .bar {
+  background: linear-gradient(90deg, #fde047, #f59e0b);
+  height: 6px;
+}
+
+.rank_2 {
+  min-height: 180px;
+  border-color: rgba(203, 213, 225, 0.4);
+}
+.rank_2 .bar {
+  background: linear-gradient(90deg, #e2e8f0, #94a3b8);
+}
+
+.rank_3 {
+  min-height: 150px;
+  border-color: rgba(251, 146, 60, 0.4);
+}
+.rank_3 .bar {
+  background: linear-gradient(90deg, #fdba74, #c2410c);
+}
+
+.empty {
+  opacity: 0.55;
+}
+.empty .medal {
+  background: var(--color-chip-bg);
+  color: var(--color-text-muted);
+  box-shadow: none;
+}
+
+.medal {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 16px;
+  color: #06161c;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.3);
+  margin-bottom: 4px;
+}
+.rank_1 .medal { background: linear-gradient(135deg, #fde047, #f59e0b); width: 46px; height: 46px; font-size: 18px; }
+.rank_2 .medal { background: linear-gradient(135deg, #e2e8f0, #94a3b8); }
+.rank_3 .medal { background: linear-gradient(135deg, #fdba74, #c2410c); }
+
+.name {
+  margin: 0;
+  font-weight: 700;
+  font-size: 13.5px;
+  color: var(--color-text-primary);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.rank_1 .name { font-size: 15px; }
+
+.youTag {
+  font-size: 9px;
+  font-weight: 800;
+  background: var(--color-accent);
+  color: #06161c;
+  padding: 2px 6px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.score {
+  margin: 4px 0 0;
+  font-family: 'JetBrains Mono', ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  font-size: 22px;
+  color: var(--color-text-primary);
+  letter-spacing: -0.02em;
+  line-height: 1;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.rank_1 .score { font-size: 28px; }
+.scoreUnit {
+  font-size: 11px;
+  font-family: var(--font-secondary);
+  color: var(--color-text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.time {
+  margin: auto 0 0;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  font-weight: 500;
+  padding-bottom: 8px;
+}
+
+@media (max-width: 480px) {
+  .podium { gap: 8px; padding: 14px 4px 0; }
+  .slot { padding: 12px 6px 10px; min-height: 130px; }
+  .rank_1 { min-height: 180px; }
+  .rank_2 { min-height: 150px; }
+  .rank_3 { min-height: 130px; }
+  .name { font-size: 12px; }
+  .rank_1 .name { font-size: 13px; }
+  .score { font-size: 18px; }
+  .rank_1 .score { font-size: 22px; }
+  .time { font-size: 10px; }
+}

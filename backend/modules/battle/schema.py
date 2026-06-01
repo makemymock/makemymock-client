@@ -53,6 +53,39 @@ class BattleHistoryResponse(BaseModel):
     items: list[BattleHistoryItem]
 
 
+# ---- Invite (battle-a-friend) flow ----
+
+class CreateInviteResponse(BaseModel):
+    """Returned when an inviter generates a fresh invite. The frontend
+    builds the full shareable URL itself from `code` — keeps backend
+    decoupled from frontend deployment URL."""
+    code: str
+    expires_at: datetime
+
+
+class InviteInfoResponse(BaseModel):
+    """Public view of an invite, used by the join page to render
+    \"<inviter> invited you to battle\" before the friend accepts.
+    `status` lets the page distinguish pending / accepted / expired /
+    cancelled so the UI can branch on stale links."""
+    code: str
+    inviter_username: str
+    status: str
+    expires_at: datetime
+    # True if the requesting user is the inviter — frontend uses this
+    # to bounce the inviter back to the share modal instead of the
+    # accept page when they accidentally click their own link.
+    is_own_invite: bool = False
+
+
+class AcceptInviteResponse(BaseModel):
+    """Acknowledgement that the invite is still claimable. The actual
+    battle pairing happens over WebSocket when both sides connect with
+    `?invite_code=...`."""
+    code: str
+    ready: bool
+
+
 class BattleDetailResponse(BaseModel):
     battle_id: str
     completed_at: datetime

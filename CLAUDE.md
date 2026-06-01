@@ -59,6 +59,16 @@ Cross-cutting helpers live in [backend/core/](backend/core/): `security.py` (bcr
 
 Settings + DB lifecycle live in [backend/config/](backend/config/). All Mongo indexes are created in [backend/config/database.py](backend/config/database.py) inside `_ensure_indexes()` — **add new indexes there**, not ad-hoc inside repositories. Secrets only come from `config.settings.settings`, never `os.environ`.
 
+### Feature modules
+
+- [`authentication/`](backend/modules/authentication/) — signup, OTP verify, login, refresh, `me`. Sends OTP email via [core/email.py](backend/core/email.py) + module-local [email_templates/](backend/modules/authentication/email_templates/).
+- [`profile/`](backend/modules/profile/) — student profile setup + retrieval (target exam, year, etc.).
+- [`mock_test/`](backend/modules/mock_test/) — test creation, submission, results, history, analytics, Browse catalog, notebook, view-solution. **Only caller of the recommender [engine/](backend/engine/).**
+- [`potd/`](backend/modules/potd/) — Problem of the Day: `today`, `attempt`, `view-solution`, `streak`, `history`, past-date lookup. Owns `potd_assignments` + `potd_user_state`.
+- [`battle/`](backend/modules/battle/) — 1-vs-1 matchmaking + live play. REST (`/battle/history`, `/battle/{id}`) + WebSocket (`/battle/ws?token=…`) with a documented message protocol; matchmaking state lives in [matchmaker.py](backend/modules/battle/matchmaker.py). Persists battle replays to `battles`.
+- [`solverx/`](backend/modules/solverx/) — multi-agent LLM solver/tutor over **Vertex AI** (`google-genai`). Two Server-Sent Events endpoints (`/solverx/solve`, `/solverx/theory`) stream status + content tokens; conversation history at `/solverx/conversations`. LaTeX is normalised in [latex_normalize.py](backend/modules/solverx/latex_normalize.py); prompts in [prompts.py](backend/modules/solverx/prompts.py).
+- [`contest/`](backend/modules/contest/) — scheduled contests (Admin creates them; Client serves participants). Lobby gate opens 5 min before `start_time`; `/start` returns the question payload + server timer; `/submit` grades with the per-contest marking scheme (`+correct / wrong / unattempted`), persists `contest_participations` + `contest_responses`, and computes rank. Grader lives in [grader.py](backend/modules/contest/grader.py) — pure functions duplicated from mock_test (single/multi/integer/matching; passages excluded in v1).
+
 ### Hard rules
 
 1. Async everywhere — Motor, `aiosmtplib`, `async def` on routes/services/repos.
@@ -68,7 +78,7 @@ Settings + DB lifecycle live in [backend/config/](backend/config/). All Mongo in
 5. Mongo docs go through `new_*_doc()` factories so timestamps and shape stay consistent.
 6. ObjectId boundary: services accept/return `ObjectId`; controllers/schemas use `str`. Serialize via `str(doc["_id"])`.
 7. Auth on protected routes via `CurrentUser` (logged in) or `CurrentVerifiedUser` (email-verified).
-8. Routes return Pydantic response models, never raw dicts.
+8. Routes return Pydantic response models, never raw dicts. **Exceptions**: SolverX SSE endpoints return `StreamingResponse(media_type="text/event-stream")`, and the battle WebSocket route streams JSON messages directly (see protocol in [battle/controller.py](backend/modules/battle/controller.py)).
 
 To register a new module: implement the module, then add `api_router.include_router(...)` in [backend/api/__init__.py](backend/api/__init__.py), add any indexes in [backend/config/database.py](backend/config/database.py), and add any new env vars to **both** `.env.example` and `config/settings.py`.
 
@@ -91,6 +101,17 @@ The bbd_db `questions` catalog uses Mongo ObjectIds, but the engine works in int
 ## Frontend architecture
 
 React 19 + Vite + `vite-plugin-pwa` SPA. CSS Modules for styling. **No Tailwind / Bootstrap / MUI / Redux** — state is React hooks; cross-page state is localStorage or refetch. See [frontend/folder_structure.md](frontend/folder_structure.md) for the full conventions.
+
+Pages (see [routes/AppRoutes.jsx](frontend/src/routes/AppRoutes.jsx)):
+- Public: `/` (`landing/`), `/signup`, `/login`.
+- Pre-shell protected: `/profile/setup` (renders before the AppLayout chrome — user has no profile yet).
+- Inside [AppLayout](frontend/src/components/layout/AppLayout.jsx): `/dashboard`, `/tests` + `/tests/browse/:questionId`, `/tests/:sessionId` (TakeTest) + `/result`, `/analytics` + `/analytics/chapter/:id` + `/analytics/topic/:id`, `/history`, `/compete` (hub), `/battle/play` + `/battle/history`, `/contest/:id` (lobby) + `/contest/:id/play` (fullscreen) + `/contest/:id/result`, `/solverx`. Active test, live battle, active contest play, and SolverX bypass the chrome via `AppLayout`'s `FULLSCREEN_RE`. Legacy `/battle` redirects to `/compete?tab=battle`.
+
+The `/compete` hub ([pages/compete/Compete.jsx](frontend/src/pages/compete/Compete.jsx)) renders three tabs in one screen: **Battle** (queue + recent), **Contest** (live / upcoming / past cards with countdown), and **Leaderboard** (contest picker → ranked table). Tab state is mirrored to the `?tab=` query string so deep links from elsewhere (e.g. `/compete?tab=leaderboard`) land on the right pane.
+
+Component folders: [components/common/](frontend/src/components/common/) (primitives + charts: `Button`, `InputField`, `SelectField`, `Loader`, `ErrorMessage`, `StatCard`, `BarChart`, `LineChart`, `DonutChart`, `Heatmap`, `ConfidenceTrophy`, `DashboardFab`, `MarkdownText`, `ThemeToggle`, `ThemeToggleFab`), [components/auth/](frontend/src/components/auth/) (`AuthLayout`, `OTPModal`, `PasswordInput`), [components/layout/](frontend/src/components/layout/) (`AppLayout`), [components/landing/](frontend/src/components/landing/), [components/dashboard/](frontend/src/components/dashboard/) (`PotdModal`), [components/mockTest/](frontend/src/components/mockTest/) (`ExamShell`, `QuestionViewer`, `QuestionPalette`, `MatchingEditor`, `SubmitDialog`, `Timer`), [components/solverx/](frontend/src/components/solverx/) (`MessageBlock`).
+
+[hooks/useTheme.js](frontend/src/hooks/useTheme.js) owns light/dark theme state. [utils/examDraft.js](frontend/src/utils/examDraft.js) persists in-progress test answers to localStorage so a refresh during a test doesn't lose work.
 
 ### Layer rules
 
@@ -121,7 +142,25 @@ Mock-test (owned by `modules/mock_test/`, **off-limits to other modules**):
 - `mock_test_topics` — per-session topic allocations with priority + decay.
 - `mock_test_responses` — one row per (session_id, question_id), unique; carries `display_order`, `is_correct`, `correctness`, `user_answer`.
 - `user_topic_attempts` — unique on (user_id, question_id) so retakes overwrite (the engine's `upsert_attempts` relies on this).
+- `practice_solution_views` — unique on (user_id, obj_id). Marker that the user revealed a question's solution in Browse; kept separate from `user_topic_attempts` so a peeked question never feeds the recommender.
+- `notebook_entries` — unique on (user_id, obj_id). Questions a user marked to revise later.
 - `question_id_map` / `topic_id_map` / `chapter_id_map` / `subject_id_map` / `id_counters` — int ↔ ObjectId / triple indirection.
+
+POTD (owned by `modules/potd/`):
+- `potd_assignments` — unique on (user_id, date_ist). Today's POTD per user.
+- `potd_user_state` — unique on (user_id, date_ist). Engagement state (attempted / solved / viewed-solution) for streak + calendar.
+
+Battle (owned by `modules/battle/`):
+- `battles` — one doc per completed 1-vs-1, with full per-round replay. Indexed for either player's history sort.
+
+SolverX (owned by `modules/solverx/`):
+- `solverx_conversations` — per-user, sorted by `updated_at` for the sidebar.
+- `solverx_messages` — join back to conversation via `conversation_id`, ordered by `created_at`.
+
+Contests (split ownership — see [`contest/`](backend/modules/contest/) note above):
+- `contests` — **written by the Admin backend**, read by Client. Indexed on `start_time` + `end_time` (also serves the no-overlap check).
+- `contest_participations` — unique on (contest_id, user_id). Owned by Client `contest/`. Leaderboard sort uses a compound index on (contest_id, score, time_taken_seconds).
+- `contest_responses` — unique on (contest_id, user_id, question_id). Owned by Client `contest/`. The per-question review on the result page reads in `display_order`.
 
 Question catalog (read-only, `bbd_db` schema): `questions`, indexed on `(subject, chapter, topic)`.
 
@@ -130,5 +169,6 @@ Question catalog (read-only, `bbd_db` schema): `questions`, indexed on `(subject
 - `ObjectId` is converted to a deterministic `UUID` (via `_user_uuid_from_object_id` in `mock_test/service.py`) before being handed to the engine, since engine models declare `user_id: UUID`. Same input → same UUID.
 - Display-order rule for mixed test types (frontend + backend agree): `single → multi → passage → matching → integer`; encoded in `_TYPE_RANK` and re-applied on the frontend at render time.
 - Timer: `SECONDS_PER_QUESTION = 90` ([modules/mock_test/constants.py](backend/modules/mock_test/constants.py)).
+- **Recommender cooldown**: `RECOMMENDER_COOLDOWN_HOURS = 24`. If a user touches a question (attempt or view-solution) and re-attempts within this window, the answer is still graded for the student but does **not** update recommender priorities. Prevents recently-peeked questions from inflating decay metrics.
 - Question types: `single_correct`, `multi_correct`, `integer`, `matching`, `passage` (passages decompose into per-sub `single_correct` engine questions).
-- Grading semantics: Jaccard partial credit for multi_correct; matches/total for matching; exact for integer; binary for single_correct and passage sub-Qs. Documented in `DECISIONS.md §5` (referenced but not in repo yet).
+- Grading semantics: Jaccard partial credit for multi_correct; matches/total for matching; exact for integer; binary for single_correct and passage sub-Qs. Documented in [GRADING_POLICY.md](GRADING_POLICY.md).

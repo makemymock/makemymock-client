@@ -5,9 +5,9 @@
 
 .card {
   --trophy-accent:        var(--color-accent);
-  --trophy-accent-soft:   rgba(20, 184, 166, 0.15);
-  --trophy-accent-glow:   rgba(20, 184, 166, 0.4);
-  --trophy-accent-strong: #14b8a6;
+  --trophy-accent-soft:   rgba(12, 193, 224, 0.15);
+  --trophy-accent-glow:   rgba(12, 193, 224, 0.4);
+  --trophy-accent-strong: #0cc1e0;
 
   position: relative;
   background: var(--color-panel-bg);
@@ -60,10 +60,10 @@
   --trophy-accent-strong: #0ea5e9;
 }
 .tier_confident {
-  --trophy-accent:        #14b8a6;     /* teal-500 — house accent */
-  --trophy-accent-soft:   rgba(20, 184, 166, 0.16);
-  --trophy-accent-glow:   rgba(20, 184, 166, 0.42);
-  --trophy-accent-strong: #14b8a6;
+  --trophy-accent:        #0cc1e0;     /* teal-500 — house accent */
+  --trophy-accent-soft:   rgba(12, 193, 224, 0.16);
+  --trophy-accent-glow:   rgba(12, 193, 224, 0.42);
+  --trophy-accent-strong: #0cc1e0;
 }
 .tier_focused {
   --trophy-accent:        #f5c451;     /* amber-gold */

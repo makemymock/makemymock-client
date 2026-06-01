@@ -21,12 +21,14 @@ from __future__ import annotations
 import base64
 import logging
 import re
+import time
 from typing import Any, AsyncIterator, Optional
 
 from google import genai
 from google.genai import types as genai_types
 
 from config.settings import settings
+from core.usage_events import get_usage_context, record_event
 
 logger = logging.getLogger(__name__)
 
@@ -202,6 +204,7 @@ async def chat_json(
     invisible reasoning tokens would otherwise eat the whole budget and
     leave the response empty.
     """
+    started = time.monotonic()
     try:
         client = _get_client()
         sys_instr, contents = _convert_messages(messages)
@@ -236,11 +239,21 @@ async def chat_json(
             )
         except Exception:  # noqa: BLE001 — diagnostics only
             pass
+        await _record_call(
+            model=model,
+            usage_metadata=getattr(res, "usage_metadata", None),
+            started=started,
+            status="ok",
+        )
         return res.text or ""
     except LLMError:
+        await _record_call(model=model, usage_metadata=None, started=started,
+                           status="error", error="LLMError")
         raise
     except Exception as exc:  # noqa: BLE001 — opaque SDK errors
         logger.warning("Vertex AI non-stream error (%s): %s", model, exc)
+        await _record_call(model=model, usage_metadata=None, started=started,
+                           status="error", error=str(exc)[:200])
         raise LLMError(f"Vertex AI error: {exc}") from exc
 
 
@@ -256,6 +269,8 @@ async def chat_stream(
     The SDK returns an async iterator of `GenerateContentResponse`
     chunks; each `.text` is the next slice of generated text.
     """
+    started = time.monotonic()
+    last_chunk = None
     try:
         client = _get_client()
         sys_instr, contents = _convert_messages(messages)
@@ -269,7 +284,6 @@ async def chat_stream(
             contents=contents,
             config=cfg,
         )
-        last_chunk = None
         async for chunk in stream:
             last_chunk = chunk
             text = getattr(chunk, "text", None)
@@ -300,8 +314,48 @@ async def chat_stream(
                     )
         except Exception:  # noqa: BLE001 — diagnostics only
             pass
+        await _record_call(
+            model=model,
+            usage_metadata=getattr(last_chunk, "usage_metadata", None),
+            started=started,
+            status="ok",
+        )
     except LLMError:
+        await _record_call(model=model, usage_metadata=None, started=started,
+                           status="error", error="LLMError")
         raise
     except Exception as exc:  # noqa: BLE001
         logger.warning("Vertex AI stream error (%s): %s", model, exc)
+        await _record_call(model=model, usage_metadata=None, started=started,
+                           status="error", error=str(exc)[:200])
         raise LLMError(f"Vertex AI stream error: {exc}") from exc
+
+
+async def _record_call(
+    *,
+    model: str,
+    usage_metadata: Any,
+    started: float,
+    status: str,
+    error: Optional[str] = None,
+) -> None:
+    """Pull token counts off the Vertex usage_metadata object and write a
+    usage_events row via whatever context was set up by the caller.
+    No-op if the caller didn't open a `usage_context(...)`."""
+    ctx = get_usage_context()
+    if not ctx:
+        return
+    prompt = getattr(usage_metadata, "prompt_token_count", 0) or 0
+    out = getattr(usage_metadata, "candidates_token_count", 0) or 0
+    await record_event(
+        ctx["db"],
+        source=ctx.get("source") or "solverx",
+        user_id=ctx.get("user_id"),
+        model=model,
+        input_tokens=int(prompt),
+        output_tokens=int(out),
+        duration_ms=int((time.monotonic() - started) * 1000),
+        status=status,
+        error=error,
+        extra=ctx.get("extra") or {},
+    )
