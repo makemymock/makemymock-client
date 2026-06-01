@@ -86,15 +86,17 @@ const IconMoon = (p) => (
 // show no active item on the Lobby / Result pages even though they
 // belong to the Compete feature.
 const NAV_ITEMS = [
-  { to: '/dashboard', label: 'Home',      Icon: IconHome,    end: true, tour: 'nav.dashboard' },
-  { to: '/tests',     label: 'Practice',  Icon: IconTest,    tour: 'nav.practice',
+  { to: '/dashboard',   label: 'Home',      Icon: IconHome,    end: true, tour: 'nav.dashboard' },
+  { to: '/tests',       label: 'Practice',  Icon: IconTest,    tour: 'nav.practice',
     match: (p) => p.startsWith('/tests') },
-  { to: '/solverx',   label: 'SolverX',   Icon: IconSpark,   tour: 'nav.solverx' },
-  { to: '/compete',   label: 'Compete',   Icon: IconCompete, tour: 'nav.compete',
+  { to: '/recommender', label: 'SmartPYQ',  Icon: IconBrain,   tour: 'nav.recommender',
+    match: (p) => p.startsWith('/recommender') },
+  { to: '/solverx',     label: 'SolverX',   Icon: IconSpark,   tour: 'nav.solverx' },
+  { to: '/compete',     label: 'Compete',   Icon: IconCompete, tour: 'nav.compete',
     match: (p) => p.startsWith('/compete')
                || p.startsWith('/contest')
                || p.startsWith('/battle') },
-  { to: '/analytics', label: 'Analytics', Icon: IconChart,   tour: 'nav.analytics',
+  { to: '/analytics',   label: 'Analytics', Icon: IconChart,   tour: 'nav.analytics',
     match: (p) => p.startsWith('/analytics') },
 ];
 
