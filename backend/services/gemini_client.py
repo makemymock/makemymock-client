@@ -134,6 +134,7 @@ def _make_config(
     temperature: float,
     max_tokens: int,
     thinking_budget: int = 0,
+    include_thoughts: bool = False,
     tools: Optional[list[genai_types.Tool]] = None,
 ) -> genai_types.GenerateContentConfig:
     kwargs: dict[str, Any] = {
@@ -141,7 +142,8 @@ def _make_config(
         "max_output_tokens": max_tokens,
         "thinking_config": genai_types.ThinkingConfig(
             thinking_budget=thinking_budget,
-            include_thoughts=False,
+            # Only expose thoughts when explicitly requested AND budget is non-zero
+            include_thoughts=include_thoughts and thinking_budget > 0,
         ),
     }
     if system_instruction:
@@ -207,7 +209,9 @@ async def chat_with_tools(
     temperature: float = 0.1,
     max_tokens: int = 2048,
     max_tool_rounds: int = 6,
+    thinking_budget: int = 512,
     on_tool_result: Optional[Callable[[int, str, dict, Any], Coroutine[Any, Any, None]]] = None,
+    on_thought: Optional[Callable[[str], Coroutine[Any, Any, None]]] = None,
 ) -> tuple[str, list[dict[str, Any]]]:
     """
     Agentic tool-use loop using Gemini native function calling.
@@ -245,7 +249,8 @@ async def chat_with_tools(
             system_instruction=system_instruction,
             temperature=temperature,
             max_tokens=max_tokens,
-            thinking_budget=512,   # allow moderate reasoning per round
+            thinking_budget=thinking_budget,
+            include_thoughts=on_thought is not None,
             tools=gemini_tools,
         )
         try:
@@ -266,11 +271,17 @@ async def chat_with_tools(
         finish_reason = str(getattr(candidate, "finish_reason", "")).split(".")[-1]
         content = candidate.content
 
-        # Separate function calls from text parts; skip thought parts
+        # Separate thought / function-call / text parts
         function_calls: list[Any] = []
         text_parts: list[str] = []
         for part in content.parts or []:
             if getattr(part, "thought", False):
+                thought_text = getattr(part, "text", "") or ""
+                if thought_text and on_thought:
+                    try:
+                        await on_thought(thought_text)
+                    except Exception as _te:
+                        logger.debug("on_thought callback raised: %s", _te)
                 continue
             if getattr(part, "function_call", None):
                 function_calls.append(part.function_call)

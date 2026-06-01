@@ -1,17 +1,14 @@
 from __future__ import annotations
 
-import json
 import logging
 from datetime import date, datetime, timezone, timedelta
-from pathlib import Path
 from typing import Optional
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from pymongo import ASCENDING, DESCENDING, UpdateOne
+from pymongo import ASCENDING, DESCENDING
 
 from config.database import get_pyq_database
 from modules.recommender.constants import (
-    ATTEMPTED_EXCLUSION_DAYS,
     ERROR_CLUSTER_WINDOW,
     INCORRECT_FIRST_INTERVAL_DAYS,
     INCORRECT_MAX_INTERVAL_DAYS,
@@ -25,10 +22,9 @@ from modules.recommender.constants import (
     SOLVED_QUESTIONS_COLLECTION,
     SUBJECT_MATHEMATICS,
     TOPIC_STATE_COLLECTION,
-    TREND_HIGH_PRIORITY_THRESHOLD,
     TREND_SCORES_COLLECTION,
 )
-from modules.recommender.math_engine import ErrorTaxonomyComputer, PrerequisiteChecker
+from modules.recommender.math_engine import ErrorTaxonomyComputer
 from modules.recommender.models import (
     new_solved_question_doc,
     new_student_personality_doc,
@@ -36,17 +32,6 @@ from modules.recommender.models import (
 )
 
 logger = logging.getLogger(__name__)
-
-_PREREQS_PATH = Path(__file__).parent.parent.parent.parent / "prereqs_math.json"
-_PREREQ_GRAPH: dict | None = None
-
-
-def get_prereq_graph() -> dict:
-    global _PREREQ_GRAPH
-    if _PREREQ_GRAPH is None:
-        with open(_PREREQS_PATH, encoding="utf-8") as f:
-            _PREREQ_GRAPH = json.load(f)
-    return _PREREQ_GRAPH
 
 
 class RecommenderRepository:
@@ -64,22 +49,14 @@ class RecommenderRepository:
     # --- initialization ---
 
     async def initialize_student(self, student_id: str) -> int:
-        graph = get_prereq_graph()
-        docs  = [
-            new_student_topic_state_doc(student_id, topic_id, node["chapter"], subject=SUBJECT_MATHEMATICS)
-            for topic_id, node in graph.items()
-        ]
-        if not docs: return 0
-        try:
-            result = await self._states.insert_many(docs, ordered=False)
-            return len(result.inserted_ids)
-        except Exception as exc:
-            inserted = getattr(exc, "details", {}).get("nInserted", 0)
-            logger.warning("Partial init for %s: %d new, error: %s", student_id, inserted, exc)
-            return inserted
+        # All subjects now initialized from the questions catalog — no prereq graph needed
+        return await self.initialize_student_for_subject(student_id, SUBJECT_MATHEMATICS)
 
     async def student_is_initialized(self, student_id: str) -> bool:
         return await self._states.find_one({"student_id": student_id}, {"_id": 1}) is not None
+
+    async def get_topic_state_count(self, student_id: str) -> int:
+        return await self._states.count_documents({"student_id": student_id})
 
     # --- topic states ---
 
@@ -134,8 +111,14 @@ class RecommenderRepository:
     # --- session summaries ---
 
     async def create_session_summary(self, doc: dict) -> str:
-        result = await self._summaries.insert_one(doc)
-        return str(result.inserted_id)
+        # Use upsert so duplicate end_session calls (same session_id) are idempotent
+        result = await self._summaries.replace_one(
+            {"session_id": doc["session_id"]}, doc, upsert=True
+        )
+        if result.upserted_id:
+            return str(result.upserted_id)
+        existing = await self._summaries.find_one({"session_id": doc["session_id"]}, {"_id": 1})
+        return str(existing["_id"]) if existing else ""
 
     async def get_last_n_session_summaries(self, student_id: str, n: int = SESSION_HISTORY_WINDOW) -> list[dict]:
         return await self._summaries.find(
@@ -243,12 +226,9 @@ class RecommenderRepository:
 
     async def tool_get_unlocked_topics(self, student_id: str) -> list[dict]:
         all_states = await self.get_topic_states_dict(student_id)
-        graph      = get_prereq_graph()
         trend_map  = await self.get_trend_scores_dict()
         result = []
         for tid, state in all_states.items():
-            if not PrerequisiteChecker.is_unlocked(tid, all_states, graph):
-                continue
             a, b = state["alpha"], state["beta"]
             mean = a / (a + b)
             var  = (a * b) / ((a + b) ** 2 * (a + b + 1))
@@ -295,19 +275,20 @@ class RecommenderRepository:
         ).to_list(length=limit)
 
     async def tool_get_candidate_questions(
-        self, topic_id: str, difficulty_min: float, difficulty_max: float,
+        self, topic_id: str,
         exclude_ids: list[str], limit: int = MAX_CANDIDATE_QUESTIONS,
         student_id: str = "",
     ) -> list[dict]:
         chapter, topic = topic_id.split("::", 1) if "::" in topic_id else ("", topic_id)
-        diff_filter = self._difficulty_band_filter(difficulty_min, difficulty_max)
         # also exclude questions the student solved that aren't due for review yet
         solved_not_due: set[str] = set()
         if student_id:
             solved_not_due = await self.get_solved_not_due_ids(student_id)
         all_excluded = list(set(exclude_ids) | solved_not_due)
-        # Integer questions are excluded — the catalog has no correct answers stored for them
-        query: dict = {"chapter": chapter, "topic": topic, "type": {"$ne": "integer"}, **diff_filter}
+        # No difficulty filter — the catalog's 3-level scale (easy/medium/hard) is too coarse
+        # to meaningfully restrict candidates. Let the agent pick the best question.
+        # Integer questions are excluded (catalog has no correct answers for them).
+        query: dict = {"chapter": chapter, "topic": topic, "type": {"$ne": "integer"}}
         if all_excluded:
             query["question_id"] = {"$nin": all_excluded}
 
@@ -340,7 +321,8 @@ class RecommenderRepository:
             qtype = d["_id"] or "single_correct"
             type_acc[qtype] = d["correct"] / d["total"] if d["total"] > 0 else 0.5
 
-        all_types = ["single_correct", "multi_correct", "integer", "matching"]
+        # integer is excluded from serving (catalog has no correct answers stored)
+        all_types = ["single_correct", "multi_correct", "matching"]
         for t in all_types:
             type_acc.setdefault(t, 0.5)
         raw   = {t: 1.0 - type_acc[t] for t in all_types}

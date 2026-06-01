@@ -33,15 +33,23 @@ const SUBJECT_ORDER = ['mathematics', 'physics', 'chemistry'];
 
 // ─── Agent tool → emoji icon ──────────────────────────────────────────────────
 const TOOL_ICONS = {
+  // SessionPlannerAgent tools
   get_unlocked_topics:       '🔓',
   get_due_reviews:           '📅',
   get_weakest_unlocked:      '📉',
   get_trend_top_topics:      '🔥',
-  get_candidate_questions:   '🎯',
+  get_candidate_questions:   '🔍',
   get_question_type_weights: '⚖️',
   get_topic_attempt_stats:   '📊',
-  get_error_clusters:        '🔍',
+  get_error_clusters:        '🔬',
   get_session_summary:       '📋',
+  // QuestionSelectorAgent / service steps
+  regulator:                 '💡',
+  thompson:                  '🎯',
+  irt:                       '📐',
+  retry:                     '🔁',
+  review:                    '📅',
+  system:                    '⚙️',
 };
 
 // ─── Session mode → emoji ─────────────────────────────────────────────────────
@@ -194,6 +202,40 @@ const ThinkingDots = () => (
   </span>
 );
 
+// Strip markdown + Gemini's meta-commentary openers from thought text
+const _cleanThought = (t = '') =>
+  t.replace(/\*\*(.+?)\*\*/gs, '$1')
+   .replace(/\*(.+?)\*/gs, '$1')
+   .replace(/^#{1,6}\s+/gm, '')
+   .replace(/`([^`]+)`/g, '$1')
+   // Remove "My Thought Process for X" / "My primary objective is..." openers
+   .replace(/^My\s+[Tt]hought\s+[Pp]rocess\s+[^\n]*\n*/m, '')
+   .replace(/^[Aa]lright[,\s][^\n]*\n*/m, '')
+   .replace(/\n{3,}/g, '\n\n')
+   .trim();
+
+// ─── ThoughtBlock — Gemini reasoning, collapsed by default ───────────────────
+const ThoughtBlock = ({ text }) => {
+  const [open, setOpen] = useState(false);
+  const clean   = _cleanThought(text);
+  const preview = clean.split('\n')[0].slice(0, 180).trim();
+  return (
+    <div className={styles.thoughtBlock}>
+      <button className={styles.thoughtToggle} onClick={() => setOpen(v => !v)}>
+        <span className={styles.thoughtIcon}>💭</span>
+        <span className={styles.thoughtPreview}>
+          {open ? 'Reasoning' : preview || 'View reasoning…'}
+        </span>
+        <IcoChevron
+          className={`${styles.thinkChevron} ${open ? styles.thinkChevronOpen : ''}`}
+          style={{ width: 13, height: 13, flexShrink: 0 }}
+        />
+      </button>
+      {open && <div className={styles.thoughtBody}>{clean}</div>}
+    </div>
+  );
+};
+
 // ─── CoachNoteCard — why the AI chose this question ──────────────────────────
 const CoachNoteCard = ({ note, isReview }) => (
   <div className={`${styles.coachNote} ${isReview ? styles.coachNoteReview : ''}`}>
@@ -284,10 +326,16 @@ const Recommender = () => {
   const [submitting, setSubmitting]     = useState(false);
   const sessionResultsRef = useRef([]); // accumulate results for session summary
 
+  // Post-session AI diagnosis (DiagnosisAgent runs async after end_session)
+  const [diagnosisNote, setDiagnosisNote]         = useState('');
+  const [diagnosingSession, setDiagnosingSession] = useState(false);
+  const diagnosisTimerRef = useRef(null);
+
   // Thinking panel — each step: { id, kind: 'step'|'note'|'confidence'|'divider', ... }
   const [thinkSteps, setThinkSteps]   = useState([]);
   const [thinkOpen, setThinkOpen]     = useState(true);
-  const thinkEndRef   = useRef(null);
+  const thinkBodyRef  = useRef(null);   // scrollable container ref
+  const thinkEndRef   = useRef(null);   // sentinel for auto-scroll
   const abortCtrlRef  = useRef(null);   // AbortController for the SSE stream
 
   // Answer timer
@@ -314,7 +362,13 @@ const Recommender = () => {
       if (tr.status === 'fulfilled') setTrends(tr.value);
       if (cq.status === 'fulfilled') setCorrectQ(cq.value);
       if (iq.status === 'fulfilled') setIncorrectQ(iq.value);
-      if (ts.status === 'rejected' || ts.value?.total === 0) setInitNeeded(true);
+      // Only show "Set Up Engine" when the server explicitly says the student
+      // is not initialized (404). Any other error (500, network) should NOT
+      // prompt a re-initialization — that would loop on 409.
+      const needsInit =
+        (ts.status === 'rejected' && ts.reason?.response?.status === 404) ||
+        (ts.status === 'fulfilled' && ts.value?.total === 0);
+      if (needsInit) setInitNeeded(true);
     } catch (err) {
       setError(parseApiError(err, 'Failed to load your data.'));
     } finally { setLoading(false); }
@@ -324,11 +378,17 @@ const Recommender = () => {
   useEffect(() => () => {
     stopTimer();
     if (abortCtrlRef.current) abortCtrlRef.current.abort();
+    if (diagnosisTimerRef.current) clearTimeout(diagnosisTimerRef.current);
   }, []);
 
-  // Scroll thinking panel to bottom as steps appear
+  // Scroll only the thinkBody container (not the whole page) as new steps appear
   useEffect(() => {
-    if (thinkEndRef.current) thinkEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    const body = thinkBodyRef.current;
+    if (!body) return;
+    // Use requestAnimationFrame so the new DOM node is painted before we scroll
+    requestAnimationFrame(() => {
+      body.scrollTo({ top: body.scrollHeight, behavior: 'smooth' });
+    });
   }, [thinkSteps]);
 
   // Keep thinking panel open whenever a new session loading starts
@@ -384,25 +444,56 @@ const Recommender = () => {
       .map((t) => t.topic_id);
 
   const fetchNextQuestion = async (plan, currentHot, num) => {
-    const chapters = selectedChapters.size > 0 ? selectedChapters : new Set([...selectedChapters]);
-    const focusTopics = getFocusTopics(chapters);
-    const nq = await recommenderService.getNextQuestion({
-      session_id: plan.session_id,
-      focus_topics: focusTopics.length > 0 ? focusTopics : (plan.focus_topics || []),
+    // Each call gets a completely fresh AbortController so there is
+    // zero signal sharing with any previous stream (session-start or earlier questions).
+    const ctl = new AbortController();
+    abortCtrlRef.current = ctl;     // expose so handleReset can abort it
+
+    const focusTopics = getFocusTopics(selectedChapters);
+    const payload = {
+      session_id:              plan.session_id,
+      focus_topics:            focusTopics.length > 0 ? focusTopics : (plan.focus_topics || []),
       start_difficulty_offset: plan.start_difficulty_offset,
-      review_injection_rate: plan.review_injection_rate,
-      state: currentHot,
-    });
+      review_injection_rate:   plan.review_injection_rate,
+      state:                   currentHot,
+    };
+
+    let resolvedQuestion = null;
+    let streamError      = null;
+
+    try {
+      await recommenderService.nextQuestionStream(
+        payload,
+        (event) => {
+          if (event.type === 'step') {
+            addThought({ kind: 'step', tool: event.tool || 'system', label: event.label });
+          } else if (event.type === 'thought') {
+            addThought({ kind: 'thought', text: event.text });
+          } else if (event.type === 'question') {
+            resolvedQuestion = event;
+          } else if (event.type === 'error') {
+            streamError = event.message;
+          }
+        },
+        ctl.signal,     // always the fresh local signal, not any shared ref
+      );
+    } catch (err) {
+      if (err.name === 'AbortError') throw err;
+      streamError = err.message;
+    }
+
+    // If stream failed entirely, fall back to regular endpoint
+    if (!resolvedQuestion) {
+      if (streamError) addThought({ kind: 'note', text: `⚠️ Streaming failed — ${streamError}` });
+      const nq = await recommenderService.getNextQuestion(payload);
+      resolvedQuestion = nq;
+    }
+
+    const nq = resolvedQuestion;
     setQuestion(nq);
     setQuestionNum(num);
-
-    const topicName = nq.topic_id?.split('::')[1] || nq.topic_id;
     if (nq.is_review_injection && nq.review_reason) {
-      addThought(`📅 ${nq.review_reason}`);
-    } else if (nq.is_review_injection) {
-      addThought(`📅 This question is coming back for review — let's see if it's stuck!`);
-    } else {
-      addThought(`Question ${num} — "${topicName}" at ${diffFriendly(nq.difficulty_target)} difficulty`);
+      addThought({ kind: 'note', text: `📅 ${nq.review_reason}` });
     }
 
     const content = await recommenderService.getQuestion(nq.question_id);
@@ -437,6 +528,8 @@ const Recommender = () => {
           if (event.type === 'connected') return;
           if (event.type === 'step') {
             addThought({ kind: 'step', tool: event.tool, label: event.label });
+          } else if (event.type === 'thought') {
+            addThought({ kind: 'thought', text: event.text });
           } else if (event.type === 'confidence') {
             addThought({ kind: 'confidence', text: event.text });
           } else if (event.type === 'plan') {
@@ -466,7 +559,6 @@ const Recommender = () => {
     setStartedAt(new Date().toISOString());
 
     const chapterNames = [...selectedChapters].join(', ');
-    addThought({ kind: 'note', text: `Planning ${questionTotal} questions from: ${chapterNames}` });
 
     try {
       await fetchNextQuestion(plan, newHot, 1);
@@ -542,9 +634,38 @@ const Recommender = () => {
       try {
         await recommenderService.endSession({ session_id: session.session_id, state: hotState, started_at: startedAt });
       } catch { /* best-effort */ }
+      setSession(null);    // clear so handleReset / handleStartPractice don't call endSession again
       setSessionDone(true);
       setRecState(null);
+      setDiagnosisNote('');
+      setDiagnosingSession(true);
       await loadOverview();
+
+      // Capture the OLD finding AFTER loadOverview so we can detect when the
+      // DiagnosisAgent writes a genuinely new one.
+      // DiagnosisAgent has a 16k thinking budget — can take 15-25 seconds.
+      // We poll every 5s (up to 8 times = 40s max) until the value changes.
+      if (diagnosisTimerRef.current) clearTimeout(diagnosisTimerRef.current);
+      const prevFinding = (await recommenderService.getPersonality().catch(() => null))
+                            ?.last_session_finding || '';
+      let pollCount = 0;
+
+      const doPoll = async () => {
+        pollCount++;
+        if (pollCount > 8) { setDiagnosingSession(false); return; }
+        try {
+          const p = await recommenderService.getPersonality();
+          const newFinding = p?.last_session_finding || '';
+          if (newFinding && newFinding !== prevFinding) {
+            setDiagnosisNote(newFinding);
+            setPersonality(p);   // update profile card with latest personality
+            setDiagnosingSession(false);
+            return;
+          }
+        } catch { /* non-critical */ }
+        diagnosisTimerRef.current = setTimeout(doPoll, 5_000);
+      };
+      diagnosisTimerRef.current = setTimeout(doPoll, 5_000);  // first check after 5s
       return;
     }
 
@@ -552,8 +673,17 @@ const Recommender = () => {
     setQuestion(null); setQContent(null); setSubmitResult(null);
     setSelected([]); setIntAnswer('');
 
+    // Clear thinking steps so each question gets a fresh panel (not an ever-growing list)
+    setThinkSteps([]);
+    setThinkOpen(true);
+
+    // Scroll back up to the thinking panel — user was scrolled down to the previous question card
+    setTimeout(() => {
+      document.getElementById('recommendation')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+
     try {
-      addThought({ kind: 'divider', text: `── Question ${nextNum} of ${questionTotal} ──` });
+      // No divider needed — panel is fresh per question
       await fetchNextQuestion(session, hotState, nextNum);
       setRecState('question');
       startTimer();
@@ -573,6 +703,8 @@ const Recommender = () => {
     setSession(null); setSelectedChapters(new Set()); setRecState(null);
     setThinkSteps([]); setQuestion(null); setQContent(null); setSubmitResult(null);
     setHotState(INITIAL_SESSION_STATE); setQuestionNum(0); setSessionDone(false);
+    setDiagnosisNote(''); setDiagnosingSession(false);
+    if (diagnosisTimerRef.current) clearTimeout(diagnosisTimerRef.current);
     sessionResultsRef.current = [];
     await loadOverview();
   };
@@ -628,11 +760,11 @@ const Recommender = () => {
         <div className={styles.heroLeft}>
           <div className={styles.heroEyebrow}>
             <IcoBrain className={styles.heroIcon} />
-            <span>AI Study Cockpit</span>
+            <span>AI-Powered PYQ Recommender</span>
           </div>
-          <h1 className={styles.heroTitle}>Your Personal JEE Coach</h1>
+          <h1 className={styles.heroTitle}>SmartPYQ</h1>
           <p className={styles.heroSub}>
-            Select one or more chapters, pick how many questions you want, and the AI builds your perfect practice set
+            Learns from 15 years of JEE PYQs to identify exactly where you're weak — then serves the right question at the right time
           </p>
         </div>
         <div className={styles.heroRight}>
@@ -782,24 +914,80 @@ const Recommender = () => {
       </section>
 
       {/* ── Session done summary ── */}
-      {sessionDone && (
-        <section className={styles.section}>
-          <div className={`${styles.sessionSummary} ${sessionCorrect === sessionResults.length ? styles.summaryPerfect : ''}`}>
-            <h2 className={styles.summaryTitle}>
-              {sessionCorrect === sessionResults.length ? '🎉 Perfect session!' : `Session complete — ${sessionCorrect} / ${sessionResults.length} correct`}
-            </h2>
-            <div className={styles.summaryAccBar}>
-              <div className={styles.summaryAccFill} style={{ width: `${sessionResults.length ? Math.round(sessionCorrect / sessionResults.length * 100) : 0}%` }} />
+      {sessionDone && (() => {
+        const acc = sessionResults.length ? Math.round(sessionCorrect / sessionResults.length * 100) : 0;
+        const perfect = sessionCorrect === sessionResults.length && sessionResults.length > 0;
+
+        // per-chapter breakdown
+        const chapterMap = {};
+        sessionResults.forEach(({ isCorrect, chapter }) => {
+          if (!chapterMap[chapter]) chapterMap[chapter] = { correct: 0, total: 0 };
+          chapterMap[chapter].total += 1;
+          if (isCorrect) chapterMap[chapter].correct += 1;
+        });
+        const chapters = Object.entries(chapterMap).sort((a, b) =>
+          (a[1].correct / a[1].total) - (b[1].correct / b[1].total)
+        );
+
+        return (
+          <section className={styles.section}>
+            <div className={`${styles.sessionSummary} ${perfect ? styles.summaryPerfect : ''}`}>
+              <h2 className={styles.summaryTitle}>
+                {perfect ? '🎉 Perfect session!' : `Session complete — ${sessionCorrect} / ${sessionResults.length} correct`}
+              </h2>
+
+              {/* Accuracy bar */}
+              <div className={styles.summaryAccBar}>
+                <div className={styles.summaryAccFill} style={{ width: `${acc}%` }} />
+              </div>
+              <p className={styles.summaryAcc}>
+                Overall accuracy: <strong>{acc}%</strong> across {sessionResults.length} questions
+              </p>
+
+              {/* Per-chapter breakdown */}
+              {chapters.length > 1 && (
+                <div className={styles.summaryBreakdown}>
+                  {chapters.map(([ch, { correct, total }]) => {
+                    const chAcc = Math.round(correct / total * 100);
+                    const color = masteryColor(chAcc);
+                    return (
+                      <div key={ch} className={styles.summaryChapterRow}>
+                        <span className={styles.summaryChapterName}>{ch}</span>
+                        <div className={styles.summaryChapterBar}>
+                          <div className={styles.summaryChapterFill} style={{ width: `${chAcc}%`, background: color }} />
+                        </div>
+                        <span className={styles.summaryChapterPct} style={{ color }}>{chAcc}%</span>
+                        <span className={styles.summaryChapterFrac}>{correct}/{total}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* AI Coach diagnosis — appears after ~10s when DiagnosisAgent finishes */}
+              {diagnosingSession && (
+                <div className={styles.diagnosisLoading}>
+                  <span className={styles.spinnerSm} />
+                  <span>Your AI Coach is analysing this session…</span>
+                </div>
+              )}
+              {!diagnosingSession && diagnosisNote && (
+                <div className={styles.diagnosisCard}>
+                  <span className={styles.diagnosisIcon}>🧠</span>
+                  <div>
+                    <div className={styles.diagnosisLabel}>Coach's Analysis</div>
+                    <p className={styles.diagnosisText}>{diagnosisNote}</p>
+                  </div>
+                </div>
+              )}
+
+              <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={handleReset}>
+                <IcoRefresh className={styles.btnIcon} /> Start New Session
+              </button>
             </div>
-            <p className={styles.summaryAcc}>
-              Accuracy: <strong>{sessionResults.length ? Math.round(sessionCorrect / sessionResults.length * 100) : 0}%</strong> across {sessionResults.length} questions
-            </p>
-            <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={handleReset}>
-              <IcoRefresh className={styles.btnIcon} /> Start New Session
-            </button>
-          </div>
-        </section>
-      )}
+          </section>
+        );
+      })()}
 
       {/* ── Recommendation section ── */}
       {sessionActive && (
@@ -826,7 +1014,7 @@ const Recommender = () => {
                       ? <ThinkingDots />
                       : <span className={styles.thinkDoneCircle}><IcoCheck className={styles.thinkDoneCheckIcon} /></span>}
                     <span className={styles.thinkToggleLabel}>
-                      {isThinking ? 'AI Coach is thinking…' : 'AI Coach · Ready'}
+                      {isThinking ? 'SmartPYQ is thinking…' : 'SmartPYQ · Ready'}
                     </span>
                     {!isThinking && session && (
                       <span className={`${styles.modeBadge} ${styles[`modeBadge_${session.session_mode}`] || ''}`}>
@@ -838,13 +1026,16 @@ const Recommender = () => {
                 </button>
 
                 {thinkOpen && (
-                  <div className={styles.thinkBody}>
+                  <div className={styles.thinkBody} ref={thinkBodyRef}>
                     {thinkSteps.map((step) => {
                       if (step.kind === 'divider') return (
                         <div key={step.id} className={styles.thinkDivider}>{step.text}</div>
                       );
                       if (step.kind === 'confidence') return (
                         <ConfidenceNote key={step.id} text={step.text} />
+                      );
+                      if (step.kind === 'thought') return (
+                        <ThoughtBlock key={step.id} text={step.text} />
                       );
                       if (step.kind === 'step') return (
                         <div key={step.id} className={styles.thinkStepItem}>

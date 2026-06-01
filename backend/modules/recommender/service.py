@@ -8,11 +8,11 @@ from typing import Any
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from core.exceptions import NoUnlockedTopics, StudentAlreadyInitialized, StudentNotInitialized
+from core.exceptions import NoUnlockedTopics, StudentNotInitialized
 from modules.recommender.agents import DiagnosisAgent, LatexConverterAgent, QuestionSelectorAgent, SessionPlannerAgent, TrendIntelligenceAgent
-from modules.recommender.math_engine import ConfidenceRegulator, IRTEngine, PrerequisiteChecker, SM2Scheduler, ThompsonSampler
+from modules.recommender.math_engine import ConfidenceRegulator, IRTEngine, SM2Scheduler, ThompsonSampler
 from modules.recommender.models import new_question_history_doc, new_session_summary_doc
-from modules.recommender.repository import RecommenderRepository, get_prereq_graph
+from modules.recommender.repository import RecommenderRepository
 from modules.recommender.schema import (
     AllTopicStatesResponse,
     AllTrendScoresResponse,
@@ -58,38 +58,38 @@ def _build_coach_note(
 ) -> str:
     topic_name  = topic_id.split("::")[-1].replace("-", " ").title()
     mastery_pct = int(mastery_mean * 100)
+    jee_pct     = int(p_appears * 100)
 
     if mode == "recovery":
         return (
-            f"You've hit a rough patch — the AI switched to a topic you know well "
-            f"({topic_name}, {mastery_pct}% mastery). Let's rebuild momentum before pushing harder."
+            f"Switching to {topic_name} ({mastery_pct}% mastery) — a chapter you know well. "
+            "Getting a few right here will get your confidence back before we push harder."
         )
     if mode == "wind_down":
-        return (
-            f"You've been at this a while — finishing with a comfortable {topic_name} question "
-            "to close the session strong."
-        )
+        return f"Finishing strong with {topic_name}. Great session today."
 
-    reasons: list[str] = []
+    parts: list[str] = []
     if mastery_pct < 40:
-        reasons.append(f"your mastery of {topic_name} is only {mastery_pct}% — it needs the most work right now")
+        parts.append(f"{topic_name} is your weakest area at {mastery_pct}% mastery")
     elif mastery_pct < 65:
-        reasons.append(f"you're still developing in {topic_name} ({mastery_pct}% mastery)")
+        parts.append(f"{topic_name} still has room to grow ({mastery_pct}% mastery)")
 
-    if p_appears >= 0.70:
-        reasons.append(f"it shows up in ~{int(p_appears * 100)}% of recent JEE papers")
-    elif p_appears >= 0.50:
-        reasons.append("it's a moderately frequent JEE topic")
+    if jee_pct >= 70:
+        parts.append(f"it appears in ~{jee_pct}% of recent JEE papers")
+    elif jee_pct >= 50:
+        parts.append(f"it's a regular fixture in JEE")
 
     if difficulty_offset > 0.4:
-        reasons.append("difficulty pushed up — you're on a streak")
+        parts.append("pushed to a harder question — you're on a streak")
     elif difficulty_offset < -0.4:
-        reasons.append("difficulty eased slightly to keep you in the zone")
+        parts.append("eased the difficulty to keep you in flow")
 
-    if not reasons:
-        return f"Continuing with {topic_name} — the AI sees room to grow here."
+    if not parts:
+        return f"Continuing with {topic_name} — solid growth opportunity."
 
-    return "The AI picked this because " + "; ".join(reasons) + "."
+    if len(parts) == 1:
+        return parts[0].capitalize() + "."
+    return parts[0].capitalize() + ", and " + parts[1] + "."
 
 
 class RecommenderService:
@@ -100,29 +100,31 @@ class RecommenderService:
     async def initialize_student(self, student_id: str) -> InitializeStudentResponse:
         already = await self._repo.student_is_initialized(student_id)
         if already:
-            raise StudentAlreadyInitialized()
+            # Idempotent — return success rather than 409 so the client can safely
+            # call this endpoint multiple times without seeing an error.
+            count = await self._repo.get_topic_state_count(student_id)
+            return InitializeStudentResponse(
+                student_id=student_id,
+                topics_initialized=count,
+                personality_created=False,
+                message=f"Already initialized with {count} topics.",
+            )
 
-        # Math: from prereq graph
-        count = await self._repo.initialize_student(student_id)
-        personality_created = await self._repo.create_personality(student_id)
-
-        # Physics + Chemistry: from questions catalog (all topics unlocked, no prereq graph)
-        extra = 0
+        # All subjects initialized from the catalog — no prereq graph
+        total = 0
         for subject in ALL_SUBJECTS:
-            if subject == SUBJECT_MATHEMATICS:
-                continue
             try:
-                extra += await self._repo.initialize_student_for_subject(student_id, subject)
+                total += await self._repo.initialize_student_for_subject(student_id, subject)
             except Exception as exc:
                 logger.warning("Could not init %s topics for %s: %s", subject, student_id, exc)
+        personality_created = await self._repo.create_personality(student_id)
 
-        total = count + extra
-        logger.info("Initialized student %s: %d math + %d phy/chem topics", student_id, count, extra)
+        logger.info("Initialized student %s: %d topics across all subjects", student_id, total)
         return InitializeStudentResponse(
             student_id=student_id,
             topics_initialized=total,
             personality_created=personality_created,
-            message=f"Student initialized with {total} topic states ({count} math, {extra} science).",
+            message=f"Student initialized with {total} topics across Maths, Physics and Chemistry.",
         )
 
     async def start_session(self, student_id: str) -> SessionPlanResponse:
@@ -253,7 +255,7 @@ class RecommenderService:
 
         # ── Topic selection via Thompson Sampling ───────────────────────────────
         all_states   = await self._repo.get_topic_states_dict(student_id)
-        unlocked_set = PrerequisiteChecker.get_unlocked_set(all_states, get_prereq_graph())
+        unlocked_set = set(all_states.keys())
         if not unlocked_set:
             raise NoUnlockedTopics()
 
@@ -275,22 +277,19 @@ class RecommenderService:
         if not target_topic:
             raise NoUnlockedTopics()
 
-        topic_state   = all_states[target_topic]
-        theta         = float(topic_state.get("theta", 0.0))
-        d_target      = IRTEngine.target_difficulty(theta, offset=difficulty_offset)
-        d_min, d_max  = IRTEngine.difficulty_band(d_target)
+        topic_state = all_states[target_topic]
+        theta       = float(topic_state.get("theta", 0.0))
+        d_target    = IRTEngine.target_difficulty(theta, offset=difficulty_offset)
 
         # ── Agent selects question via tool calls ───────────────────────────────
         selector    = QuestionSelectorAgent()
-        question_id = await selector.run(student_id, target_topic, d_min, d_max, state.seen_all_ids, self._db)
+        question_id = await selector.run(student_id, target_topic, state.seen_all_ids, self._db)
         if not question_id:
-            # Wider band, no exclusions
-            question_id = await selector.run(student_id, target_topic, -1.5, 1.5, [], self._db)
+            question_id = await selector.run(student_id, target_topic, [], self._db)
         if not question_id:
             # Hard fallback: agent failed entirely — query DB directly
             fallback = await self._repo.tool_get_candidate_questions(
-                topic_id=target_topic, difficulty_min=-1.5, difficulty_max=1.5,
-                exclude_ids=[], limit=1, student_id=student_id,
+                topic_id=target_topic, exclude_ids=[], limit=1, student_id=student_id,
             )
             question_id = fallback[0]["question_id"] if fallback else None
         if not question_id:
@@ -309,6 +308,148 @@ class RecommenderService:
                 difficulty_offset=difficulty_offset,
             ),
         )
+
+    async def get_next_question_stream(
+        self,
+        student_id: str,
+        focus_topics: list[str],
+        start_difficulty_offset: float,
+        review_injection_rate: float,
+        state: SessionState,
+        event_queue: asyncio.Queue,
+    ) -> NextQuestionResponse:
+        """Like get_next_question but pushes live reasoning steps into event_queue."""
+
+        async def emit(label: str, tool: str = "system") -> None:
+            await event_queue.put({"type": "step", "tool": tool, "label": label})
+
+        personality  = await self._repo.get_personality(student_id) or {}
+        mode_result  = ConfidenceRegulator.get_session_mode(
+            consecutive_wrong=state.consecutive_wrong,
+            questions_asked=state.questions_asked,
+            confidence_profile=personality.get("confidence_profile", "resilient"),
+            fatigue_threshold=personality.get("fatigue_threshold_questions", 20),
+        )
+        difficulty_offset = start_difficulty_offset + mode_result.difficulty_offset
+        _in_scope = set(focus_topics) if focus_topics else None
+
+        # Incorrect retry injection
+        if SM2Scheduler.should_inject_review(INCORRECT_INJECTION_PROB) and mode_result.mode == "normal":
+            due_wrong = await self._repo.get_due_incorrect_questions(student_id, limit=10)
+            retry = next(
+                (r for r in due_wrong
+                 if r["question_id"] not in state.seen_all_ids
+                 and (_in_scope is None or r.get("topic_id") in _in_scope)),
+                None,
+            )
+            if retry:
+                consec = retry.get("consecutive_incorrect", 1)
+                tn     = retry["topic_id"].split("::")[-1].replace("-", " ").title()
+                await emit(f"Bringing back a question you got wrong {consec} time(s) — {tn}", "retry")
+                days_since = (datetime.now(timezone.utc) - retry["last_attempted_at"]).days if retry.get("last_attempted_at") else 1
+                resp = NextQuestionResponse(
+                    question_id=retry["question_id"], topic_id=retry["topic_id"],
+                    difficulty_target=0.0, is_review_injection=True,
+                    review_reason=(
+                        f"You got this wrong {consec} time(s) — "
+                        f"retry after {days_since} day(s). Getting it right consolidates the concept!"
+                    ),
+                    coach_note=(
+                        f"You've gotten {tn} wrong {consec} time{'s' if consec > 1 else ''} in a row. "
+                        "Solving it today will break the pattern."
+                    ),
+                )
+                await event_queue.put({"type": "question", **resp.model_dump()})
+                return resp
+
+        # SM-2 review injection
+        if SM2Scheduler.should_inject_review(review_injection_rate) and mode_result.mode == "normal":
+            due = await self._repo.get_due_review_questions(student_id, limit=10)
+            review = next(
+                (r for r in due
+                 if r["question_id"] not in state.seen_all_ids
+                 and (_in_scope is None or r.get("topic_id") in _in_scope)),
+                None,
+            )
+            if review:
+                tn      = review["topic_id"].split("::")[-1].replace("-", " ").title()
+                days_since = (datetime.now(timezone.utc) - review.get("last_attempted_at")).days if review.get("last_attempted_at") else 1
+                await emit(f"Spaced repetition — bringing back {tn} (solved {days_since} day(s) ago)", "review")
+                attempts = review.get("times_attempted", 1)
+                resp = NextQuestionResponse(
+                    question_id=review["question_id"], topic_id=review["topic_id"],
+                    difficulty_target=0.0, is_review_injection=True,
+                    review_reason=f"Review #{attempts} — first solved {days_since} day(s) ago.",
+                    coach_note=(
+                        f"You solved this {tn} question {days_since} day(s) ago. "
+                        f"This is review #{attempts} — the optimal interval for long-term retention."
+                    ),
+                )
+                await event_queue.put({"type": "question", **resp.model_dump()})
+                return resp
+
+        # Topic selection via Thompson Sampling
+        all_states   = await self._repo.get_topic_states_dict(student_id)
+        unlocked_set = set(all_states.keys())
+        if not unlocked_set:
+            raise NoUnlockedTopics()
+
+        if mode_result.topic_override == "pick_mastered_topic":
+            strong = set(personality.get("strong_chapters", []))
+            pool   = [s for tid, s in all_states.items() if tid in unlocked_set and s.get("chapter") in strong]
+        else:
+            focus_set = set(focus_topics) & unlocked_set if focus_topics else unlocked_set
+            pool      = [s for tid, s in all_states.items() if tid in focus_set]
+        if not pool:
+            pool = [s for tid, s in all_states.items() if tid in unlocked_set]
+
+        trend_scores = await self._repo.get_trend_scores_dict()
+        target_topic = ThompsonSampler.select_topic(
+            topic_states=pool, trend_scores=trend_scores,
+            focus_topics=focus_topics if mode_result.topic_override is None else None,
+        )
+        if not target_topic:
+            raise NoUnlockedTopics()
+
+        topic_state = all_states[target_topic]
+        alpha_v     = int(topic_state.get("alpha", 1))
+        beta_v      = int(topic_state.get("beta", 1))
+        p_appears   = trend_scores.get(target_topic, 0.5)
+        theta       = float(topic_state.get("theta", 0.0))
+        d_target    = IRTEngine.target_difficulty(theta, offset=difficulty_offset)
+
+        # Agent selects question, streaming its own tool steps + thoughts
+        async def _on_selector_step(event: dict) -> None:
+            await event_queue.put(event)
+
+        selector    = QuestionSelectorAgent()
+        question_id = await selector.run(
+            student_id, target_topic, state.seen_all_ids, self._db,
+            on_step=_on_selector_step,
+        )
+        if not question_id:
+            question_id = await selector.run(
+                student_id, target_topic, [], self._db, on_step=_on_selector_step,
+            )
+        if not question_id:
+            fallback    = await self._repo.tool_get_candidate_questions(
+                topic_id=target_topic, exclude_ids=[], limit=1, student_id=student_id,
+            )
+            question_id = fallback[0]["question_id"] if fallback else None
+        if not question_id:
+            raise NoUnlockedTopics(f"No questions available for topic {target_topic}.")
+
+        resp = NextQuestionResponse(
+            question_id=question_id, topic_id=target_topic,
+            difficulty_target=round(d_target, 3), is_review_injection=False,
+            coach_note=_build_coach_note(
+                mode=mode_result.mode, topic_id=target_topic,
+                mastery_mean=alpha_v / (alpha_v + beta_v),
+                p_appears=p_appears, difficulty_offset=difficulty_offset,
+            ),
+        )
+        await event_queue.put({"type": "question", **resp.model_dump()})
+        return resp
 
     async def process_answer(
         self,
@@ -377,7 +518,7 @@ class RecommenderService:
         )
 
         all_states     = await self._repo.get_topic_states_dict(student_id)
-        newly_unlocked = PrerequisiteChecker.get_newly_unlocked(topic_id, all_states, get_prereq_graph())
+        newly_unlocked: list[str] = []  # all topics always unlocked — no prereq graph
 
         frustration_triggered = new_state.consecutive_wrong >= 3
         if frustration_triggered:
@@ -464,10 +605,7 @@ class RecommenderService:
         if not await self._repo.student_is_initialized(student_id):
             raise StudentNotInitialized()
 
-        all_states   = await self._repo.get_all_topic_states(student_id)
-        graph        = get_prereq_graph()
-        states_dict  = {s["topic_id"]: s for s in all_states}
-        unlocked_set = PrerequisiteChecker.get_unlocked_set(states_dict, graph)
+        all_states = await self._repo.get_all_topic_states(student_id)
 
         topic_responses = []
         for s in all_states:
@@ -489,14 +627,14 @@ class RecommenderService:
                 total_attempts=int(s.get("total_attempts", 0)),
                 total_correct=int(s.get("total_correct", 0)),
                 last_attempted=s.get("last_attempted"),
-                is_unlocked=s["topic_id"] in unlocked_set,
+                is_unlocked=True,  # all topics unlocked — no prereq gate
             ))
 
         return AllTopicStatesResponse(
             student_id=student_id,
             topic_states=topic_responses,
             total=len(topic_responses),
-            unlocked_count=len(unlocked_set),
+            unlocked_count=len(topic_responses),
         )
 
     async def get_trend_scores(self) -> AllTrendScoresResponse:
@@ -547,15 +685,23 @@ class RecommenderService:
         raw_question = doc.get("question", "")
         raw_options  = doc.get("options") or []
 
-        # ── LaTeX conversion via Gemini 3.5 Flash ────────────────────────────
+        # ── LaTeX conversion via Gemini 3.5 Flash (up to 3 attempts) ────────────
         # Only convert non-image questions; image questions can't be rerendered.
         if not doc.get("isImgQuestion", False):
-            try:
-                converted = await LatexConverterAgent().convert(raw_question, raw_options)
-                raw_question = converted["question"]
-                raw_options  = converted["options"]
-            except Exception as exc:
-                logger.warning("LatexConverter skipped for %s: %s", question_id, exc)
+            _last_exc: Exception | None = None
+            for _attempt in range(3):
+                try:
+                    converted    = await LatexConverterAgent().convert(raw_question, raw_options)
+                    raw_question = converted["question"]
+                    raw_options  = converted["options"]
+                    _last_exc    = None
+                    break
+                except Exception as exc:
+                    _last_exc = exc
+                    if _attempt < 2:
+                        await asyncio.sleep(0.5 * (_attempt + 1))   # 0.5s, 1.0s
+            if _last_exc:
+                logger.warning("LatexConverter failed after 3 attempts for %s: %s", question_id, _last_exc)
 
         options      = [QuestionOption(identifier=o.get("identifier", ""), content=o.get("content", "")) for o in raw_options]
         correct_opts = doc.get("correct_options") or []

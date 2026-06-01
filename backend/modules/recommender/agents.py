@@ -71,15 +71,15 @@ Planning rules:
 - confidence_note: speak directly to the student using "you". Name their strongest and weakest topic explicitly. Be warm and motivating — 3-4 sentences. Explain what you found (weakest topic, exam trend, error pattern if known) and what today's session targets. Example: "You've been doing well in Complex Numbers, but Limits is where you're struggling most — your mastery is only 38%. I also noticed that Limits appears in 74% of recent JEE papers, so it's the highest-leverage topic right now. Today's session will focus here, starting comfortable and pushing up as you warm up." """
 
     _TOOL_LABELS = {
-        "get_unlocked_topics":       "Looked at all the topics you've unlocked so far",
-        "get_due_reviews":           "Found questions you solved before that are ready for you to review again",
-        "get_weakest_unlocked":      "Found the topics where you need the most work right now",
-        "get_trend_top_topics":      "Checked which topics come up most often in JEE exams",
-        "get_candidate_questions":   "Browsed questions at the right difficulty level for you",
-        "get_question_type_weights": "Checked which question types you struggle with the most",
-        "get_topic_attempt_stats":   "Analysed your attempt history to see where you get stuck",
-        "get_error_clusters":        "Looked at the kinds of mistakes you've been making",
-        "get_session_summary":       "Reviewed how your last session went",
+        "get_unlocked_topics":       "Checking your topic map",
+        "get_due_reviews":           "Checking spaced-repetition queue",
+        "get_weakest_unlocked":      "Identifying weak spots",
+        "get_trend_top_topics":      "Checking JEE exam trends",
+        "get_candidate_questions":   "Browsing question bank",
+        "get_question_type_weights": "Checking question-type priorities",
+        "get_topic_attempt_stats":   "Analysing attempt patterns",
+        "get_error_clusters":        "Identifying error patterns",
+        "get_session_summary":       "Reviewing last session",
     }
     
 
@@ -101,14 +101,58 @@ Planning rules:
         )
 
         # Closure that fires the on_step callback after each tool call completes.
+        # Uses the actual result to produce specific, data-driven labels instead
+        # of generic hardcoded strings.
         _seen_count: list[int] = [0]
 
-        async def _on_tool_result(_round_num: int, tool_name: str, _args: dict, _result: object) -> None:
-            label = self._TOOL_LABELS.get(tool_name)
-            if on_step and label:
-                idx = _seen_count[0]
-                _seen_count[0] += 1
-                await on_step({"type": "step", "tool": tool_name, "label": label, "index": idx})
+        async def _on_tool_result(_round_num: int, tool_name: str, _args: dict, result: object) -> None:
+            if not on_step:
+                return
+
+            label = self._TOOL_LABELS.get(tool_name, tool_name)
+
+            if tool_name == "get_unlocked_topics" and isinstance(result, list):
+                n = len(result)
+                weakest = next(
+                    (r for r in result if isinstance(r, dict) and r.get("mastery_mean", 1.0) < 0.5),
+                    result[0] if result else None,
+                )
+                if weakest and isinstance(weakest, dict):
+                    wname = weakest.get("topic_id", "").split("::")[-1].replace("-", " ").title()
+                    wm    = int(weakest.get("mastery_mean", 0) * 100)
+                    label = f"{n} topics found · weakest: {wname} ({wm}%)"
+                else:
+                    label = f"{n} topics found"
+
+            elif tool_name == "get_due_reviews" and isinstance(result, list):
+                n = len(result)
+                label = f"{n} due for review today" if n else "No reviews pending"
+
+            elif tool_name == "get_weakest_unlocked" and isinstance(result, list):
+                if result:
+                    names = [t.split("::")[-1].replace("-", " ").title() for t in result[:3]]
+                    label = f"Weak spots: {', '.join(names)}"
+                else:
+                    label = "All topics looking strong"
+
+            elif tool_name == "get_trend_top_topics" and isinstance(result, list):
+                if result:
+                    top2 = [
+                        (t.get("topic_id", "").split("::")[-1].replace("-", " ").title(),
+                         int(t.get("p_appears", 0) * 100))
+                        for t in result[:2]
+                    ]
+                    label = "High-frequency JEE topics: " + ", ".join(f"{n} ({p}%)" for n, p in top2)
+                else:
+                    label = "Checking trend data"
+
+            idx = _seen_count[0]
+            _seen_count[0] += 1
+            await on_step({"type": "step", "tool": tool_name, "label": label, "index": idx})
+
+        async def _on_thought(text: str) -> None:
+            if on_step:
+                await on_step({"type": "thought", "text": text})
 
         try:
             final_text, tool_calls = await chat_with_tools(
@@ -122,7 +166,9 @@ Planning rules:
                 temperature=0.15,
                 max_tokens=2048,
                 max_tool_rounds=5,
+                thinking_budget=16000,  # noqa: keep high — planner needs deep reasoning
                 on_tool_result=_on_tool_result if on_step else None,
+                on_thought=_on_thought if on_step else None,
             )
             logger.info("SessionPlannerAgent done for %s, tools=%d", student_id, len(tool_calls))
             plan = self._parse_plan(final_text)
@@ -175,8 +221,10 @@ class QuestionSelectorAgent:
         "You are a JEE question selector.\n\n"
         "Steps:\n"
         "1. Call get_candidate_questions with the topic_id and difficulty range provided.\n"
+        "   - If the result is an EMPTY list, immediately respond with "
+        "{\"selected_question_id\": null} — do NOT call any more tools.\n"
         "2. Call get_question_type_weights to see which types the student needs most.\n"
-        "3. Pick the best question by: highest type_weight → is_novel=true → most recent year.\n"
+        "3. Pick the single best question by: highest type_weight → is_novel=true → most recent year.\n"
         "4. Respond with exactly: {\"selected_question_id\": \"<id>\"}"
     )
 
@@ -184,19 +232,41 @@ class QuestionSelectorAgent:
         self,
         student_id: str,
         topic_id: str,
-        difficulty_min: float,
-        difficulty_max: float,
         seen_ids: list[str],
         db: AsyncIOMotorDatabase,
+        *,
+        on_step=None,
     ) -> str | None:
         tool_calls: list[dict] = []
+        _idx: list[int] = [0]
+
+        async def _on_tool_result(_rn: int, tool_name: str, _args: dict, result: object) -> None:
+            label = tool_name
+            if tool_name == "get_candidate_questions":
+                n = len(result) if isinstance(result, list) else 0
+                if n == 0:
+                    return  # 0 candidates means exclusion window is in play — fallback handles it, no need to surface
+                label = f"Found {n} candidate question{'s' if n != 1 else ''}"
+            elif tool_name == "get_question_type_weights" and isinstance(result, dict):
+                try:
+                    weakest = max(result.items(), key=lambda x: float(x[1]))[0]
+                    label = f"Prioritising {weakest.replace('_', ' ')} — needs the most work"
+                except Exception:
+                    label = "Checked which question types need the most work"
+            if on_step:
+                await on_step({"type": "step", "tool": tool_name, "label": label, "index": _idx[0]})
+            _idx[0] += 1
+
+        async def _on_selector_thought(text: str) -> None:
+            if on_step:
+                await on_step({"type": "thought", "text": text})
+
         try:
             final_text, tool_calls = await chat_with_tools(
                 messages=[
                     {"role": "system", "content": self.SYSTEM_PROMPT},
                     {"role": "user", "content": (
                         f"topic_id: {topic_id}\n"
-                        f"difficulty range: [{difficulty_min:.2f}, {difficulty_max:.2f}]\n"
                         f"exclude_seen_correct: {seen_ids[:30]}"
                     )},
                 ],
@@ -206,6 +276,9 @@ class QuestionSelectorAgent:
                 temperature=0.05,
                 max_tokens=1024,
                 max_tool_rounds=3,
+                thinking_budget=10000,  # noqa: keep high — selector needs careful reasoning
+                on_tool_result=_on_tool_result if on_step else None,
+                on_thought=_on_selector_thought if on_step else None,
             )
             start, end = final_text.find("{"), final_text.rfind("}") + 1
             if start != -1 and end > 0:
@@ -269,9 +342,19 @@ After all tool calls are done, output exactly this JSON and nothing else:
                 temperature=0.1,
                 max_tokens=2048,
                 max_tool_rounds=8,
+                thinking_budget=16000,  # noqa: keep high — diagnosis needs deep analysis
             )
-            logger.info("DiagnosisAgent done for %s (trigger=%s) tools=%d response=%.100s",
-                        student_id, trigger, len(tool_calls), final_text)
+            logger.info("DiagnosisAgent done for %s (trigger=%s) tools=%d", student_id, trigger, len(tool_calls))
+
+            # Parse main_finding and persist it so the frontend can surface it
+            start, end = final_text.find("{"), final_text.rfind("}") + 1
+            if start != -1 and end > 0:
+                finding = json.loads(final_text[start:end]).get("main_finding", "")
+                if finding:
+                    await RecommenderRepository(db).update_personality(
+                        student_id, {"last_session_finding": finding}
+                    )
+                    logger.info("DiagnosisAgent saved main_finding for %s: %.120s", student_id, finding)
         except GeminiClientError as exc:
             logger.warning("DiagnosisAgent failed for %s: %s", student_id, exc)
         except Exception as exc:

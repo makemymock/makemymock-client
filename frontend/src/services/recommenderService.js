@@ -65,6 +65,56 @@ export const recommenderService = {
     return data;
   },
 
+  /**
+   * Stream reasoning steps while the AI selects the next question.
+   * onEvent is called per SSE event; resolves when stream closes.
+   * Falls back to the regular endpoint if streaming fails.
+   */
+  async nextQuestionStream(payload, onEvent, signal) {
+    let token = localStorage.getItem('mmm_access_token');
+    const url  = `${API_BASE_URL}/recommender/session/next-question-stream`;
+
+    let response = await fetch(url, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body:    JSON.stringify(payload),
+      signal,
+    });
+
+    if (response.status === 401) {
+      token    = await ensureFreshAccessToken();
+      response = await fetch(url, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body:    JSON.stringify(payload),
+        signal,
+      });
+    }
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(body.detail || `HTTP ${response.status}`);
+    }
+
+    const reader  = response.body.getReader();
+    const decoder = new TextDecoder();
+    let   buffer  = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split('\n\n');
+      buffer = parts.pop() ?? '';
+      for (const part of parts) {
+        const line = part.trim();
+        if (line.startsWith('data: ')) {
+          try { onEvent(JSON.parse(line.slice(6))); } catch { /* malformed */ }
+        }
+      }
+    }
+  },
+
   async submitAnswer(payload) {
     const { data } = await api.post('/recommender/session/submit-answer', payload);
     return data;

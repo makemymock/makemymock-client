@@ -26,8 +26,6 @@ def make_tool_executor(db: AsyncIOMotorDatabase, student_id: str):
         if tool_name == "get_candidate_questions":
             return await repo.tool_get_candidate_questions(
                 topic_id=args["topic_id"],
-                difficulty_min=float(args.get("difficulty_min", -1.5)),
-                difficulty_max=float(args.get("difficulty_max", 1.5)),
                 exclude_ids=args.get("exclude_seen_correct", []),
                 limit=int(args.get("limit", 10)),
                 student_id=student_id,
@@ -115,13 +113,11 @@ QUESTION_SELECTOR_TOOLS: list[dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "get_candidate_questions",
-            "description": "Get candidate questions for a topic within a difficulty range.",
+            "description": "Get all available questions for a topic (returns all difficulties).",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "topic_id": {"type": "string", "description": "Topic ID in chapter::topic format."},
-                    "difficulty_min": {"type": "number", "description": "Min difficulty on IRT scale (-1=easy, 0=medium, +1=hard)."},
-                    "difficulty_max": {"type": "number", "description": "Max difficulty on IRT scale."},
                     "exclude_seen_correct": {"type": "array", "items": {"type": "string"}, "description": "Question IDs to exclude."},
                     "limit": {"type": "integer", "description": "Max candidates to return (default 10)."},
                 },

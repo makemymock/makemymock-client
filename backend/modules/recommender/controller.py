@@ -2,7 +2,7 @@ import asyncio
 import json
 from typing import Annotated, TypeAlias
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 
 from core.dependencies import CurrentVerifiedUser, PyQDBDep
@@ -37,7 +37,7 @@ def _get_service(db: PyQDBDep) -> RecommenderService:
 RecommenderDep = Annotated[RecommenderService, Depends(_get_service)]
 
 
-@router.post("/initialize", response_model=InitializeStudentResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/initialize", response_model=InitializeStudentResponse)
 async def initialize_student(user: CurrentVerifiedUser, service: RecommenderDep) -> InitializeStudentResponse:
     return await service.initialize_student(str(user["_id"]))
 
@@ -99,6 +99,52 @@ async def get_next_question(payload: NextQuestionRequest, user: CurrentVerifiedU
         start_difficulty_offset=payload.start_difficulty_offset,
         review_injection_rate=payload.review_injection_rate,
         state=payload.state,
+    )
+
+
+@router.post("/session/next-question-stream")
+async def get_next_question_stream(
+    payload: NextQuestionRequest, user: CurrentVerifiedUser, service: RecommenderDep,
+) -> StreamingResponse:
+    """SSE endpoint: streams reasoning steps while selecting the next question.
+
+    Event types:
+      step     — {type, tool, label}  live reasoning step
+      question — {type, ...NextQuestionResponse fields}  final selection
+      error    — {type, message}
+      done     — sentinel
+    """
+    queue: asyncio.Queue[dict | None] = asyncio.Queue()
+
+    async def _task() -> None:
+        try:
+            await service.get_next_question_stream(
+                student_id=str(user["_id"]),
+                focus_topics=payload.focus_topics,
+                start_difficulty_offset=payload.start_difficulty_offset,
+                review_injection_rate=payload.review_injection_rate,
+                state=payload.state,
+                event_queue=queue,
+            )
+        except Exception as exc:
+            await queue.put({"type": "error", "message": str(exc)})
+        finally:
+            await queue.put(None)
+
+    asyncio.create_task(_task())
+
+    async def _sse():
+        while True:
+            event = await queue.get()
+            if event is None:
+                yield 'data: {"type":"done"}\n\n'
+                break
+            yield f"data: {json.dumps(event, default=str)}\n\n"
+
+    return StreamingResponse(
+        _sse(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
     )
 
 

@@ -363,6 +363,67 @@
   color: var(--dash-text-muted);
 }
 
+/* Per-chapter breakdown inside session summary */
+.summaryBreakdown {
+  width: 100%; max-width: 440px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.summaryChapterRow {
+  display: flex; align-items: center; gap: 8px;
+}
+.summaryChapterName {
+  font-size: 13px; font-weight: 700;
+  color: var(--dash-text-strong);
+  min-width: 120px; max-width: 140px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  flex-shrink: 0;
+}
+.summaryChapterBar {
+  flex: 1; height: 7px;
+  background: var(--dash-progress-track);
+  border-radius: 99px; overflow: hidden;
+}
+.summaryChapterFill {
+  height: 100%; border-radius: 99px;
+  transition: width 0.6s ease; min-width: 3px;
+}
+.summaryChapterPct {
+  font-size: 13px; font-weight: 800;
+  min-width: 36px; text-align: right;
+}
+.summaryChapterFrac {
+  font-size: 12px; color: var(--dash-text-muted);
+  min-width: 28px;
+}
+
+/* Diagnosis loading / result card */
+.diagnosisLoading {
+  display: flex; align-items: center; gap: 9px;
+  font-size: 14px; color: var(--dash-text-muted);
+  font-style: italic; opacity: 0.7;
+}
+.diagnosisCard {
+  width: 100%; max-width: 480px;
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 16px 18px;
+  background: linear-gradient(135deg, rgba(20,184,166,0.08), rgba(99,102,241,0.04));
+  border: 1px solid rgba(20,184,166,0.3);
+  border-radius: 14px;
+  animation: stepSlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  text-align: left;
+}
+.diagnosisIcon { font-size: 20px; flex-shrink: 0; line-height: 1.4; }
+.diagnosisLabel {
+  font-size: 12px; font-weight: 800;
+  text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--color-accent); margin-bottom: 5px;
+}
+.diagnosisText {
+  margin: 0;
+  font-size: 14px; line-height: 1.7;
+  color: var(--dash-text-strong);
+}
+
 /* ── Recommendation section ──────────────────────────────────── */
 .recIdle {
   display: flex; flex-direction: column; align-items: center; gap: 14px;
@@ -524,6 +585,46 @@
   font-size: 12px; color: var(--dash-text-muted);
   opacity: 0.55; padding: 4px 0;
   letter-spacing: 0.05em;
+  animation: thinkStepIn 0.2s ease;
+}
+
+/* Gemini raw-thought block — collapsible, shown between tool calls */
+.thoughtBlock {
+  border: 1px solid rgba(148,163,184,0.2);
+  border-left: 2px solid rgba(148,163,184,0.4);
+  border-radius: 8px;
+  overflow: hidden;
+  animation: stepSlideIn 0.3s ease;
+}
+.thoughtToggle {
+  width: 100%;
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 8px 12px;
+  background: transparent; border: none; cursor: pointer; text-align: left;
+  transition: background 0.12s;
+}
+.thoughtToggle:hover { background: rgba(148,163,184,0.06); }
+.thoughtIcon { font-size: 13px; flex-shrink: 0; line-height: 1.6; opacity: 0.7; }
+.thoughtPreview {
+  flex: 1;
+  font-size: 12px;
+  color: var(--dash-text-muted);
+  font-style: italic;
+  line-height: 1.55;
+  opacity: 0.8;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.thoughtBody {
+  padding: 2px 12px 10px 32px;
+  font-size: 12px;
+  color: var(--dash-text-muted);
+  font-style: italic;
+  line-height: 1.7;
+  opacity: 0.85;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border-top: 1px solid rgba(148,163,184,0.12);
   animation: thinkStepIn 0.2s ease;
 }
 

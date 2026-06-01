@@ -83,7 +83,7 @@ const NAV_ITEMS = [
   { to: '/solverx',     label: 'SolverX',    Icon: IconSpark },
   { to: '/battle',      label: 'Battle',     Icon: IconSwords },
   { to: '/analytics',   label: 'Analytics',  Icon: IconChart },
-  { to: '/recommender', label: 'AI Cockpit', Icon: IconBrain },
+  { to: '/recommender', label: 'SmartPYQ', Icon: IconBrain },
 ];
 
 // Routes that own the whole viewport (no sidebar, no topbar, no bottom
