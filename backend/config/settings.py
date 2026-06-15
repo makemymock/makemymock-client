@@ -72,6 +72,14 @@ class Settings(BaseSettings):
     GEMINI_MODEL_FLASH_LITE: str = "gemini-3.1-flash-lite"
     GEMINI_MODEL_DIAGRAM: str = "gemini-3.5-flash"
 
+    # ---- Pattern miner (separate PYQ cluster) ----
+    # The miner reads the JEE PYQ catalog from `jee_mains_pyqs` and writes its
+    # `patterns` / `pattern_assignments` to this cluster — a different Mongo
+    # from the primary one above (it's the dataset the offline miner owns). Left
+    # blank, the pattern-miner jobs + read API raise a clear "not configured".
+    PYQ_MONGO_URI: str = ""
+    PYQ_DB_NAME: str = "adaptive_practice"
+
 
 @lru_cache
 def get_settings() -> Settings:

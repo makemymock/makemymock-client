@@ -238,6 +238,10 @@ async def _ensure_indexes() -> None:
         [("source", ASCENDING), ("ts", DESCENDING)],
     )
 
+    # NOTE: the pattern-miner collections (patterns / pattern_assignments /
+    # checkpoints) live on a separate PYQ cluster, not here — their indexes are
+    # created in modules/pattern_miner/db.py:ensure_indexes().
+
 
 def get_database() -> AsyncIOMotorDatabase:
     if mongo.db is None:

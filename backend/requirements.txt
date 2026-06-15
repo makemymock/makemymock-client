@@ -21,3 +21,12 @@ python-multipart
 # permitted", which kills every SolverX Vertex AI call. Pip's
 # resolver under `>=1.0.0` happily picks 1.2.0, so be explicit.
 google-genai>=1.20.0,<2.0
+# Pattern miner — HTML→text cleaning of the raw PYQ catalog (bs4 + lxml
+# parser) and deterministic kebab-case slugs for proposed patterns.
+beautifulsoup4>=4.12.0
+lxml>=5.2.0
+python-slugify>=8.0.0
+# Test runner for the pattern-miner unit tests (deterministic, no DB/LLM):
+#   pytest tests/pattern_miner        (config in pytest.ini)
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
