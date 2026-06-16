@@ -117,3 +117,29 @@ class ContestAlreadySubmitted(AppException):
 class ContestNotEntered(AppException):
     def __init__(self, detail: str = "You must enter the contest lobby before starting."):
         super().__init__(detail, status.HTTP_403_FORBIDDEN)
+
+
+# ---- Recommender ----
+class StudentNotInitialized(AppException):
+    def __init__(self, detail: str = "Student not initialized. Call /recommender/initialize first."):
+        super().__init__(detail, status.HTTP_404_NOT_FOUND)
+
+
+class StudentAlreadyInitialized(AppException):
+    def __init__(self, detail: str = "Student already initialized."):
+        super().__init__(detail, status.HTTP_409_CONFLICT)
+
+
+class SessionNotFound(AppException):
+    def __init__(self, detail: str = "Recommender session not found."):
+        super().__init__(detail, status.HTTP_404_NOT_FOUND)
+
+
+class NoUnlockedTopics(AppException):
+    def __init__(self, detail: str = "No questions available for this topic."):
+        super().__init__(detail, status.HTTP_404_NOT_FOUND)
+
+
+class RecommenderAgentError(AppException):
+    def __init__(self, detail: str = "Agent call failed."):
+        super().__init__(detail, status.HTTP_502_BAD_GATEWAY)

@@ -1,0 +1,973 @@
+{
+  "sets-and-relations::venn-diagram": {
+    "chapter": "sets-and-relations",
+    "topic": "venn-diagram",
+    "requires": []
+  },
+  "sets-and-relations::number-of-sets-and-relations": {
+    "chapter": "sets-and-relations",
+    "topic": "number-of-sets-and-relations",
+    "requires": ["sets-and-relations::venn-diagram", "permutations-and-combinations::factorial"]
+  },
+  "sets-and-relations::symmetric-transitive-and-reflexive-properties": {
+    "chapter": "sets-and-relations",
+    "topic": "symmetric-transitive-and-reflexive-properties",
+    "requires": ["sets-and-relations::venn-diagram"]
+  },
+  "mathematical-reasoning::logical-statement": {
+    "chapter": "mathematical-reasoning",
+    "topic": "logical-statement",
+    "requires": []
+  },
+  "mathematical-reasoning::logical-connectives": {
+    "chapter": "mathematical-reasoning",
+    "topic": "logical-connectives",
+    "requires": ["mathematical-reasoning::logical-statement"]
+  },
+  "logarithm::logarithmic-equations": {
+    "chapter": "logarithm",
+    "topic": "logarithmic-equations",
+    "requires": []
+  },
+  "logarithm::logarithm-inequalities": {
+    "chapter": "logarithm",
+    "topic": "logarithm-inequalities",
+    "requires": ["logarithm::logarithmic-equations"]
+  },
+  "quadratic-equation-and-inequalities::nature-of-roots": {
+    "chapter": "quadratic-equation-and-inequalities",
+    "topic": "nature-of-roots",
+    "requires": []
+  },
+  "quadratic-equation-and-inequalities::relation-between-roots-and-coefficients": {
+    "chapter": "quadratic-equation-and-inequalities",
+    "topic": "relation-between-roots-and-coefficients",
+    "requires": ["quadratic-equation-and-inequalities::nature-of-roots"]
+  },
+  "quadratic-equation-and-inequalities::graph-and-sign-of-quadratic-expression": {
+    "chapter": "quadratic-equation-and-inequalities",
+    "topic": "graph-and-sign-of-quadratic-expression",
+    "requires": ["quadratic-equation-and-inequalities::nature-of-roots"]
+  },
+  "quadratic-equation-and-inequalities::location-of-roots": {
+    "chapter": "quadratic-equation-and-inequalities",
+    "topic": "location-of-roots",
+    "requires": ["quadratic-equation-and-inequalities::graph-and-sign-of-quadratic-expression"]
+  },
+  "quadratic-equation-and-inequalities::range-of-quadratic-expression": {
+    "chapter": "quadratic-equation-and-inequalities",
+    "topic": "range-of-quadratic-expression",
+    "requires": ["quadratic-equation-and-inequalities::graph-and-sign-of-quadratic-expression"]
+  },
+  "quadratic-equation-and-inequalities::common-roots": {
+    "chapter": "quadratic-equation-and-inequalities",
+    "topic": "common-roots",
+    "requires": ["quadratic-equation-and-inequalities::relation-between-roots-and-coefficients"]
+  },
+  "quadratic-equation-and-inequalities::inequalities": {
+    "chapter": "quadratic-equation-and-inequalities",
+    "topic": "inequalities",
+    "requires": ["quadratic-equation-and-inequalities::graph-and-sign-of-quadratic-expression", "logarithm::logarithm-inequalities"]
+  },
+  "quadratic-equation-and-inequalities::modulus-function": {
+    "chapter": "quadratic-equation-and-inequalities",
+    "topic": "modulus-function",
+    "requires": []
+  },
+  "quadratic-equation-and-inequalities::greatest-integer-and-fractional-part-functions": {
+    "chapter": "quadratic-equation-and-inequalities",
+    "topic": "greatest-integer-and-fractional-part-functions",
+    "requires": ["quadratic-equation-and-inequalities::modulus-function"]
+  },
+  "quadratic-equation-and-inequalities::algebraic-equations-of-higher-degree": {
+    "chapter": "quadratic-equation-and-inequalities",
+    "topic": "algebraic-equations-of-higher-degree",
+    "requires": ["quadratic-equation-and-inequalities::relation-between-roots-and-coefficients"]
+  },
+  "sequences-and-series::arithmetic-progression": {
+    "chapter": "sequences-and-series",
+    "topic": "arithmetic-progression",
+    "requires": []
+  },
+  "sequences-and-series::geometric-progression": {
+    "chapter": "sequences-and-series",
+    "topic": "geometric-progression",
+    "requires": []
+  },
+  "sequences-and-series::harmonic-progression": {
+    "chapter": "sequences-and-series",
+    "topic": "harmonic-progression",
+    "requires": ["sequences-and-series::arithmetic-progression"]
+  },
+  "sequences-and-series::am-gm-and-hm": {
+    "chapter": "sequences-and-series",
+    "topic": "am-gm-and-hm",
+    "requires": ["sequences-and-series::arithmetic-progression", "sequences-and-series::geometric-progression", "sequences-and-series::harmonic-progression"]
+  },
+  "sequences-and-series::arithmetico-geometric-progression": {
+    "chapter": "sequences-and-series",
+    "topic": "arithmetico-geometric-progression",
+    "requires": ["sequences-and-series::arithmetic-progression", "sequences-and-series::geometric-progression"]
+  },
+  "sequences-and-series::summation-of-series": {
+    "chapter": "sequences-and-series",
+    "topic": "summation-of-series",
+    "requires": ["sequences-and-series::arithmetic-progression", "sequences-and-series::geometric-progression", "sequences-and-series::arithmetico-geometric-progression"]
+  },
+  "permutations-and-combinations::factorial": {
+    "chapter": "permutations-and-combinations",
+    "topic": "factorial",
+    "requires": []
+  },
+  "permutations-and-combinations::number-of-permutations": {
+    "chapter": "permutations-and-combinations",
+    "topic": "number-of-permutations",
+    "requires": ["permutations-and-combinations::factorial"]
+  },
+  "permutations-and-combinations::number-of-combinations": {
+    "chapter": "permutations-and-combinations",
+    "topic": "number-of-combinations",
+    "requires": ["permutations-and-combinations::number-of-permutations"]
+  },
+  "permutations-and-combinations::conditional-permutations": {
+    "chapter": "permutations-and-combinations",
+    "topic": "conditional-permutations",
+    "requires": ["permutations-and-combinations::number-of-permutations"]
+  },
+  "permutations-and-combinations::conditional-combinations": {
+    "chapter": "permutations-and-combinations",
+    "topic": "conditional-combinations",
+    "requires": ["permutations-and-combinations::number-of-combinations"]
+  },
+  "permutations-and-combinations::circular-permutations": {
+    "chapter": "permutations-and-combinations",
+    "topic": "circular-permutations",
+    "requires": ["permutations-and-combinations::number-of-permutations"]
+  },
+  "permutations-and-combinations::dearrangement": {
+    "chapter": "permutations-and-combinations",
+    "topic": "dearrangement",
+    "requires": ["permutations-and-combinations::number-of-permutations"]
+  },
+  "permutations-and-combinations::divisibility-of-numbers": {
+    "chapter": "permutations-and-combinations",
+    "topic": "divisibility-of-numbers",
+    "requires": ["permutations-and-combinations::number-of-combinations"]
+  },
+  "permutations-and-combinations::sum-of-numbers": {
+    "chapter": "permutations-and-combinations",
+    "topic": "sum-of-numbers",
+    "requires": ["permutations-and-combinations::number-of-combinations"]
+  },
+  "permutations-and-combinations::application-of-permutations-and-combination-in-geometry": {
+    "chapter": "permutations-and-combinations",
+    "topic": "application-of-permutations-and-combination-in-geometry",
+    "requires": ["permutations-and-combinations::number-of-combinations"]
+  },
+  "binomial-theorem::general-term": {
+    "chapter": "binomial-theorem",
+    "topic": "general-term",
+    "requires": ["permutations-and-combinations::number-of-combinations"]
+  },
+  "binomial-theorem::middle-term": {
+    "chapter": "binomial-theorem",
+    "topic": "middle-term",
+    "requires": ["binomial-theorem::general-term"]
+  },
+  "binomial-theorem::binomial-theorem-for-any-index": {
+    "chapter": "binomial-theorem",
+    "topic": "binomial-theorem-for-any-index",
+    "requires": ["binomial-theorem::general-term"]
+  },
+  "binomial-theorem::problems-based-on-binomial-co-efficient-and-collection-of-binomial-co-efficient": {
+    "chapter": "binomial-theorem",
+    "topic": "problems-based-on-binomial-co-efficient-and-collection-of-binomial-co-efficient",
+    "requires": ["binomial-theorem::general-term"]
+  },
+  "binomial-theorem::divisibility-concept-and-remainder-concept": {
+    "chapter": "binomial-theorem",
+    "topic": "divisibility-concept-and-remainder-concept",
+    "requires": ["binomial-theorem::general-term"]
+  },
+  "binomial-theorem::integral-and-fractional-part-of-a-number": {
+    "chapter": "binomial-theorem",
+    "topic": "integral-and-fractional-part-of-a-number",
+    "requires": ["binomial-theorem::general-term"]
+  },
+  "binomial-theorem::negative-and-fractional-index": {
+    "chapter": "binomial-theorem",
+    "topic": "negative-and-fractional-index",
+    "requires": ["binomial-theorem::binomial-theorem-for-any-index"]
+  },
+  "binomial-theorem::multinomial-theorem": {
+    "chapter": "binomial-theorem",
+    "topic": "multinomial-theorem",
+    "requires": ["binomial-theorem::general-term", "permutations-and-combinations::number-of-combinations"]
+  },
+  "mathematical-induction::mathematical-induction": {
+    "chapter": "mathematical-induction",
+    "topic": "mathematical-induction",
+    "requires": ["sequences-and-series::arithmetic-progression"]
+  },
+  "complex-numbers::algebra-of-complex-numbers": {
+    "chapter": "complex-numbers",
+    "topic": "algebra-of-complex-numbers",
+    "requires": []
+  },
+  "complex-numbers::modulus-of-complex-numbers": {
+    "chapter": "complex-numbers",
+    "topic": "modulus-of-complex-numbers",
+    "requires": ["complex-numbers::algebra-of-complex-numbers"]
+  },
+  "complex-numbers::argument-of-complex-numbers": {
+    "chapter": "complex-numbers",
+    "topic": "argument-of-complex-numbers",
+    "requires": ["complex-numbers::modulus-of-complex-numbers", "trigonometric-ratio-and-identites::basic-definition-of-trigonometric-function"]
+  },
+  "complex-numbers::conjugate-of-complex-numbers": {
+    "chapter": "complex-numbers",
+    "topic": "conjugate-of-complex-numbers",
+    "requires": ["complex-numbers::algebra-of-complex-numbers"]
+  },
+  "complex-numbers::square-root-of-a-complex-number": {
+    "chapter": "complex-numbers",
+    "topic": "square-root-of-a-complex-number",
+    "requires": ["complex-numbers::algebra-of-complex-numbers"]
+  },
+  "complex-numbers::cube-roots-of-unity": {
+    "chapter": "complex-numbers",
+    "topic": "cube-roots-of-unity",
+    "requires": ["complex-numbers::algebra-of-complex-numbers"]
+  },
+  "complex-numbers::de-moivres-theorem": {
+    "chapter": "complex-numbers",
+    "topic": "de-moivres-theorem",
+    "requires": ["complex-numbers::argument-of-complex-numbers"]
+  },
+  "complex-numbers::nth-roots-of-unity": {
+    "chapter": "complex-numbers",
+    "topic": "nth-roots-of-unity",
+    "requires": ["complex-numbers::de-moivres-theorem"]
+  },
+  "complex-numbers::applications-of-complex-numbers-in-coordinate-geometry": {
+    "chapter": "complex-numbers",
+    "topic": "applications-of-complex-numbers-in-coordinate-geometry",
+    "requires": ["complex-numbers::argument-of-complex-numbers", "straight-lines-and-pair-of-straight-lines::distance-formula"]
+  },
+  "matrices-and-determinants::basic-of-matrix": {
+    "chapter": "matrices-and-determinants",
+    "topic": "basic-of-matrix",
+    "requires": []
+  },
+  "matrices-and-determinants::operations-on-matrices": {
+    "chapter": "matrices-and-determinants",
+    "topic": "operations-on-matrices",
+    "requires": ["matrices-and-determinants::basic-of-matrix"]
+  },
+  "matrices-and-determinants::transpose-of-a-matrix": {
+    "chapter": "matrices-and-determinants",
+    "topic": "transpose-of-a-matrix",
+    "requires": ["matrices-and-determinants::basic-of-matrix"]
+  },
+  "matrices-and-determinants::symmetric-and-skew-symmetric-matrices": {
+    "chapter": "matrices-and-determinants",
+    "topic": "symmetric-and-skew-symmetric-matrices",
+    "requires": ["matrices-and-determinants::transpose-of-a-matrix"]
+  },
+  "matrices-and-determinants::multiplication-of-matrices": {
+    "chapter": "matrices-and-determinants",
+    "topic": "multiplication-of-matrices",
+    "requires": ["matrices-and-determinants::operations-on-matrices"]
+  },
+  "matrices-and-determinants::trace-of-a-matrix": {
+    "chapter": "matrices-and-determinants",
+    "topic": "trace-of-a-matrix",
+    "requires": ["matrices-and-determinants::basic-of-matrix"]
+  },
+  "matrices-and-determinants::expansion-of-determinant": {
+    "chapter": "matrices-and-determinants",
+    "topic": "expansion-of-determinant",
+    "requires": ["matrices-and-determinants::multiplication-of-matrices"]
+  },
+  "matrices-and-determinants::properties-of-determinants": {
+    "chapter": "matrices-and-determinants",
+    "topic": "properties-of-determinants",
+    "requires": ["matrices-and-determinants::expansion-of-determinant"]
+  },
+  "matrices-and-determinants::adjoint-of-a-matrix": {
+    "chapter": "matrices-and-determinants",
+    "topic": "adjoint-of-a-matrix",
+    "requires": ["matrices-and-determinants::expansion-of-determinant"]
+  },
+  "matrices-and-determinants::inverse-of-a-matrix": {
+    "chapter": "matrices-and-determinants",
+    "topic": "inverse-of-a-matrix",
+    "requires": ["matrices-and-determinants::adjoint-of-a-matrix"]
+  },
+  "matrices-and-determinants::solutions-of-system-of-linear-equations-in-two-or-three-variables-using-determinants-and-matrices": {
+    "chapter": "matrices-and-determinants",
+    "topic": "solutions-of-system-of-linear-equations-in-two-or-three-variables-using-determinants-and-matrices",
+    "requires": ["matrices-and-determinants::inverse-of-a-matrix", "matrices-and-determinants::properties-of-determinants"]
+  },
+  "trigonometric-ratio-and-identites::basic-definition-of-trigonometric-function": {
+    "chapter": "trigonometric-ratio-and-identites",
+    "topic": "basic-definition-of-trigonometric-function",
+    "requires": []
+  },
+  "trigonometric-ratio-and-identites::trigonometric-ratio-of-standard-angles": {
+    "chapter": "trigonometric-ratio-and-identites",
+    "topic": "trigonometric-ratio-of-standard-angles",
+    "requires": ["trigonometric-ratio-and-identites::basic-definition-of-trigonometric-function"]
+  },
+  "trigonometric-ratio-and-identites::fundamental-identities": {
+    "chapter": "trigonometric-ratio-and-identites",
+    "topic": "fundamental-identities",
+    "requires": ["trigonometric-ratio-and-identites::basic-definition-of-trigonometric-function"]
+  },
+  "trigonometric-ratio-and-identites::addition-and-subtraction-formula": {
+    "chapter": "trigonometric-ratio-and-identites",
+    "topic": "addition-and-subtraction-formula",
+    "requires": ["trigonometric-ratio-and-identites::fundamental-identities"]
+  },
+  "trigonometric-ratio-and-identites::multiple-and-sub-multiple-angle-formula": {
+    "chapter": "trigonometric-ratio-and-identites",
+    "topic": "multiple-and-sub-multiple-angle-formula",
+    "requires": ["trigonometric-ratio-and-identites::addition-and-subtraction-formula"]
+  },
+  "trigonometric-ratio-and-identites::transformation-formula": {
+    "chapter": "trigonometric-ratio-and-identites",
+    "topic": "transformation-formula",
+    "requires": ["trigonometric-ratio-and-identites::addition-and-subtraction-formula"]
+  },
+  "trigonometric-ratio-and-identites::reduction-formula": {
+    "chapter": "trigonometric-ratio-and-identites",
+    "topic": "reduction-formula",
+    "requires": ["trigonometric-ratio-and-identites::fundamental-identities"]
+  },
+  "trigonometric-ratio-and-identites::range-of-trigonometric-functions": {
+    "chapter": "trigonometric-ratio-and-identites",
+    "topic": "range-of-trigonometric-functions",
+    "requires": ["trigonometric-ratio-and-identites::fundamental-identities"]
+  },
+  "trigonometric-ratio-and-identites::summation-series-problems": {
+    "chapter": "trigonometric-ratio-and-identites",
+    "topic": "summation-series-problems",
+    "requires": ["trigonometric-ratio-and-identites::transformation-formula"]
+  },
+  "trigonometric-ratio-and-identites::trigonometric-series": {
+    "chapter": "trigonometric-ratio-and-identites",
+    "topic": "trigonometric-series",
+    "requires": ["trigonometric-ratio-and-identites::multiple-and-sub-multiple-angle-formula"]
+  },
+  "trigonometric-functions-and-equations::general-solution-and-principal-solution-of-the-equation": {
+    "chapter": "trigonometric-functions-and-equations",
+    "topic": "general-solution-and-principal-solution-of-the-equation",
+    "requires": ["trigonometric-ratio-and-identites::fundamental-identities"]
+  },
+  "trigonometric-functions-and-equations::solving-trigonometric-equations": {
+    "chapter": "trigonometric-functions-and-equations",
+    "topic": "solving-trigonometric-equations",
+    "requires": ["trigonometric-functions-and-equations::general-solution-and-principal-solution-of-the-equation", "trigonometric-ratio-and-identites::multiple-and-sub-multiple-angle-formula"]
+  },
+  "inverse-trigonometric-functions::domain-and-range-of-inverse-trigonometric-functions": {
+    "chapter": "inverse-trigonometric-functions",
+    "topic": "domain-and-range-of-inverse-trigonometric-functions",
+    "requires": ["trigonometric-ratio-and-identites::range-of-trigonometric-functions"]
+  },
+  "inverse-trigonometric-functions::principal-value-of-inverse-trigonometric-functions": {
+    "chapter": "inverse-trigonometric-functions",
+    "topic": "principal-value-of-inverse-trigonometric-functions",
+    "requires": ["inverse-trigonometric-functions::domain-and-range-of-inverse-trigonometric-functions"]
+  },
+  "inverse-trigonometric-functions::properties-of-inverse-trigonometric-functions": {
+    "chapter": "inverse-trigonometric-functions",
+    "topic": "properties-of-inverse-trigonometric-functions",
+    "requires": ["inverse-trigonometric-functions::principal-value-of-inverse-trigonometric-functions"]
+  },
+  "inverse-trigonometric-functions::sum-upto-n-terms-and-infinite-terms-of-inverse-series": {
+    "chapter": "inverse-trigonometric-functions",
+    "topic": "sum-upto-n-terms-and-infinite-terms-of-inverse-series",
+    "requires": ["inverse-trigonometric-functions::properties-of-inverse-trigonometric-functions"]
+  },
+  "height-and-distance::height-and-distance": {
+    "chapter": "height-and-distance",
+    "topic": "height-and-distance",
+    "requires": ["trigonometric-ratio-and-identites::basic-definition-of-trigonometric-function", "trigonometric-ratio-and-identites::trigonometric-ratio-of-standard-angles"]
+  },
+  "properties-of-triangle::sine-rule": {
+    "chapter": "properties-of-triangle",
+    "topic": "sine-rule",
+    "requires": ["trigonometric-ratio-and-identites::basic-definition-of-trigonometric-function"]
+  },
+  "properties-of-triangle::cosine-rule": {
+    "chapter": "properties-of-triangle",
+    "topic": "cosine-rule",
+    "requires": ["trigonometric-ratio-and-identites::fundamental-identities"]
+  },
+  "properties-of-triangle::area-of-triangle": {
+    "chapter": "properties-of-triangle",
+    "topic": "area-of-triangle",
+    "requires": ["properties-of-triangle::sine-rule"]
+  },
+  "properties-of-triangle::half-angle-formulae": {
+    "chapter": "properties-of-triangle",
+    "topic": "half-angle-formulae",
+    "requires": ["properties-of-triangle::cosine-rule", "trigonometric-ratio-and-identites::multiple-and-sub-multiple-angle-formula"]
+  },
+  "properties-of-triangle::circumcenter-incenter-and-orthocenter": {
+    "chapter": "properties-of-triangle",
+    "topic": "circumcenter-incenter-and-orthocenter",
+    "requires": ["properties-of-triangle::sine-rule", "properties-of-triangle::area-of-triangle"]
+  },
+  "properties-of-triangle::ex-circle": {
+    "chapter": "properties-of-triangle",
+    "topic": "ex-circle",
+    "requires": ["properties-of-triangle::half-angle-formulae"]
+  },
+  "properties-of-triangle::mediun-and-angle-bisector": {
+    "chapter": "properties-of-triangle",
+    "topic": "mediun-and-angle-bisector",
+    "requires": ["properties-of-triangle::cosine-rule"]
+  },
+  "straight-lines-and-pair-of-straight-lines::distance-formula": {
+    "chapter": "straight-lines-and-pair-of-straight-lines",
+    "topic": "distance-formula",
+    "requires": []
+  },
+  "straight-lines-and-pair-of-straight-lines::section-formula": {
+    "chapter": "straight-lines-and-pair-of-straight-lines",
+    "topic": "section-formula",
+    "requires": ["straight-lines-and-pair-of-straight-lines::distance-formula"]
+  },
+  "straight-lines-and-pair-of-straight-lines::various-forms-of-straight-line": {
+    "chapter": "straight-lines-and-pair-of-straight-lines",
+    "topic": "various-forms-of-straight-line",
+    "requires": ["straight-lines-and-pair-of-straight-lines::distance-formula"]
+  },
+  "straight-lines-and-pair-of-straight-lines::angle-between-two-lines": {
+    "chapter": "straight-lines-and-pair-of-straight-lines",
+    "topic": "angle-between-two-lines",
+    "requires": ["straight-lines-and-pair-of-straight-lines::various-forms-of-straight-line"]
+  },
+  "straight-lines-and-pair-of-straight-lines::distance-of-a-point-from-a-line": {
+    "chapter": "straight-lines-and-pair-of-straight-lines",
+    "topic": "distance-of-a-point-from-a-line",
+    "requires": ["straight-lines-and-pair-of-straight-lines::various-forms-of-straight-line"]
+  },
+  "straight-lines-and-pair-of-straight-lines::position-of-a-point-with-respect-to-a-line": {
+    "chapter": "straight-lines-and-pair-of-straight-lines",
+    "topic": "position-of-a-point-with-respect-to-a-line",
+    "requires": ["straight-lines-and-pair-of-straight-lines::various-forms-of-straight-line"]
+  },
+  "straight-lines-and-pair-of-straight-lines::area-of-triangle-and-condition-of-collinearity": {
+    "chapter": "straight-lines-and-pair-of-straight-lines",
+    "topic": "area-of-triangle-and-condition-of-collinearity",
+    "requires": ["straight-lines-and-pair-of-straight-lines::section-formula"]
+  },
+  "straight-lines-and-pair-of-straight-lines::angle-bisector": {
+    "chapter": "straight-lines-and-pair-of-straight-lines",
+    "topic": "angle-bisector",
+    "requires": ["straight-lines-and-pair-of-straight-lines::angle-between-two-lines"]
+  },
+  "straight-lines-and-pair-of-straight-lines::condition-of-concurrency": {
+    "chapter": "straight-lines-and-pair-of-straight-lines",
+    "topic": "condition-of-concurrency",
+    "requires": ["straight-lines-and-pair-of-straight-lines::various-forms-of-straight-line"]
+  },
+  "straight-lines-and-pair-of-straight-lines::centers-of-triangle": {
+    "chapter": "straight-lines-and-pair-of-straight-lines",
+    "topic": "centers-of-triangle",
+    "requires": ["straight-lines-and-pair-of-straight-lines::section-formula", "straight-lines-and-pair-of-straight-lines::angle-bisector"]
+  },
+  "straight-lines-and-pair-of-straight-lines::family-of-straight-line": {
+    "chapter": "straight-lines-and-pair-of-straight-lines",
+    "topic": "family-of-straight-line",
+    "requires": ["straight-lines-and-pair-of-straight-lines::various-forms-of-straight-line"]
+  },
+  "straight-lines-and-pair-of-straight-lines::locus": {
+    "chapter": "straight-lines-and-pair-of-straight-lines",
+    "topic": "locus",
+    "requires": ["straight-lines-and-pair-of-straight-lines::distance-formula"]
+  },
+  "straight-lines-and-pair-of-straight-lines::pair-of-straight-lines": {
+    "chapter": "straight-lines-and-pair-of-straight-lines",
+    "topic": "pair-of-straight-lines",
+    "requires": ["straight-lines-and-pair-of-straight-lines::angle-between-two-lines"]
+  },
+  "circle::basic-theorems-of-a-circle": {
+    "chapter": "circle",
+    "topic": "basic-theorems-of-a-circle",
+    "requires": ["straight-lines-and-pair-of-straight-lines::distance-formula"]
+  },
+  "circle::parametric-form-of-a-circle": {
+    "chapter": "circle",
+    "topic": "parametric-form-of-a-circle",
+    "requires": ["circle::basic-theorems-of-a-circle", "trigonometric-ratio-and-identites::fundamental-identities"]
+  },
+  "circle::position-of-a-point-with-respect-to-circle": {
+    "chapter": "circle",
+    "topic": "position-of-a-point-with-respect-to-circle",
+    "requires": ["circle::basic-theorems-of-a-circle"]
+  },
+  "circle::intercepts-of-a-circle": {
+    "chapter": "circle",
+    "topic": "intercepts-of-a-circle",
+    "requires": ["circle::basic-theorems-of-a-circle"]
+  },
+  "circle::tangent-and-normal": {
+    "chapter": "circle",
+    "topic": "tangent-and-normal",
+    "requires": ["circle::position-of-a-point-with-respect-to-circle"]
+  },
+  "circle::chord-of-contact": {
+    "chapter": "circle",
+    "topic": "chord-of-contact",
+    "requires": ["circle::tangent-and-normal"]
+  },
+  "circle::chord-with-a-given-middle-point": {
+    "chapter": "circle",
+    "topic": "chord-with-a-given-middle-point",
+    "requires": ["circle::basic-theorems-of-a-circle"]
+  },
+  "circle::pair-of-tangents": {
+    "chapter": "circle",
+    "topic": "pair-of-tangents",
+    "requires": ["circle::tangent-and-normal"]
+  },
+  "circle::family-of-circle": {
+    "chapter": "circle",
+    "topic": "family-of-circle",
+    "requires": ["circle::basic-theorems-of-a-circle"]
+  },
+  "circle::radical-axis": {
+    "chapter": "circle",
+    "topic": "radical-axis",
+    "requires": ["circle::family-of-circle"]
+  },
+  "circle::orthogonality-of-two-circles": {
+    "chapter": "circle",
+    "topic": "orthogonality-of-two-circles",
+    "requires": ["circle::radical-axis"]
+  },
+  "circle::number-of-common-tangents-and-position-of-two-circle": {
+    "chapter": "circle",
+    "topic": "number-of-common-tangents-and-position-of-two-circle",
+    "requires": ["circle::tangent-and-normal"]
+  },
+  "circle::director-circle": {
+    "chapter": "circle",
+    "topic": "director-circle",
+    "requires": ["circle::tangent-and-normal"]
+  },
+  "parabola::question-based-on-basic-definition-and-parametric-representation": {
+    "chapter": "parabola",
+    "topic": "question-based-on-basic-definition-and-parametric-representation",
+    "requires": ["straight-lines-and-pair-of-straight-lines::distance-formula"]
+  },
+  "parabola::position-of-point-and-chord-joining-of-two-points": {
+    "chapter": "parabola",
+    "topic": "position-of-point-and-chord-joining-of-two-points",
+    "requires": ["parabola::question-based-on-basic-definition-and-parametric-representation"]
+  },
+  "parabola::tangent-to-parabola": {
+    "chapter": "parabola",
+    "topic": "tangent-to-parabola",
+    "requires": ["parabola::position-of-point-and-chord-joining-of-two-points"]
+  },
+  "parabola::normal-to-parabola": {
+    "chapter": "parabola",
+    "topic": "normal-to-parabola",
+    "requires": ["parabola::tangent-to-parabola"]
+  },
+  "parabola::chord-of-parabola": {
+    "chapter": "parabola",
+    "topic": "chord-of-parabola",
+    "requires": ["parabola::position-of-point-and-chord-joining-of-two-points"]
+  },
+  "parabola::chord-of-contact": {
+    "chapter": "parabola",
+    "topic": "chord-of-contact",
+    "requires": ["parabola::tangent-to-parabola"]
+  },
+  "parabola::pair-of-tangents": {
+    "chapter": "parabola",
+    "topic": "pair-of-tangents",
+    "requires": ["parabola::tangent-to-parabola"]
+  },
+  "parabola::locus": {
+    "chapter": "parabola",
+    "topic": "locus",
+    "requires": ["parabola::normal-to-parabola"]
+  },
+  "parabola::common-tangent": {
+    "chapter": "parabola",
+    "topic": "common-tangent",
+    "requires": ["parabola::tangent-to-parabola"]
+  },
+  "ellipse::question-based-on-basic-definition-and-parametric-representation": {
+    "chapter": "ellipse",
+    "topic": "question-based-on-basic-definition-and-parametric-representation",
+    "requires": ["circle::basic-theorems-of-a-circle"]
+  },
+  "ellipse::position-of-point-and-chord-joining-of-two-points": {
+    "chapter": "ellipse",
+    "topic": "position-of-point-and-chord-joining-of-two-points",
+    "requires": ["ellipse::question-based-on-basic-definition-and-parametric-representation"]
+  },
+  "ellipse::tangent-to-ellipse": {
+    "chapter": "ellipse",
+    "topic": "tangent-to-ellipse",
+    "requires": ["ellipse::position-of-point-and-chord-joining-of-two-points"]
+  },
+  "ellipse::normal-to-ellipse": {
+    "chapter": "ellipse",
+    "topic": "normal-to-ellipse",
+    "requires": ["ellipse::tangent-to-ellipse"]
+  },
+  "ellipse::chord-of-ellipse": {
+    "chapter": "ellipse",
+    "topic": "chord-of-ellipse",
+    "requires": ["ellipse::position-of-point-and-chord-joining-of-two-points"]
+  },
+  "ellipse::common-tangent": {
+    "chapter": "ellipse",
+    "topic": "common-tangent",
+    "requires": ["ellipse::tangent-to-ellipse"]
+  },
+  "ellipse::locus": {
+    "chapter": "ellipse",
+    "topic": "locus",
+    "requires": ["ellipse::normal-to-ellipse"]
+  },
+  "hyperbola::question-based-on-basic-definition-and-parametric-representation": {
+    "chapter": "hyperbola",
+    "topic": "question-based-on-basic-definition-and-parametric-representation",
+    "requires": ["ellipse::question-based-on-basic-definition-and-parametric-representation"]
+  },
+  "hyperbola::position-of-point-and-chord-joining-of-two-points": {
+    "chapter": "hyperbola",
+    "topic": "position-of-point-and-chord-joining-of-two-points",
+    "requires": ["hyperbola::question-based-on-basic-definition-and-parametric-representation"]
+  },
+  "hyperbola::tangent-to-hyperbola": {
+    "chapter": "hyperbola",
+    "topic": "tangent-to-hyperbola",
+    "requires": ["hyperbola::position-of-point-and-chord-joining-of-two-points"]
+  },
+  "hyperbola::normal-to-hyperbola": {
+    "chapter": "hyperbola",
+    "topic": "normal-to-hyperbola",
+    "requires": ["hyperbola::tangent-to-hyperbola"]
+  },
+  "hyperbola::common-tangent": {
+    "chapter": "hyperbola",
+    "topic": "common-tangent",
+    "requires": ["hyperbola::tangent-to-hyperbola"]
+  },
+  "hyperbola::locus": {
+    "chapter": "hyperbola",
+    "topic": "locus",
+    "requires": ["hyperbola::normal-to-hyperbola"]
+  },
+  "functions::domain": {
+    "chapter": "functions",
+    "topic": "domain",
+    "requires": ["sets-and-relations::venn-diagram"]
+  },
+  "functions::range": {
+    "chapter": "functions",
+    "topic": "range",
+    "requires": ["functions::domain"]
+  },
+  "functions::classification-of-functions": {
+    "chapter": "functions",
+    "topic": "classification-of-functions",
+    "requires": ["functions::domain"]
+  },
+  "functions::composite-functions": {
+    "chapter": "functions",
+    "topic": "composite-functions",
+    "requires": ["functions::classification-of-functions"]
+  },
+  "functions::inverse-functions": {
+    "chapter": "functions",
+    "topic": "inverse-functions",
+    "requires": ["functions::classification-of-functions"]
+  },
+  "functions::even-and-odd-functions": {
+    "chapter": "functions",
+    "topic": "even-and-odd-functions",
+    "requires": ["functions::domain"]
+  },
+  "functions::periodic-functions": {
+    "chapter": "functions",
+    "topic": "periodic-functions",
+    "requires": ["functions::domain"]
+  },
+  "functions::functional-equations": {
+    "chapter": "functions",
+    "topic": "functional-equations",
+    "requires": ["functions::composite-functions"]
+  },
+  "limits-continuity-and-differentiability::existance-of-limits": {
+    "chapter": "limits-continuity-and-differentiability",
+    "topic": "existance-of-limits",
+    "requires": ["functions::domain"]
+  },
+  "limits-continuity-and-differentiability::limits-of-algebric-function": {
+    "chapter": "limits-continuity-and-differentiability",
+    "topic": "limits-of-algebric-function",
+    "requires": ["limits-continuity-and-differentiability::existance-of-limits"]
+  },
+  "limits-continuity-and-differentiability::limits-of-trigonometric-functions": {
+    "chapter": "limits-continuity-and-differentiability",
+    "topic": "limits-of-trigonometric-functions",
+    "requires": ["limits-continuity-and-differentiability::limits-of-algebric-function", "trigonometric-ratio-and-identites::fundamental-identities"]
+  },
+  "limits-continuity-and-differentiability::limits-of-exponential-functions": {
+    "chapter": "limits-continuity-and-differentiability",
+    "topic": "limits-of-exponential-functions",
+    "requires": ["limits-continuity-and-differentiability::limits-of-algebric-function"]
+  },
+  "limits-continuity-and-differentiability::limits-of-logarithmic-functions": {
+    "chapter": "limits-continuity-and-differentiability",
+    "topic": "limits-of-logarithmic-functions",
+    "requires": ["limits-continuity-and-differentiability::limits-of-algebric-function", "logarithm::logarithmic-equations"]
+  },
+  "limits-continuity-and-differentiability::continuity": {
+    "chapter": "limits-continuity-and-differentiability",
+    "topic": "continuity",
+    "requires": ["limits-continuity-and-differentiability::existance-of-limits"]
+  },
+  "limits-continuity-and-differentiability::differentiability": {
+    "chapter": "limits-continuity-and-differentiability",
+    "topic": "differentiability",
+    "requires": ["limits-continuity-and-differentiability::continuity"]
+  },
+  "differentiation::methods-of-differentiation": {
+    "chapter": "differentiation",
+    "topic": "methods-of-differentiation",
+    "requires": ["limits-continuity-and-differentiability::differentiability"]
+  },
+  "differentiation::differentiation-of-composite-function": {
+    "chapter": "differentiation",
+    "topic": "differentiation-of-composite-function",
+    "requires": ["differentiation::methods-of-differentiation"]
+  },
+  "differentiation::differentiation-of-implicit-function": {
+    "chapter": "differentiation",
+    "topic": "differentiation-of-implicit-function",
+    "requires": ["differentiation::differentiation-of-composite-function"]
+  },
+  "differentiation::differentiation-of-inverse-trigonometric-function": {
+    "chapter": "differentiation",
+    "topic": "differentiation-of-inverse-trigonometric-function",
+    "requires": ["differentiation::differentiation-of-composite-function", "inverse-trigonometric-functions::properties-of-inverse-trigonometric-functions"]
+  },
+  "differentiation::differentiation-of-logarithmic-function": {
+    "chapter": "differentiation",
+    "topic": "differentiation-of-logarithmic-function",
+    "requires": ["differentiation::differentiation-of-composite-function"]
+  },
+  "differentiation::differentiation-of-parametric-function": {
+    "chapter": "differentiation",
+    "topic": "differentiation-of-parametric-function",
+    "requires": ["differentiation::differentiation-of-composite-function"]
+  },
+  "differentiation::differentiation-of-a-function-with-respect-to-another-function": {
+    "chapter": "differentiation",
+    "topic": "differentiation-of-a-function-with-respect-to-another-function",
+    "requires": ["differentiation::differentiation-of-composite-function"]
+  },
+  "differentiation::successive-differentiation": {
+    "chapter": "differentiation",
+    "topic": "successive-differentiation",
+    "requires": ["differentiation::methods-of-differentiation"]
+  },
+  "application-of-derivatives::rate-of-change-of-quantity": {
+    "chapter": "application-of-derivatives",
+    "topic": "rate-of-change-of-quantity",
+    "requires": ["differentiation::methods-of-differentiation"]
+  },
+  "application-of-derivatives::monotonicity": {
+    "chapter": "application-of-derivatives",
+    "topic": "monotonicity",
+    "requires": ["differentiation::methods-of-differentiation"]
+  },
+  "application-of-derivatives::maxima-and-minima": {
+    "chapter": "application-of-derivatives",
+    "topic": "maxima-and-minima",
+    "requires": ["application-of-derivatives::monotonicity"]
+  },
+  "application-of-derivatives::tangent-and-normal": {
+    "chapter": "application-of-derivatives",
+    "topic": "tangent-and-normal",
+    "requires": ["differentiation::methods-of-differentiation"]
+  },
+  "application-of-derivatives::mean-value-theorem": {
+    "chapter": "application-of-derivatives",
+    "topic": "mean-value-theorem",
+    "requires": ["limits-continuity-and-differentiability::differentiability"]
+  },
+  "application-of-derivatives::nature-of-roots": {
+    "chapter": "application-of-derivatives",
+    "topic": "nature-of-roots",
+    "requires": ["application-of-derivatives::monotonicity"]
+  },
+  "indefinite-integrals::standard-integral": {
+    "chapter": "indefinite-integrals",
+    "topic": "standard-integral",
+    "requires": ["differentiation::methods-of-differentiation"]
+  },
+  "indefinite-integrals::integration-by-substitution": {
+    "chapter": "indefinite-integrals",
+    "topic": "integration-by-substitution",
+    "requires": ["indefinite-integrals::standard-integral"]
+  },
+  "indefinite-integrals::integration-by-parts": {
+    "chapter": "indefinite-integrals",
+    "topic": "integration-by-parts",
+    "requires": ["indefinite-integrals::integration-by-substitution"]
+  },
+  "indefinite-integrals::integration-by-partial-fraction": {
+    "chapter": "indefinite-integrals",
+    "topic": "integration-by-partial-fraction",
+    "requires": ["indefinite-integrals::integration-by-substitution", "quadratic-equation-and-inequalities::nature-of-roots"]
+  },
+  "definite-integration::limits-of-algebric-function": {
+    "chapter": "definite-integration",
+    "topic": "limits-of-algebric-function",
+    "requires": ["indefinite-integrals::standard-integral"]
+  },
+  "definite-integration::properties-of-definite-integration": {
+    "chapter": "definite-integration",
+    "topic": "properties-of-definite-integration",
+    "requires": ["definite-integration::limits-of-algebric-function"]
+  },
+  "definite-integration::newton-lebnitz-rule-of-differentiation": {
+    "chapter": "definite-integration",
+    "topic": "newton-lebnitz-rule-of-differentiation",
+    "requires": ["definite-integration::limits-of-algebric-function", "differentiation::methods-of-differentiation"]
+  },
+  "definite-integration::definite-integral-as-a-limit-of-sum": {
+    "chapter": "definite-integration",
+    "topic": "definite-integral-as-a-limit-of-sum",
+    "requires": ["limits-continuity-and-differentiability::limits-of-algebric-function", "indefinite-integrals::standard-integral"]
+  },
+  "area-under-the-curves::area-under-simple-curves-in-standard-forms": {
+    "chapter": "area-under-the-curves",
+    "topic": "area-under-simple-curves-in-standard-forms",
+    "requires": ["definite-integration::properties-of-definite-integration"]
+  },
+  "area-under-the-curves::area-bounded-between-the-curves": {
+    "chapter": "area-under-the-curves",
+    "topic": "area-bounded-between-the-curves",
+    "requires": ["area-under-the-curves::area-under-simple-curves-in-standard-forms"]
+  },
+  "differential-equations::order-and-degree": {
+    "chapter": "differential-equations",
+    "topic": "order-and-degree",
+    "requires": ["differentiation::successive-differentiation"]
+  },
+  "differential-equations::formation-of-differential-equations": {
+    "chapter": "differential-equations",
+    "topic": "formation-of-differential-equations",
+    "requires": ["differential-equations::order-and-degree"]
+  },
+  "differential-equations::solution-of-differential-equations-by-method-of-separation-variables-and-homogeneous": {
+    "chapter": "differential-equations",
+    "topic": "solution-of-differential-equations-by-method-of-separation-variables-and-homogeneous",
+    "requires": ["differential-equations::formation-of-differential-equations", "indefinite-integrals::integration-by-substitution"]
+  },
+  "differential-equations::linear-differential-equations": {
+    "chapter": "differential-equations",
+    "topic": "linear-differential-equations",
+    "requires": ["differential-equations::solution-of-differential-equations-by-method-of-separation-variables-and-homogeneous"]
+  },
+  "vector-algebra::vector-arithmetic": {
+    "chapter": "vector-algebra",
+    "topic": "vector-arithmetic",
+    "requires": ["straight-lines-and-pair-of-straight-lines::distance-formula"]
+  },
+  "vector-algebra::dot-product-and-cross-product": {
+    "chapter": "vector-algebra",
+    "topic": "dot-product-and-cross-product",
+    "requires": ["vector-algebra::vector-arithmetic", "trigonometric-ratio-and-identites::fundamental-identities"]
+  },
+  "vector-algebra::vector-projections": {
+    "chapter": "vector-algebra",
+    "topic": "vector-projections",
+    "requires": ["vector-algebra::dot-product-and-cross-product"]
+  },
+  "3d-geometry::direction-cosines-and-direction-ratios-of-a-line": {
+    "chapter": "3d-geometry",
+    "topic": "direction-cosines-and-direction-ratios-of-a-line",
+    "requires": ["vector-algebra::vector-arithmetic"]
+  },
+  "3d-geometry::lines-in-space": {
+    "chapter": "3d-geometry",
+    "topic": "lines-in-space",
+    "requires": ["3d-geometry::direction-cosines-and-direction-ratios-of-a-line"]
+  },
+  "3d-geometry::plane-in-space": {
+    "chapter": "3d-geometry",
+    "topic": "plane-in-space",
+    "requires": ["3d-geometry::direction-cosines-and-direction-ratios-of-a-line", "vector-algebra::dot-product-and-cross-product"]
+  },
+  "3d-geometry::lines-and-plane": {
+    "chapter": "3d-geometry",
+    "topic": "lines-and-plane",
+    "requires": ["3d-geometry::lines-in-space", "3d-geometry::plane-in-space"]
+  },
+  "probability::classical-defininition-of-probability": {
+    "chapter": "probability",
+    "topic": "classical-defininition-of-probability",
+    "requires": ["sets-and-relations::venn-diagram"]
+  },
+  "probability::venn-diagram-and-set-theory": {
+    "chapter": "probability",
+    "topic": "venn-diagram-and-set-theory",
+    "requires": ["probability::classical-defininition-of-probability"]
+  },
+  "probability::conditional-probability-and-multiplication-theorem": {
+    "chapter": "probability",
+    "topic": "conditional-probability-and-multiplication-theorem",
+    "requires": ["probability::classical-defininition-of-probability"]
+  },
+  "probability::total-probability-theorem": {
+    "chapter": "probability",
+    "topic": "total-probability-theorem",
+    "requires": ["probability::conditional-probability-and-multiplication-theorem"]
+  },
+  "probability::bayes-theorem": {
+    "chapter": "probability",
+    "topic": "bayes-theorem",
+    "requires": ["probability::total-probability-theorem"]
+  },
+  "probability::permutation-and-combination-based-problem": {
+    "chapter": "probability",
+    "topic": "permutation-and-combination-based-problem",
+    "requires": ["probability::classical-defininition-of-probability", "permutations-and-combinations::number-of-combinations"]
+  },
+  "probability::probability-distribution-of-a-random-variable": {
+    "chapter": "probability",
+    "topic": "probability-distribution-of-a-random-variable",
+    "requires": ["probability::conditional-probability-and-multiplication-theorem"]
+  },
+  "probability::binomial-distribution": {
+    "chapter": "probability",
+    "topic": "binomial-distribution",
+    "requires": ["probability::probability-distribution-of-a-random-variable", "binomial-theorem::general-term"]
+  },
+  "statistics::calculation-of-mean-median-and-mode-of-grouped-and-ungrouped-data": {
+    "chapter": "statistics",
+    "topic": "calculation-of-mean-median-and-mode-of-grouped-and-ungrouped-data",
+    "requires": []
+  },
+  "statistics::calculation-of-standard-deviation-variance-and-mean-deviation-of-grouped-and-ungrouped-data": {
+    "chapter": "statistics",
+    "topic": "calculation-of-standard-deviation-variance-and-mean-deviation-of-grouped-and-ungrouped-data",
+    "requires": ["statistics::calculation-of-mean-median-and-mode-of-grouped-and-ungrouped-data"]
+  }
+}
+

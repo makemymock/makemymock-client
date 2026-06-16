@@ -21,6 +21,7 @@ import ContestLobby from '../pages/compete/ContestLobby';
 import ContestPlay from '../pages/compete/ContestPlay';
 import ContestResult from '../pages/compete/ContestResult';
 import SolverX from '../pages/solverx/SolverX';
+import Recommender from '../pages/recommender/Recommender';
 import AppLayout from '../components/layout/AppLayout';
 import ProtectedRoute from './ProtectedRoute';
 import { tokenStorage } from '../utils/token';
@@ -98,6 +99,7 @@ const AppRoutes = () => {
         <Route path="/contest/:contestId/play" element={<ContestPlay />} />
         <Route path="/contest/:contestId/result" element={<ContestResult />} />
         <Route path="/solverx" element={<SolverX />} />
+        <Route path="/recommender" element={<Recommender />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

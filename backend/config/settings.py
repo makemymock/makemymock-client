@@ -72,6 +72,14 @@ class Settings(BaseSettings):
     GEMINI_MODEL_FLASH_LITE: str = "gemini-3.1-flash-lite"
     GEMINI_MODEL_DIAGRAM: str = "gemini-3.5-flash"
 
+    # ---- JEE Questions catalog (adaptive_practice DB on a separate cluster) ----
+    # The PYQ questions live in a separate MongoDB cluster uploaded by
+    # jee_mains_pyqs_data_base/upload_to_mongo.py. A second Motor client
+    # connects to PYQ_MONGO_URI and reads from JEE_QUESTIONS_DB_NAME.
+    PYQ_MONGO_URI: str = ""
+    JEE_QUESTIONS_DB_NAME: str = "adaptive_practice"
+
+
 
 @lru_cache
 def get_settings() -> Settings:

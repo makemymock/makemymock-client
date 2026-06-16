@@ -78,3 +78,6 @@ dump/
 *.tmp
 *.orig
 .cache
+
+# ======= Confidential ============
+SOLVERX_SETUP.md 

@@ -1,10 +1,10 @@
-from typing import Annotated
+from typing import Annotated, TypeAlias
 
-from fastapi import Depends
+from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from config.database import get_database
+from config.database import get_database, get_pyq_database
 from config.settings import settings
 from core.exceptions import (
     AccountInactive,
@@ -18,7 +18,20 @@ oauth2_scheme = OAuth2PasswordBearer(
     tokenUrl=f"{settings.API_V1_PREFIX}/auth/login/form", auto_error=True
 )
 
-DBDep = Annotated[AsyncIOMotorDatabase, Depends(get_database)]
+DBDep: TypeAlias    = Annotated[AsyncIOMotorDatabase, Depends(get_database)]
+
+
+def _get_pyq_db() -> AsyncIOMotorDatabase:
+    db = get_pyq_database()
+    if db is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="PYQ database is not available. Check PYQ_MONGO_URI in .env.",
+        )
+    return db
+
+
+PyQDBDep: TypeAlias = Annotated[AsyncIOMotorDatabase, Depends(_get_pyq_db)]
 
 
 async def get_current_user(

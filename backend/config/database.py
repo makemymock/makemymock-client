@@ -3,6 +3,7 @@ from typing import Optional
 
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from pymongo import ASCENDING, DESCENDING
+from pymongo.errors import OperationFailure
 
 from config.settings import settings
 
@@ -14,7 +15,13 @@ class MongoDB:
     db: Optional[AsyncIOMotorDatabase] = None
 
 
+class PyQMongoDB:
+    client: Optional[AsyncIOMotorClient] = None
+    db: Optional[AsyncIOMotorDatabase] = None
+
+
 mongo = MongoDB()
+pyq_mongo = PyQMongoDB()
 
 
 async def connect_to_mongo() -> None:
@@ -42,6 +49,38 @@ async def connect_to_mongo() -> None:
 
     await _ensure_indexes()
 
+    # Connect to the PYQ cluster (separate credentials/host).
+    if settings.PYQ_MONGO_URI:
+        try:
+            pyq_mongo.client = AsyncIOMotorClient(
+                settings.PYQ_MONGO_URI,
+                maxPoolSize=20,
+                minPoolSize=2,
+                serverSelectionTimeoutMS=5000,
+                tz_aware=True,
+            )
+            pyq_mongo.db = pyq_mongo.client[settings.JEE_QUESTIONS_DB_NAME]
+            await pyq_mongo.client.admin.command("ping")
+            await pyq_mongo.db["jee_mains_pyqs"].create_index(
+                [("subject", 1), ("chapter", 1), ("topic", 1)],
+            )
+            logger.info("PYQ MongoDB connection established.")
+        except Exception as exc:
+            logger.warning("PYQ MongoDB connection failed: %s — question catalog unavailable.", exc)
+            pyq_mongo.client = None
+            pyq_mongo.db = None
+    else:
+        logger.warning("PYQ_MONGO_URI not set; question catalog unavailable.")
+
+    # Recommender indexes are created after the PYQ connection block so that a
+    # failed index build (e.g. pre-existing duplicate docs) never kills the
+    # connection itself.
+    if pyq_mongo.db is not None:
+        try:
+            await _ensure_recommender_indexes(pyq_mongo.db)
+        except Exception as exc:
+            logger.warning("Recommender index setup had issues (non-fatal): %s", exc)
+
 
 async def close_mongo_connection() -> None:
     if mongo.client is not None:
@@ -49,6 +88,10 @@ async def close_mongo_connection() -> None:
         mongo.client.close()
         mongo.client = None
         mongo.db = None
+    if pyq_mongo.client is not None:
+        pyq_mongo.client.close()
+        pyq_mongo.client = None
+        pyq_mongo.db = None
 
 
 async def _ensure_indexes() -> None:
@@ -189,57 +232,64 @@ async def _ensure_indexes() -> None:
         [("conversation_id", ASCENDING), ("created_at", ASCENDING)],
     )
 
-    # ---------- Contests ----------
-    # Admin writes to `contests`; the Client backend reads them and owns
-    # the per-user participation / response collections.
-    # `start_time` index serves listing (sort + filter) and the no-overlap
-    # check on admin create/update.
-    await mongo.db["contests"].create_index([("start_time", ASCENDING)])
-    await mongo.db["contests"].create_index([("end_time", ASCENDING)])
+    # ---------- JEE Recommender ----------
+    # Recommender indexes live on the PYQ cluster (created in connect_to_mongo
+    # after the PYQ connection is established — see _ensure_recommender_indexes).
 
-    # One participation row per (contest, user) — both the lobby-entry
-    # upsert and the leaderboard read rely on this.
-    await mongo.db["contest_participations"].create_index(
-        [("contest_id", ASCENDING), ("user_id", ASCENDING)],
-        unique=True,
-    )
-    # Leaderboard sort key: score desc, time asc — declared as ascending
-    # because Mongo can walk indexes in reverse for the score component.
-    await mongo.db["contest_participations"].create_index(
-        [("contest_id", ASCENDING), ("score", ASCENDING),
-         ("time_taken_seconds", ASCENDING)],
-    )
-    await mongo.db["contest_participations"].create_index([("user_id", ASCENDING)])
 
-    # Per-question responses. Unique per (contest, user, question) so a
-    # retry can't double-write; also the in-order read for the result
-    # page sorts by display_order.
-    await mongo.db["contest_responses"].create_index(
-        [("contest_id", ASCENDING), ("user_id", ASCENDING),
-         ("question_id", ASCENDING)],
-        unique=True,
-    )
-    await mongo.db["contest_responses"].create_index(
-        [("contest_id", ASCENDING), ("user_id", ASCENDING),
-         ("display_order", ASCENDING)],
-    )
+async def _ensure_recommender_indexes(db: AsyncIOMotorDatabase) -> None:
+    """Create indexes for all JEE recommender collections on the PYQ cluster.
 
-    # ---- Admin observability ----
-    # `usage_events` — append-only log of cost-bearing or otherwise
-    # interesting actions (currently Vertex AI calls). Indexed by time
-    # for the time-series admin charts and by user for per-user
-    # aggregations. Source field lets us add new event types later
-    # (e.g. mock_test_start, battle_join) without schema changes.
-    await mongo.db["usage_events"].create_index([("ts", DESCENDING)])
-    await mongo.db["usage_events"].create_index(
-        [("user_id", ASCENDING), ("ts", DESCENDING)],
-    )
-    await mongo.db["usage_events"].create_index(
-        [("source", ASCENDING), ("ts", DESCENDING)],
-    )
+    Each index is attempted individually.  A duplicate-key OperationFailure
+    (code 11000) on a unique index means the collection has pre-existing
+    duplicate documents — the index is skipped with a warning rather than
+    crashing the startup.  All other indexes are non-unique so they always
+    succeed.
+    """
+
+    async def _try(collection: str, keys: list, **kwargs) -> None:
+        try:
+            await db[collection].create_index(keys, **kwargs)
+        except OperationFailure as exc:
+            if exc.code == 11000:
+                logger.warning(
+                    "Skipped unique index on %s %s — duplicate docs exist "
+                    "(clean up duplicates to enable the constraint): %s",
+                    collection, [k[0] for k in keys], exc.details.get("errmsg", ""),
+                )
+            else:
+                raise
+
+    await _try("student_topic_state",      [("student_id", ASCENDING), ("topic_id", ASCENDING)], unique=True)
+    await _try("student_topic_state",      [("student_id", ASCENDING), ("chapter", ASCENDING)])
+    await _try("student_topic_state",      [("student_id", ASCENDING), ("subject", ASCENDING)])
+    await _try("student_topic_state",      [("student_id", ASCENDING), ("next_review_date", ASCENDING)])
+
+    await _try("student_personality",      [("student_id", ASCENDING)], unique=True)
+
+    await _try("student_question_history", [("student_id", ASCENDING), ("timestamp", DESCENDING)])
+    await _try("student_question_history", [("student_id", ASCENDING), ("question_id", ASCENDING)])
+    await _try("student_question_history", [("student_id", ASCENDING), ("session_id", ASCENDING)])
+
+    await _try("session_summaries",        [("student_id", ASCENDING), ("created_at", DESCENDING)])
+    await _try("session_summaries",        [("session_id", ASCENDING)], unique=True, sparse=True)
+
+    await _try("student_solved_questions", [("student_id", ASCENDING), ("question_id", ASCENDING)], unique=True)
+    await _try("student_solved_questions", [("student_id", ASCENDING), ("last_correct", ASCENDING), ("next_review_date", ASCENDING)])
+    await _try("student_solved_questions", [("student_id", ASCENDING), ("last_correct", ASCENDING),
+                                            ("next_review_date", ASCENDING), ("consecutive_incorrect", DESCENDING)])
+
+    await _try("topic_trend_scores",       [("topic_id", ASCENDING)], unique=True)
+    await _try("topic_trend_scores",       [("p_appears", DESCENDING)])
+
+    logger.info("Recommender indexes ensured on PYQ cluster.")
 
 
 def get_database() -> AsyncIOMotorDatabase:
     if mongo.db is None:
         raise RuntimeError("MongoDB has not been initialized. Call connect_to_mongo().")
     return mongo.db
+
+
+def get_pyq_database() -> Optional[AsyncIOMotorDatabase]:
+    return pyq_mongo.db

@@ -45,6 +45,7 @@ from modules.mock_test.model import (
     new_response_doc,
     new_topic_allocation_doc,
 )
+from config.database import get_pyq_database
 from modules.mock_test.repository import MockTestRepository
 from modules.mock_test.schema import (
     AccuracyTrendPoint,
@@ -337,7 +338,7 @@ def _correct_answer_for(doc: dict, qtype: str) -> Any:
 class MockTestService:
     def __init__(self, db: AsyncIOMotorDatabase):
         self.db = db
-        self.repo = MockTestRepository(db)
+        self.repo = MockTestRepository(db, pyq_db=get_pyq_database())
 
     # ------------------------------------------------------------------
     # Catalog
