@@ -12,7 +12,8 @@ QUESTIONS_COLLECTION = "jee_mains_pyqs"
 # open its first pattern. Chapter-specific only — there is NO overall fallback,
 # so a chapter the student hasn't practised (or is weak in) stays locked until
 # they clear this bar in that chapter's mock questions.
-UNLOCK_MIN_ACCURACY = 50.0
+# NOTE: temporarily lowered to 15 to make paths easy to open during testing/demo.
+UNLOCK_MIN_ACCURACY = 15.0
 
 # jee_mains_pyqs question types.
 QUESTION_TYPE_SINGLE = "mcq"    # single correct option

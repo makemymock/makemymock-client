@@ -1,4 +1,5 @@
 .page {
+  min-height: 100dvh;
   max-width: 640px;
   margin: 0 auto;
   padding: 1.25rem 1rem 5rem;
@@ -43,6 +44,44 @@
   border-radius: 10px;
 }
 
+/* ---------------------------------------------------------------------------
+   Wrapper: holds both the SVG overlay and the <ol> node list.
+   position: relative so the SVG can overlay exactly on top.
+--------------------------------------------------------------------------- */
+.pathWrap {
+  position: relative;
+  width: 100%;
+}
+
+/* The SVG sits on top of the list, matching its dimensions exactly. */
+.connectorSvg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+  overflow: visible;
+}
+
+.connectorLine {
+  fill: none;
+  stroke: var(--color-panel-border);
+  stroke-width: 3;
+  stroke-dasharray: 10 8;
+  stroke-linecap: round;
+}
+
+.connectorLineActive {
+  stroke: var(--color-accent);
+  stroke-dasharray: none;
+  opacity: 0.5;
+}
+
+/* ---------------------------------------------------------------------------
+   The path: a zig-zag layout of question nodes.
+--------------------------------------------------------------------------- */
 .path {
   list-style: none;
   margin: 0;
@@ -51,10 +90,18 @@
   flex-direction: column;
   align-items: center;
   gap: 1.25rem;
+  position: relative;
+  z-index: 1;
 }
 
-.row { display: flex; justify-content: center; width: 100%; max-width: 360px; }
+.row {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  max-width: 360px;
+}
 
+/* Zig-zag positions */
 .pos0 { transform: translateX(0); }
 .pos1 { transform: translateX(34%); }
 .pos2 { transform: translateX(-34%); }
@@ -64,6 +111,7 @@
   .pos2 { transform: translateX(-20%); }
 }
 
+/* --- Node circle --- */
 .node {
   width: 58px;
   height: 58px;
@@ -77,6 +125,7 @@
   place-items: center;
   box-shadow: 0 6px 0 rgba(0, 0, 0, 0.25);
   transition: transform 0.12s ease, box-shadow 0.12s ease;
+  position: relative;
 }
 
 .node:not(:disabled):hover { transform: translateY(-2px); }

@@ -27,9 +27,22 @@ const KATEX_MACROS = {
 // Ordered so $$…$$ wins over $…$ and the TeX bracket forms are caught whole.
 const MATH_RE = /\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\$[^$\n]+?\$/g;
 
+// examgoal encodes the relations < and > as \< and \> (and occasionally as HTML
+// entities). KaTeX rejects those, so the whole formula renders in errorColor red
+// — which is exactly the "broken LaTeX" you see. Normalise these known quirks
+// before handing the TeX to KaTeX. Deterministic + instant; no AI needed.
+function fixExamTex(tex) {
+  return tex
+    .replace(/\\</g, '<')
+    .replace(/\\>/g, '>')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+}
+
 function renderMath(tex, displayMode) {
   try {
-    return katex.renderToString(tex, {
+    return katex.renderToString(fixExamTex(tex), {
       displayMode,
       throwOnError: false,   // a bad formula renders in red, doesn't blank the page
       errorColor: '#ef4444',
