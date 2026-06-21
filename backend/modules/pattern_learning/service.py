@@ -2,7 +2,7 @@
 
 Unlock rules:
   * A chapter's FIRST pattern opens when the student's mock accuracy IN THAT
-    chapter clears UNLOCK_MIN_ACCURACY (50%). Accuracy is chapter-specific —
+    chapter clears UNLOCK_MIN_ACCURACY. Accuracy is chapter-specific —
     there is no overall fallback, so a chapter the student hasn't practised in
     mocks stays locked. Once they've started a chapter's path (any submission),
     it stays open even if their accuracy later dips.
