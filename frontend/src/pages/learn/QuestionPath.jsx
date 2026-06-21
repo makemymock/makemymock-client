@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import Loader from '../../components/common/Loader/Loader';
 import { patternLearningService } from '../../services/patternLearningService';
@@ -14,14 +14,15 @@ const QuestionPath = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const wrapRef = useRef(null);   // the wrapper div around the ol + svg
+  const wrapRef = useRef(null);
   const nodeRefs = useRef([]);
   const [connectors, setConnectors] = useState([]);
 
   useEffect(() => {
     let alive = true;
-    nodeRefs.current = [];          // reset refs for the new pattern
     setConnectors([]);
+    setLoading(true);
+    setError('');
     (async () => {
       try {
         const res = await patternLearningService.questionRoadmap(patternId);
@@ -46,32 +47,30 @@ const QuestionPath = () => {
       if (!elA || !elB) continue;
       const rectA = elA.getBoundingClientRect();
       const rectB = elB.getBoundingClientRect();
-      // Centre points relative to the wrapper div
       const x1 = rectA.left + rectA.width / 2 - wrapRect.left;
       const y1 = rectA.top + rectA.height / 2 - wrapRect.top;
       const x2 = rectB.left + rectB.width / 2 - wrapRect.left;
       const y2 = rectB.top + rectB.height / 2 - wrapRect.top;
-      // Whether both nodes are "active" (not locked)
       const active = data.items[i].state !== 'locked' && data.items[i + 1].state !== 'locked';
       lines.push({ x1, y1, x2, y2, active });
     }
     setConnectors(lines);
   }, [data]);
 
-  useEffect(() => {
-    if (!data) return;
-    // Wait two frames for layout to settle (transforms need to apply)
-    let raf1, raf2;
-    raf1 = requestAnimationFrame(() => {
-      raf2 = requestAnimationFrame(computeConnectors);
-    });
+  // Use useLayoutEffect so we measure after DOM paint with all refs assigned.
+  // Also use a small setTimeout as a fallback for CSS transforms to settle.
+  useLayoutEffect(() => {
+    if (!data || loading) return;
+    // First attempt: immediate (layout is ready)
+    computeConnectors();
+    // Second attempt: after a short delay so CSS transforms/transitions settle
+    const timer = setTimeout(computeConnectors, 100);
     window.addEventListener('resize', computeConnectors);
     return () => {
-      cancelAnimationFrame(raf1);
-      cancelAnimationFrame(raf2);
+      clearTimeout(timer);
       window.removeEventListener('resize', computeConnectors);
     };
-  }, [data, computeConnectors]);
+  }, [data, loading, computeConnectors]);
 
   if (loading) return <Loader />;
   if (error) return <div className={styles.page}><div className={styles.error}>{error}</div></div>;
@@ -94,13 +93,13 @@ const QuestionPath = () => {
         <p className={styles.subtitle}>{solved}/{data.items.length} questions solved</p>
       </header>
 
-      {/* Wrapper div holds both the SVG overlay and the node list */}
+      {/* Wrapper holds both the SVG overlay and the node list */}
       <div className={styles.pathWrap} ref={wrapRef}>
-        {/* SVG connector lines rendered behind the nodes */}
+        {/* SVG connector lines behind the nodes */}
         {connectors.length > 0 && (
           <svg className={styles.connectorSvg}>
             {connectors.map((c, i) => {
-              // Smooth S-curve connecting consecutive nodes
+              // Smooth S-curve between consecutive nodes
               const cy1 = c.y1 + (c.y2 - c.y1) * 0.4;
               const cy2 = c.y1 + (c.y2 - c.y1) * 0.6;
               const d = `M ${c.x1} ${c.y1} C ${c.x1} ${cy1}, ${c.x2} ${cy2}, ${c.x2} ${c.y2}`;
