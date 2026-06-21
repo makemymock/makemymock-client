@@ -1,10 +1,8 @@
-"""Pattern miner — mines reasoning patterns out of the JEE PYQ catalog.
+"""Pattern miner — read-only views over the mined reasoning-pattern catalog.
 
-Each question is assigned to exactly one pattern. Patterns are discovered
-incrementally: when no existing pattern fits, the pipeline proposes a new one
-(under a per-chapter lock so concurrent workers don't mint duplicates).
-
-The mining itself is an offline batch pass (see `jobs/`); the module also
-exposes a small read-only API (controller/service) over the catalog it builds,
-which powers the "patterns you've practised vs. never seen" product hook.
+The mining itself (classifying every JEE PYQ into a reasoning pattern) runs
+offline in the standalone Pattern_Miner pipeline, which writes `patterns` and
+`pattern_assignments` to the PYQ cluster. This backend module is a *static*
+feature: it only reads that catalog back and serves it over HTTP. No mining,
+no LLM calls, no writes happen here.
 """

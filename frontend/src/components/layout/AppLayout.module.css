@@ -431,9 +431,12 @@
 .main {
   flex: 1;
   width: 100%;
-  max-width: 1280px;
+  /* Fill the screen on wide monitors instead of stranding content in a narrow
+     centred column, but not edge-to-edge — line lengths stay sane and it
+     doesn't feel over-stretched. Per-page CSS can still override. */
+  max-width: 1600px;
   margin: 0 auto;
-  padding: clamp(16px, 3.5vw, 32px);
+  padding: clamp(16px, 3vw, 40px);
   display: flex;
   flex-direction: column;
   gap: clamp(14px, 2.2vw, 22px);

@@ -44,6 +44,14 @@ const IconChart = (p) => (
     <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
   </svg>
 );
+// Graduation cap — the "Learn" (Pattern Path) nav item.
+const IconLearn = (p) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+       strokeLinecap="round" strokeLinejoin="round" {...p}>
+    <path d="M22 10L12 5 2 10l10 5 10-5z" />
+    <path d="M6 12v5c0 1 2.7 2.5 6 2.5s6-1.5 6-2.5v-5" />
+  </svg>
+);
 const IconLogout = (p) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
        strokeLinecap="round" strokeLinejoin="round" {...p}>
@@ -82,6 +90,8 @@ const NAV_ITEMS = [
   { to: '/tests',     label: 'Practice',  Icon: IconTest,    tour: 'nav.practice',
     match: (p) => p.startsWith('/tests') },
   { to: '/solverx',   label: 'SolverX',   Icon: IconSpark,   tour: 'nav.solverx' },
+  { to: '/learn',     label: 'Patterns',  Icon: IconLearn,   tour: 'nav.learn',
+    match: (p) => p.startsWith('/learn') },
   { to: '/compete',   label: 'Compete',   Icon: IconCompete, tour: 'nav.compete',
     match: (p) => p.startsWith('/compete')
                || p.startsWith('/contest')

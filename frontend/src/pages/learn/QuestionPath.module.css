@@ -1,0 +1,103 @@
+.page {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 1.25rem 1rem 5rem;
+}
+
+.back {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 0.88rem;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 0.75rem;
+}
+
+.back:hover { color: var(--color-accent); }
+
+.head { text-align: center; margin-bottom: 2rem; }
+
+.kicker {
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  color: var(--color-accent);
+  font-weight: 700;
+}
+
+.title {
+  font-family: var(--font-secondary);
+  font-size: clamp(1.35rem, 3.6vw, 1.8rem);
+  margin: 0.25rem 0 0.3rem;
+  color: var(--color-text-primary);
+}
+
+.subtitle { color: var(--color-text-muted); margin: 0; font-size: 0.9rem; }
+
+.error {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+  padding: 0.7rem 1rem;
+  border-radius: 10px;
+}
+
+.path {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.row { display: flex; justify-content: center; width: 100%; max-width: 360px; }
+
+.pos0 { transform: translateX(0); }
+.pos1 { transform: translateX(34%); }
+.pos2 { transform: translateX(-34%); }
+
+@media (max-width: 480px) {
+  .pos1 { transform: translateX(20%); }
+  .pos2 { transform: translateX(-20%); }
+}
+
+.node {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+  font-size: 1.15rem;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 6px 0 rgba(0, 0, 0, 0.25);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.node:not(:disabled):hover { transform: translateY(-2px); }
+.node:not(:disabled):active { transform: translateY(2px); box-shadow: 0 2px 0 rgba(0, 0, 0, 0.25); }
+
+.unlocked {
+  background: linear-gradient(135deg, var(--color-brand-grad-from), var(--color-brand-grad-to));
+  color: var(--color-brand-contrast);
+}
+
+.solved {
+  background: var(--dash-pill-green);
+  color: var(--dash-pill-green-fg);
+}
+
+.locked {
+  background: var(--color-chip-bg);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+  box-shadow: none;
+  border: 1px solid var(--color-panel-border);
+}
+
+.empty { color: var(--color-text-muted); text-align: center; }

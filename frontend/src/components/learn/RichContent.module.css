@@ -1,0 +1,36 @@
+.rich {
+  color: var(--color-text-primary);
+  line-height: 1.6;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* Exam images (diagrams, structures) — keep them inside the card. */
+.rich :global(img) {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0.75rem auto;
+  border-radius: 10px;
+  background: #fff; /* most exam diagrams are black-on-transparent */
+  padding: 6px;
+}
+
+/* Display equations get a little breathing room and scroll on overflow
+   rather than blowing out the card width on mobile. */
+.rich :global(.katex-display) {
+  margin: 0.6rem 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 0;
+}
+
+.rich :global(.katex) {
+  font-size: 1.04em;
+  white-space: normal;
+}
+
+.rich :global(sup),
+.rich :global(sub) {
+  line-height: 0;
+}

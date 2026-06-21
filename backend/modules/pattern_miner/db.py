@@ -1,13 +1,13 @@
-"""Dedicated Motor client for the pattern miner's data.
+"""Dedicated read-only Motor client for the mined catalog.
 
-The source PYQ catalog and the mined output both live on the PYQ cluster
-(`settings.PYQ_MONGO_URI` → `settings.PYQ_DB_NAME`), which is a *different*
-Mongo from the backend's primary one. So this module keeps its own lazy client
-rather than going through `config.database` / `DBDep` — both the read API and
-the offline jobs resolve their database here.
+`patterns` and `pattern_assignments` live on the PYQ cluster
+(`settings.PYQ_MONGO_URI` → `settings.PYQ_DB_NAME`), a different Mongo from the
+backend's primary one, so this module keeps its own lazy client rather than
+going through `config.database` / `DBDep`. Built once and shared for the
+process lifetime; closed on app shutdown (see main.py).
 
-The client is built once on first use and shared for the process lifetime
-(Motor clients are safe to share across the event loop's tasks).
+Index creation is NOT done here — the standalone Pattern_Miner pipeline owns
+the write side, including indexes.
 """
 
 from __future__ import annotations
@@ -15,14 +15,8 @@ from __future__ import annotations
 from typing import Optional
 
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
-from pymongo import ASCENDING
 
 from config.settings import settings
-from modules.pattern_miner.constants import (
-    ASSIGNMENTS_COLLECTION,
-    CHECKPOINT_COLLECTION,
-    PATTERNS_COLLECTION,
-)
 
 _client: Optional[AsyncIOMotorClient] = None
 
@@ -46,31 +40,8 @@ def get_pattern_miner_db() -> AsyncIOMotorDatabase:
     return _client[settings.PYQ_DB_NAME]
 
 
-async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
-    """Create the miner's indexes on the PYQ cluster. Idempotent; the jobs call
-    it before a live pass. `jee_mains_pyqs` is read-only here so it's left as-is.
-
-    - patterns: unique (chapter, slug) so racing proposals can't both win; the
-      plain (chapter) index backs the hot-path list_for_chapter read.
-    - assignments: unique (question_id) so re-runs overwrite; (pattern_id) backs
-      the coverage read + dedupe re-point.
-    - checkpoints: unique (question_id) for resumability.
-    """
-    await db[PATTERNS_COLLECTION].create_index(
-        [("chapter", ASCENDING), ("slug", ASCENDING)], unique=True,
-    )
-    await db[PATTERNS_COLLECTION].create_index([("chapter", ASCENDING)])
-    await db[ASSIGNMENTS_COLLECTION].create_index(
-        [("question_id", ASCENDING)], unique=True,
-    )
-    await db[ASSIGNMENTS_COLLECTION].create_index([("pattern_id", ASCENDING)])
-    await db[CHECKPOINT_COLLECTION].create_index(
-        [("question_id", ASCENDING)], unique=True,
-    )
-
-
 async def close_client() -> None:
-    """Release the client. Safe to call on shutdown / at the end of a job."""
+    """Release the client. Called on app shutdown."""
     global _client
     if _client is not None:
         _client.close()

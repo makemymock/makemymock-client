@@ -21,6 +21,10 @@ import ContestLobby from '../pages/compete/ContestLobby';
 import ContestPlay from '../pages/compete/ContestPlay';
 import ContestResult from '../pages/compete/ContestResult';
 import SolverX from '../pages/solverx/SolverX';
+import Learn from '../pages/learn/Learn';
+import PatternPath from '../pages/learn/PatternPath';
+import QuestionPath from '../pages/learn/QuestionPath';
+import SolveQuestion from '../pages/learn/SolveQuestion';
 import AppLayout from '../components/layout/AppLayout';
 import ProtectedRoute from './ProtectedRoute';
 import { tokenStorage } from '../utils/token';
@@ -98,6 +102,11 @@ const AppRoutes = () => {
         <Route path="/contest/:contestId/play" element={<ContestPlay />} />
         <Route path="/contest/:contestId/result" element={<ContestResult />} />
         <Route path="/solverx" element={<SolverX />} />
+        {/* Pattern Path — Duolingo-style learning over mined reasoning patterns. */}
+        <Route path="/learn" element={<Learn />} />
+        <Route path="/learn/chapters/:chapter" element={<PatternPath />} />
+        <Route path="/learn/patterns/:patternId" element={<QuestionPath />} />
+        <Route path="/learn/questions/:questionId" element={<SolveQuestion />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

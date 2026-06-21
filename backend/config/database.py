@@ -238,9 +238,9 @@ async def _ensure_indexes() -> None:
         [("source", ASCENDING), ("ts", DESCENDING)],
     )
 
-    # NOTE: the pattern-miner collections (patterns / pattern_assignments /
-    # checkpoints) live on a separate PYQ cluster, not here — their indexes are
-    # created in modules/pattern_miner/db.py:ensure_indexes().
+    # NOTE: the pattern-miner collections (patterns / pattern_assignments) live
+    # on a separate PYQ cluster, written + indexed by the standalone
+    # Pattern_Miner pipeline. The backend only reads them — nothing to index here.
 
 
 def get_database() -> AsyncIOMotorDatabase:

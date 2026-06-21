@@ -10,6 +10,11 @@ from api import api_router
 from config.database import close_mongo_connection, connect_to_mongo
 from config.settings import settings
 from core.exceptions import AppException
+from modules.pattern_learning.db import (
+    close_client as close_pattern_learning_db,
+    ensure_indexes as ensure_pattern_learning_indexes,
+)
+from modules.pattern_miner.db import close_client as close_pattern_miner_db
 
 logging.basicConfig(
     level=logging.INFO,
@@ -22,9 +27,15 @@ logger = logging.getLogger(__name__)
 async def lifespan(_: FastAPI):
     await connect_to_mongo()
     try:
+        await ensure_pattern_learning_indexes()
+    except Exception as exc:  # noqa: BLE001 — a PYQ-cluster blip must not block boot
+        logger.warning("pattern_learning index init skipped: %s", exc)
+    try:
         yield
     finally:
         await close_mongo_connection()
+        await close_pattern_miner_db()
+        await close_pattern_learning_db()
 
 
 def create_app() -> FastAPI:

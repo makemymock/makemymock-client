@@ -1,0 +1,199 @@
+.page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 1.25rem 1rem 5rem;
+}
+
+.back {
+  display: inline-block;
+  color: var(--color-text-muted);
+  text-decoration: none;
+  font-size: 0.88rem;
+  margin-bottom: 0.75rem;
+}
+
+.back:hover { color: var(--color-accent); }
+
+.head { text-align: center; margin-bottom: 2.5rem; }
+
+.title {
+  font-family: var(--font-secondary);
+  font-size: clamp(1.6rem, 4vw, 2.2rem);
+  margin: 0 0 0.3rem;
+  color: var(--color-text-primary);
+}
+
+.subtitle { color: var(--color-text-muted); margin: 0; font-size: 0.95rem; }
+
+.gateNote {
+  color: var(--color-text-muted);
+  margin: 0.5rem auto 0;
+  max-width: 48ch;
+  font-size: 0.9rem;
+  background: var(--color-chip-bg);
+  border: 1px solid var(--color-panel-border);
+  border-radius: 12px;
+  padding: 0.7rem 1rem;
+}
+
+.gateNote strong { color: var(--color-accent); }
+
+.error {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+  padding: 0.7rem 1rem;
+  border-radius: 10px;
+}
+
+/* ---------------------------------------------------------------------------
+   The path: a continuous central "road" with big step nodes sitting on it and
+   a card on the alternating side of each node — a connected zig-zag roadmap.
+--------------------------------------------------------------------------- */
+.path {
+  list-style: none;
+  margin: 2.5rem 0 0;
+  padding: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+/* The road — one continuous dashed line down the centre, behind the nodes. */
+.path::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 12px;
+  bottom: 12px;
+  width: 4px;
+  transform: translateX(-50%);
+  background: repeating-linear-gradient(
+    var(--color-panel-border) 0 12px,
+    transparent 12px 22px
+  );
+  border-radius: 4px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr 88px 1fr;
+  align-items: center;
+  gap: 1rem;
+}
+
+/* ---- Node (big circle, sits on the road) ---- */
+.node {
+  grid-column: 2;
+  justify-self: center;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+  font-size: 1.6rem;
+  display: grid;
+  place-items: center;
+  position: relative;
+  z-index: 1;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  box-shadow: 0 7px 0 rgba(0, 0, 0, 0.28), 0 0 0 6px var(--color-bg-page, transparent);
+}
+
+.node:not(:disabled):hover { transform: translateY(-3px); }
+.node:not(:disabled):active { transform: translateY(2px); box-shadow: 0 3px 0 rgba(0, 0, 0, 0.28); }
+
+.nodeIcon { line-height: 1; }
+
+.unlocked {
+  background: linear-gradient(135deg, var(--color-brand-grad-from), var(--color-brand-grad-to));
+  color: var(--color-brand-contrast);
+}
+
+.completed {
+  background: var(--dash-pill-green);
+  color: var(--dash-pill-green-fg);
+}
+
+.locked {
+  background: var(--color-chip-bg);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+  box-shadow: 0 0 0 6px var(--color-bg-page, transparent);
+  border: 1px solid var(--color-panel-border);
+}
+
+/* ---- Step card (alternates sides) ---- */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 1.1rem 1.25rem;
+  border-radius: 18px;
+  border: 1px solid var(--dash-card-border);
+  background: var(--dash-card-bg);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  font: inherit;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.card:not(:disabled):hover {
+  transform: translateY(-3px);
+  border-color: var(--color-accent);
+  box-shadow: var(--shadow-soft);
+}
+
+.left .card  { grid-column: 1; align-items: flex-end; text-align: right; }
+.right .card { grid-column: 3; align-items: flex-start; text-align: left; }
+
+.cardStep {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-weight: 800;
+  color: var(--color-text-muted);
+}
+
+.name {
+  font-weight: 700;
+  font-size: 1.1rem;
+  line-height: 1.3;
+  color: var(--color-text-primary);
+}
+
+.desc {
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.count { font-size: 0.82rem; font-weight: 600; color: var(--color-text-muted); }
+
+.card_completed { border-color: var(--dash-pill-green); }
+.card_completed .count { color: var(--dash-pill-green); }
+
+.card_locked { opacity: 0.55; cursor: not-allowed; }
+.card_locked:hover { transform: none; border-color: var(--dash-card-border); box-shadow: none; }
+
+/* ---- Mobile: collapse to a single left rail (node) + card on the right ---- */
+@media (max-width: 560px) {
+  .path::before { left: 38px; }
+  .row { grid-template-columns: 76px 1fr; gap: 0.85rem; }
+  .node { grid-column: 1; width: 72px; height: 72px; font-size: 1.4rem; }
+  .left .card,
+  .right .card {
+    grid-column: 2;
+    align-items: flex-start;
+    text-align: left;
+  }
+}
+
+.empty { color: var(--color-text-muted); text-align: center; padding: 2rem 0; }

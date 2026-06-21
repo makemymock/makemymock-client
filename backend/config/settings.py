@@ -79,6 +79,9 @@ class Settings(BaseSettings):
     # blank, the pattern-miner jobs + read API raise a clear "not configured".
     PYQ_MONGO_URI: str = ""
     PYQ_DB_NAME: str = "adaptive_practice"
+    # Per-student pattern-path progress (the Duolingo learning feature) lives in
+    # its own DB on the same PYQ cluster — isolated from the read-only catalog.
+    PYQ_PROGRESS_DB_NAME: str = "pattern_learning"
 
 
 @lru_cache
