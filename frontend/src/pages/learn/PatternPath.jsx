@@ -40,7 +40,7 @@ const PatternPath = () => {
 
   return (
     <div className={styles.page}>
-      <Link to="/learn" className={styles.back}>← All chapters</Link>
+      <Link to="/tests?section=patterns" className={styles.back}>← All chapters</Link>
       <header className={styles.head}>
         <h1 className={styles.title}>{data.display_name}</h1>
         {data.unlocked ? (

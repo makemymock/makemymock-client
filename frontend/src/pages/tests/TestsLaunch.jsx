@@ -7,6 +7,7 @@ import ExamShell from '../../components/mockTest/ExamShell/ExamShell';
 import BrowsePanel from './BrowsePanel';
 import { mockTestService } from '../../services/mockTestService';
 import { parseApiError } from '../../utils/validators';
+import { requestFullscreen, exitFullscreen } from '../../utils/fullscreen';
 import styles from './testsLaunch.module.css';
 
 // Browse-only URL params, cleared when leaving the Browse tab so they don't
@@ -35,7 +36,7 @@ function flattenChapterTopicIds(chapter) {
   return chapter.topics.map((t) => t.id);
 }
 
-const TestsLaunch = () => {
+const TestsLaunch = ({ embedded = false }) => {
   const navigate = useNavigate();
   // Tab lives in the URL (?tab=) so Back from a Browse problem page restores
   // the right view. 'launch' is the default and carries no param.
@@ -159,6 +160,10 @@ const TestsLaunch = () => {
       setCreateError(`Enter a number of questions between ${MIN_SIZE} and ${MAX_SIZE}.`);
       return;
     }
+    // Enter full screen now, while the click's user gesture is still live,
+    // so the drill opens already in full screen. The test screen enforces
+    // it regardless (FullscreenGate) — this just spares the student the gate.
+    requestFullscreen().catch(() => {});
     setCreating(true);
     try {
       const data = await mockTestService.createTest({
@@ -167,6 +172,8 @@ const TestsLaunch = () => {
       });
       navigate(`/tests/${data.session_id}`, { replace: true });
     } catch (err) {
+      // The test never started — don't strand the launch screen full screen.
+      exitFullscreen();
       setCreateError(parseApiError(err, 'Could not generate the test.'));
     } finally {
       setCreating(false);
@@ -176,7 +183,9 @@ const TestsLaunch = () => {
   return (
     <ExamShell
       chromeless
-      title={
+      // Embedded inside the Practice hub, which owns the page header — so
+      // suppress our own title/subtitle to avoid stacking two headers.
+      title={embedded ? undefined : (
         tab === 'history'
           ? 'Your test history'
           : tab === 'browse'
@@ -184,8 +193,8 @@ const TestsLaunch = () => {
             : tab === 'notebook'
               ? 'Your notebook'
               : 'Personalised mock test'
-      }
-      subtitle={
+      )}
+      subtitle={embedded ? undefined : (
         tab === 'history'
           ? 'Every test you start lives here — resume an in-progress one or open a finished test’s analytics.'
           : tab === 'browse'
@@ -193,7 +202,7 @@ const TestsLaunch = () => {
             : tab === 'notebook'
               ? 'Questions you saved to revise later. Filter them just like Browse and practise any one on its own.'
               : 'Pick your topics — we set the question count, difficulty mix, and rotate fresh and recyclable items.'
-      }
+      )}
     >
       {/* Tab strip — launch / browse / notebook / past tests. On small
           screens the strip becomes a horizontal scroller that fills the

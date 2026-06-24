@@ -7,7 +7,9 @@ import styles from './Learn.module.css';
 
 // Entry screen: subject tabs → a progress strip → that subject's chapters as a
 // responsive card grid. Picking a chapter opens its pattern roadmap.
-const Learn = () => {
+// Rendered as the Patterns tab inside the Practice hub, which owns the page
+// header — pass `embedded` there to suppress our own intro header.
+const Learn = ({ embedded = false }) => {
   const navigate = useNavigate();
   const [subjects, setSubjects] = useState([]);
   const [active, setActive] = useState('');
@@ -62,15 +64,17 @@ const Learn = () => {
 
   return (
     <div className={styles.page}>
-      <header className={styles.head}>
-        <span className={styles.eyebrow}>Pattern Path</span>
-        <h1 className={styles.title}>Learn JEE by its patterns</h1>
-        <p className={styles.subtitle}>
-          Every chapter is a path of the reasoning patterns mined from past
-          papers. Clear a chapter in your mock tests to unlock its path, then
-          work through each pattern one step at a time.
-        </p>
-      </header>
+      {!embedded && (
+        <header className={styles.head}>
+          <span className={styles.eyebrow}>Pattern Path</span>
+          <h1 className={styles.title}>Learn JEE by its patterns</h1>
+          <p className={styles.subtitle}>
+            Every chapter is a path of the reasoning patterns mined from past
+            papers. Clear a chapter in your mock tests to unlock its path, then
+            work through each pattern one step at a time.
+          </p>
+        </header>
+      )}
 
       {error && <div className={styles.error}>{error}</div>}
 

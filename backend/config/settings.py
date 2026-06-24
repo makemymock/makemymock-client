@@ -67,7 +67,7 @@ class Settings(BaseSettings):
     #     swapped without touching the solver model)
     GCP_PROJECT_ID: str = ""
     GCP_LOCATION: str = "global"
-    GEMINI_MODEL_PRO: str = "gemini-3.1-pro-preview"
+    GEMINI_MODEL_PRO: str = "gemini-2.5-pro"
     GEMINI_MODEL_FLASH: str = "gemini-3.5-flash"
     GEMINI_MODEL_FLASH_LITE: str = "gemini-3.1-flash-lite"
     GEMINI_MODEL_DIAGRAM: str = "gemini-3.5-flash"

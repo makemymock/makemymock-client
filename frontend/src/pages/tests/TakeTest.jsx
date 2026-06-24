@@ -8,6 +8,7 @@ import SubmitDialog from '../../components/mockTest/SubmitDialog/SubmitDialog';
 import Loader from '../../components/common/Loader/Loader';
 import ErrorMessage from '../../components/common/ErrorMessage/ErrorMessage';
 import Button from '../../components/common/Button/Button';
+import FullscreenGate from '../../components/mockTest/FullscreenGate/FullscreenGate';
 import { mockTestService } from '../../services/mockTestService';
 import { examDraft } from '../../utils/examDraft';
 import { parseApiError } from '../../utils/validators';
@@ -247,7 +248,7 @@ const TakeTest = () => {
     return null;
   }
 
-  return (
+  const exam = (
     <ExamShell
       eyebrow={`Test #${sessionId}`}
       sticky={
@@ -344,6 +345,10 @@ const TakeTest = () => {
       />
     </ExamShell>
   );
+
+  // Compulsory full screen: the gate hides the questions until the student
+  // is in full screen, and re-blocks if they leave (Esc) mid-attempt.
+  return <FullscreenGate>{exam}</FullscreenGate>;
 };
 
 export default TakeTest;

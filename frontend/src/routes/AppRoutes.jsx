@@ -5,7 +5,6 @@ import Login from '../pages/login/Login';
 import Dashboard from '../pages/dashboard/Dashboard';
 import ProfileSetup from '../pages/profile/ProfileSetup';
 import UserProfile from '../pages/profile/UserProfile';
-import TestsLaunch from '../pages/tests/TestsLaunch';
 import TakeTest from '../pages/tests/TakeTest';
 import Result from '../pages/tests/Result';
 import BrowseQuestion from '../pages/tests/BrowseQuestion';
@@ -21,7 +20,7 @@ import ContestLobby from '../pages/compete/ContestLobby';
 import ContestPlay from '../pages/compete/ContestPlay';
 import ContestResult from '../pages/compete/ContestResult';
 import SolverX from '../pages/solverx/SolverX';
-import Learn from '../pages/learn/Learn';
+import Practice from '../pages/practice/Practice';
 import PatternPath from '../pages/learn/PatternPath';
 import QuestionPath from '../pages/learn/QuestionPath';
 import SolveQuestion from '../pages/learn/SolveQuestion';
@@ -81,7 +80,8 @@ const AppRoutes = () => {
       >
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/profile" element={<UserProfile />} />
-        <Route path="/tests" element={<TestsLaunch />} />
+        {/* Practice hub — Drill session (mock test) + Patterns (pattern path). */}
+        <Route path="/tests" element={<Practice />} />
         <Route path="/tests/browse/:questionId" element={<BrowseQuestion />} />
         <Route path="/tests/:sessionId" element={<TakeTest />} />
         <Route path="/tests/:sessionId/result" element={<Result />} />
@@ -102,8 +102,11 @@ const AppRoutes = () => {
         <Route path="/contest/:contestId/play" element={<ContestPlay />} />
         <Route path="/contest/:contestId/result" element={<ContestResult />} />
         <Route path="/solverx" element={<SolverX />} />
-        {/* Pattern Path — Duolingo-style learning over mined reasoning patterns. */}
-        <Route path="/learn" element={<Learn />} />
+        {/* Pattern Path — Duolingo-style learning over mined reasoning
+            patterns. The landing now lives inside the Practice hub as the
+            Patterns tab; deep links to a chapter / pattern / question are
+            unchanged. */}
+        <Route path="/learn" element={<Navigate to="/tests?section=patterns" replace />} />
         <Route path="/learn/chapters/:chapter" element={<PatternPath />} />
         <Route path="/learn/patterns/:patternId" element={<QuestionPath />} />
         <Route path="/learn/questions/:questionId" element={<SolveQuestion />} />

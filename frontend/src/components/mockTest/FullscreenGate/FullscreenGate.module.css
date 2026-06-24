@@ -1,0 +1,62 @@
+/* Full-screen requirement gate for the drill. Covers the whole viewport
+   with the opaque page colour so the test underneath can't be read until
+   the student is in full screen. */
+.gate {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--color-bg-page);
+  font-family: var(--font-primary);
+}
+
+.card {
+  width: min(440px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+  padding: 36px 28px;
+  background: var(--surface-opaque);
+  border: 1px solid var(--color-panel-border);
+  border-radius: 18px;
+  box-shadow: var(--shadow-soft);
+}
+
+.icon {
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  font-size: 32px;
+  line-height: 1;
+  border-radius: 16px;
+  color: var(--color-accent);
+  background: var(--color-chip-bg);
+  border: 1px solid var(--color-chip-border);
+}
+
+.title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--color-text-primary);
+}
+
+.message {
+  margin: 0 0 4px;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--color-text-secondary);
+}
+
+.error {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #f87171;
+}
