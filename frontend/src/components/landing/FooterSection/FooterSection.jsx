@@ -1,20 +1,28 @@
+import { useState } from 'react';
+import PolicyModal from '../PolicyModal/PolicyModal';
+import { SOCIAL_LINKS, CONTACT_EMAIL } from '../../../constants/links';
+import privacyPolicy from '../../../content/legal/privacy-policy.md?raw';
+import termsOfService from '../../../content/legal/terms-of-service.md?raw';
+import refundPolicy from '../../../content/legal/refund-policy.md?raw';
+import cookiePolicy from '../../../content/legal/cookie-policy.md?raw';
 import styles from './FooterSection.module.css';
 
-// Anchor targets — internal hashes for the on-page sections, mailto
-// for contact. Replace the `#` placeholders with real routes once the
-// legal pages exist.
+// Anchor targets — internal hashes for the on-page sections, mailto for
+// contact (address lives in src/constants/links.js).
 const navLinks = [
   { label: 'About Us',     href: '#insights' },
   { label: 'Is It Free?',  href: '#faq' },
-  { label: 'Contact Us',   href: 'mailto:make.my.mock@gmail.com' },
+  { label: 'Contact Us',   href: `mailto:${CONTACT_EMAIL}` },
   { label: 'FAQ',          href: '#faq' },
 ];
 
+// Legal pages don't have standalone routes — each opens in a popup
+// (PolicyModal) that renders its markdown source from src/content/legal/.
 const legalLinks = [
-  { label: 'Privacy Policy',   href: '#' },
-  { label: 'Terms of Service', href: '#' },
-  { label: 'Refund Policy',    href: '#' },
-  { label: 'Cookie Policy',    href: '#' },
+  { label: 'Privacy Policy',   body: privacyPolicy },
+  { label: 'Terms of Service', body: termsOfService },
+  { label: 'Refund Policy',    body: refundPolicy },
+  { label: 'Cookie Policy',    body: cookiePolicy },
 ];
 
 /* ---------- Social icons (inline SVG, currentColor) ---------- */
@@ -25,15 +33,9 @@ const IconLinkedIn = (p) => (
   </svg>
 );
 
-const IconX = (p) => (
+const IconFacebook = (p) => (
   <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" {...p}>
-    <path d="M17.53 3H21l-7.39 8.45L22 21h-6.83l-5.36-7-6.13 7H.2l7.92-9.06L1.2 3H8.2l4.83 6.42L17.53 3zm-2.4 16h2.1L7.96 5H5.74l9.39 14z"/>
-  </svg>
-);
-
-const IconGitHub = (p) => (
-  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" {...p}>
-    <path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.15-1.1-1.46-1.1-1.46-.9-.62.07-.6.07-.6 1 .07 1.52 1.03 1.52 1.03.89 1.52 2.34 1.08 2.91.83.09-.65.35-1.08.63-1.33-2.22-.25-4.55-1.11-4.55-4.95 0-1.1.39-1.99 1.03-2.69-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.02a9.5 9.5 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.38.2 2.4.1 2.65.64.7 1.03 1.59 1.03 2.69 0 3.85-2.34 4.69-4.57 4.94.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2z"/>
+    <path d="M22 12a10 10 0 1 0-11.56 9.88v-6.99H7.9V12h2.54V9.8c0-2.51 1.49-3.89 3.78-3.89 1.09 0 2.24.19 2.24.19v2.47h-1.26c-1.24 0-1.63.77-1.63 1.56V12h2.78l-.44 2.89h-2.34v6.99A10 10 0 0 0 22 12z"/>
   </svg>
 );
 
@@ -47,27 +49,37 @@ const IconInstagram = (p) => (
 );
 
 const socials = [
-  { label: 'LinkedIn',  href: '#', Icon: IconLinkedIn  },
-  { label: 'X',         href: '#', Icon: IconX         },
-  { label: 'GitHub',    href: '#', Icon: IconGitHub    },
-  { label: 'Instagram', href: '#', Icon: IconInstagram },
+  { label: 'Instagram', href: SOCIAL_LINKS.instagram, Icon: IconInstagram },
+  { label: 'Facebook',  href: SOCIAL_LINKS.facebook,  Icon: IconFacebook  },
+  { label: 'LinkedIn',  href: SOCIAL_LINKS.linkedin,  Icon: IconLinkedIn  },
 ];
 
 /* ---------- Right-side link card (rounded panel) ---------- */
+// When `onItemClick` is supplied the items render as buttons (legal popups);
+// otherwise they're plain anchors (navigation).
 
-function LinkCard({ title, items }) {
+function LinkCard({ title, items, onItemClick }) {
   return (
     <nav className={styles.linkCard} aria-label={title}>
       {/* Title is rendered only for SR — visually the card just shows
-          the list, matching the reference layout. Drop the visually
-          hidden style or unwrap if you want the heading shown. */}
+          the list, matching the reference layout. */}
       <h4 className={styles.linkCardTitleSr}>{title}</h4>
       <ul className={styles.linkList}>
         {items.map((item) => (
           <li key={item.label}>
-            <a className={styles.linkItem} href={item.href}>
-              {item.label}
-            </a>
+            {onItemClick ? (
+              <button
+                type="button"
+                className={styles.linkItem}
+                onClick={() => onItemClick(item)}
+              >
+                {item.label}
+              </button>
+            ) : (
+              <a className={styles.linkItem} href={item.href}>
+                {item.label}
+              </a>
+            )}
           </li>
         ))}
       </ul>
@@ -76,49 +88,61 @@ function LinkCard({ title, items }) {
 }
 
 function FooterSection() {
+  const [activePolicy, setActivePolicy] = useState(null);
+
   return (
-    <footer className={styles.siteFooter} id="footer">
-      {/* Subtle radial glow behind the content — gives the dark slab
-          some depth without a hard gradient line. */}
-      <div className={styles.glow} aria-hidden="true" />
+    <>
+      <footer className={styles.siteFooter} id="footer">
+        {/* Subtle radial glow behind the content — gives the dark slab
+            some depth without a hard gradient line. */}
+        <div className={styles.glow} aria-hidden="true" />
 
-      <div className={styles.inner}>
-        {/* ---- Brand column ---- */}
-        <div className={styles.brand}>
-          <h3 className={styles.brandTitle}>Make My Mock</h3>
-          <p className={styles.brandTagline}>
-            Made with{' '}
-            <span className={styles.heart} aria-hidden="true">❤</span>{' '}
-            in India
-          </p>
+        <div className={styles.inner}>
+          {/* ---- Brand column ---- */}
+          <div className={styles.brand}>
+            <h3 className={styles.brandTitle}>Make My Mock</h3>
+            <p className={styles.brandTagline}>
+              Made with{' '}
+              <span className={styles.heart} aria-hidden="true">❤</span>{' '}
+              in India
+            </p>
 
-          <ul className={styles.socialList}>
-            {socials.map(({ label, href, Icon }) => (
-              <li key={label}>
-                <a
-                  className={styles.socialLink}
-                  href={href}
-                  aria-label={label}
-                  title={label}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <Icon width={18} height={18} />
-                </a>
-              </li>
-            ))}
-          </ul>
+            <ul className={styles.socialList}>
+              {socials.map(({ label, href, Icon }) => (
+                <li key={label}>
+                  <a
+                    className={styles.socialLink}
+                    href={href}
+                    aria-label={label}
+                    title={label}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <Icon width={18} height={18} />
+                  </a>
+                </li>
+              ))}
+            </ul>
 
-          <p className={styles.copyright}>
-            © 2026 Make My Mock. All Rights Reserved.
-          </p>
+            <p className={styles.copyright}>
+              © 2026 Make My Mock. All Rights Reserved.
+            </p>
+          </div>
+
+          {/* ---- Two link cards on the right ---- */}
+          <LinkCard title="Navigation" items={navLinks} />
+          <LinkCard title="Legal" items={legalLinks} onItemClick={setActivePolicy} />
         </div>
+      </footer>
 
-        {/* ---- Two link cards on the right ---- */}
-        <LinkCard title="Navigation" items={navLinks} />
-        <LinkCard title="Legal" items={legalLinks} />
-      </div>
-    </footer>
+      {activePolicy ? (
+        <PolicyModal
+          title={activePolicy.label}
+          body={activePolicy.body}
+          onClose={() => setActivePolicy(null)}
+        />
+      ) : null}
+    </>
   );
 }
 

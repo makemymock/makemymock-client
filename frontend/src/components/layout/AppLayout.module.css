@@ -364,7 +364,11 @@
   right: 0;
   height: 64px;
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  /* Lay items out in a single row of equal columns, however many nav
+     items there are — so the bar never wraps a stray item onto a clipped
+     second row (which previously hid Analytics behind a hardcoded count). */
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   background: var(--dash-sidebar-bg);
   border-top: 1px solid var(--dash-card-border);
   z-index: 40;

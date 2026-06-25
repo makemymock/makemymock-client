@@ -1,0 +1,75 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(2, 4, 10, 0.66);
+  backdrop-filter: blur(4px);
+}
+
+.modal {
+  width: min(680px, 100%);
+  max-height: min(80vh, 760px);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-opaque);
+  border: 1px solid var(--color-panel-border);
+  border-radius: 18px;
+  box-shadow: var(--shadow-soft);
+  overflow: hidden;
+  font-family: var(--font-primary);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--color-panel-border);
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(18px, 3.4vw, 22px);
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.close {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 10px;
+  border: 1px solid var(--color-chip-border);
+  background: var(--color-chip-bg);
+  color: var(--color-text-secondary);
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.close:hover { color: var(--color-text-primary); background: var(--color-border-strong); }
+
+.body {
+  padding: 6px 22px 22px;
+  overflow-y: auto;
+  color: var(--color-text-secondary);
+  font-size: 14.5px;
+  line-height: 1.6;
+}
+
+/* Tighten the rendered markdown so the policy reads as a tidy document. */
+.markdown :global(h1) { font-size: 19px; }
+.markdown :global(h2) {
+  font-size: 15.5px;
+  margin-top: 18px;
+  color: var(--color-text-primary);
+}
+.markdown :global(a) { color: var(--color-accent); }
+.markdown :global(strong) { color: var(--color-text-primary); }

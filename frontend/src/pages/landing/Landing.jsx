@@ -20,8 +20,22 @@ const features = [
         <path d="M9 9h.01M15 9h.01" />
       </svg>
     ),
-    title: 'Adaptive Mock Tests',
-    text: 'AI engine weights questions toward your weakest topics — every test is a precision-targeted training session.',
+    title: 'Adaptive Drill Sessions',
+    text: 'Every Practice drill is a full-screen, exam-style mock the AI weights toward your weakest topics — precision-targeted, distraction-free training.',
+  },
+  {
+    id: 'patterns',
+    accent: 'tertiary',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+        strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="6" cy="19" r="3" />
+        <path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15" />
+        <circle cx="18" cy="5" r="3" />
+      </svg>
+    ),
+    title: 'Pattern Path',
+    text: 'Learn JEE by its patterns — the recurring reasoning mined from past papers, worked one chapter at a time. Clear a chapter in your drills to unlock its path.',
   },
   {
     id: 'battle',

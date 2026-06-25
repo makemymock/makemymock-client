@@ -321,15 +321,18 @@
 /* ── Feature grid ────────────────────────────────────────────── */
 
 .featureGrid {
-  display: grid;
-  grid-template-columns: 1fr;
+  /* Flex (not grid) so an odd card count doesn't strand a lone card on the
+     left of the last row — wrapped rows stay centered, and the capped card
+     width keeps ~3 per row on desktop / 2 on tablet / 1 on mobile. */
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 1.25rem;
 }
 
-@media (min-width: 560px)  { .featureGrid { grid-template-columns: 1fr 1fr; } }
-@media (min-width: 1024px) { .featureGrid { grid-template-columns: repeat(3, 1fr); } }
-
 .featureCard {
+  flex: 1 1 300px;
+  max-width: 380px;
   position: relative;
   overflow: hidden;
   background: var(--color-panel-bg);
