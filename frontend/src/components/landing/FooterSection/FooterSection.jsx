@@ -10,7 +10,7 @@ import styles from './FooterSection.module.css';
 // Anchor targets — internal hashes for the on-page sections, mailto for
 // contact (address lives in src/constants/links.js).
 const navLinks = [
-  { label: 'About Us',     href: '#insights' },
+  { label: 'About Us',     href: '#home' },
   { label: 'Is It Free?',  href: '#faq' },
   { label: 'Contact Us',   href: `mailto:${CONTACT_EMAIL}` },
   { label: 'FAQ',          href: '#faq' },
