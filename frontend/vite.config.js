@@ -15,6 +15,8 @@ export default defineConfig({
       includeAssets: [
         'robots.txt',
         'logo.png',
+        'favicon.ico',
+        'favicon-192.png',
         'maskable_icon_x128.png',
         'maskable_icon_x192.png',
         'maskable_icon_x384.png',
