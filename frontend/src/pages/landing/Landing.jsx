@@ -1,4 +1,3 @@
-import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useTheme from '../../hooks/useTheme';
 import ThemeToggle from '../../components/common/ThemeToggle/ThemeToggle';
@@ -109,69 +108,11 @@ const features = [
   },
 ];
 
-// ── Stats strip ───────────────────────────────────────────────────────────────
-const stats = [
-  { value: '10,000+', label: 'Students' },
-  { value: '500,000+', label: 'Questions attempted' },
-  { value: '94%', label: 'Report improved accuracy' },
-];
-
-// ── Animated counter hook ─────────────────────────────────────────────────────
-function useCountUp(target, duration = 1200, active = false) {
-  const [display, setDisplay] = useState('0');
-  useEffect(() => {
-    if (!active) return;
-    const num = parseInt(target.replace(/\D/g, ''), 10);
-    const suffix = target.replace(/[\d,]/g, '');
-    const steps = 40;
-    const step = num / steps;
-    let current = 0;
-    let count = 0;
-    const id = setInterval(() => {
-      current += step;
-      count++;
-      if (count >= steps) {
-        setDisplay(target);
-        clearInterval(id);
-      } else {
-        setDisplay(Math.floor(current).toLocaleString() + suffix);
-      }
-    }, duration / steps);
-    return () => clearInterval(id);
-  }, [active, target, duration]);
-  return display;
-}
-
-// ── Stat item with count-up ───────────────────────────────────────────────────
-function StatItem({ value, label, active }) {
-  const display = useCountUp(value, 1200, active);
-  return (
-    <div className={styles.statItem}>
-      <span className={styles.statValue}>{display}</span>
-      <span className={styles.statLabel}>{label}</span>
-    </div>
-  );
-}
-
 // ── Main Landing component ────────────────────────────────────────────────────
 export default function Landing() {
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const isAuthenticated = tokenStorage.isAuthenticated();
-  const statsRef = useRef(null);
-  const [statsVisible, setStatsVisible] = useState(false);
-
-  // Trigger count-up when stats section enters viewport
-  useEffect(() => {
-    const el = statsRef.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) setStatsVisible(true); },
-      { threshold: 0.4 },
-    );
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, []);
 
   const goTo = (path) => (e) => { e.preventDefault(); navigate(path); };
   const logoSrc = theme === 'dark'
@@ -343,19 +284,6 @@ export default function Landing() {
               View My Insights
             </a>
           </div>
-        </div>
-      </section>
-
-      {/* ── Stats strip ───────────────────────────────────────────── */}
-      <section className={styles.statsStrip} ref={statsRef}>
-        <h2 className={styles.statsHeadline}>
-          Join <span className={styles.accentPrimary}>10,000+</span> JEE/NEET Warriors
-        </h2>
-        <p className={styles.statsSub}>Already leveling up their preparation every day.</p>
-        <div className={styles.statsRow}>
-          {stats.map((s) => (
-            <StatItem key={s.label} value={s.value} label={s.label} active={statsVisible} />
-          ))}
         </div>
       </section>
 
