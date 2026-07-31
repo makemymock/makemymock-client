@@ -1,7 +1,7 @@
 """Collection names and tunable defaults for the mock-test module."""
 
 # ---------- Read-only catalog (bbd_db schema) ----------
-QUESTIONS_COLLECTION = "questions"
+QUESTIONS_COLLECTION = "questions_public"
 
 # ---------- Recommender state, owned by this module ----------
 SESSIONS_COLLECTION = "mock_test_sessions"

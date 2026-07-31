@@ -5,7 +5,7 @@ BATTLES_COLLECTION = "battles"
 
 # Read-only catalog used to source random questions (bbd_db schema, same as
 # mock-test). We only read; we never write back to it.
-QUESTIONS_COLLECTION = "questions"
+QUESTIONS_COLLECTION = "questions_public"
 
 # ---------- Game rules ----------
 QUESTIONS_PER_BATTLE = 5

@@ -10,7 +10,7 @@ PARTICIPATIONS_COLLECTION = "contest_participations"
 RESPONSES_COLLECTION = "contest_responses"
 
 # Questions catalog (bbd_db). Read-only.
-QUESTIONS_COLLECTION = "questions"
+QUESTIONS_COLLECTION = "questions_public"
 
 # Lobby entry window: students can enter the lobby this many seconds
 # before start_time, and can press Start only at or after start_time.
