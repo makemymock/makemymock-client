@@ -2,7 +2,7 @@ name: Deploy backend to Cloud Run
 
 on:
   push:
-    branches: [main, ci/cloud-run-deploy]   # 2nd branch is TEMPORARY for testing — remove before merging to main
+    branches: [main]
     paths:
       - 'backend/**'
       - '.github/workflows/backend-deploy.yml'
