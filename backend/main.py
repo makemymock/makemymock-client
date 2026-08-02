@@ -51,7 +51,14 @@ def create_app() -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # tighten in production
+        allow_origins=[
+            "https://www.makemymock.com",
+            "https://makemymock.com",
+            "https://makemymock-client-git-main-makemymock-8748s-projects.vercel.app",
+        ],
+        # Vercel mints a fresh hash-suffixed URL per preview deploy, so those
+        # are matched by pattern rather than listed one by one.
+        allow_origin_regex=r"https://makemymock-client-[a-z0-9]+-makemymock-8748s-projects\.vercel\.app",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

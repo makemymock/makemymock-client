@@ -7,6 +7,7 @@ submission grader.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import math
 import re
@@ -785,7 +786,8 @@ class MockTestService:
             topic_chapters=topic_chapter_map,
         )
         try:
-            mock_test = engine_create_mock_test(
+            mock_test = await asyncio.to_thread(
+                engine_create_mock_test,
                 buffered,
                 user_id=user_oid,
                 topic_ids=[topic_id],
@@ -1029,8 +1031,11 @@ class MockTestService:
             topic_chapters=topic_chapter_map,
         )
 
-        # Run the engine (synchronous on the buffered repo).
-        mock_test = engine_create_mock_test(
+        # Run the engine off the event loop — it's synchronous and can take
+        # tens of milliseconds for large topic pools, which would otherwise
+        # stall every other concurrent request.
+        mock_test = await asyncio.to_thread(
+            engine_create_mock_test,
             buffered,
             user_id=user_oid,
             topic_ids=topic_ids,
@@ -1421,7 +1426,8 @@ class MockTestService:
             preallocated_session_id=session_id,
             session_topic_lookup=session_topic_lookup,
         )
-        result = engine_submit_test(
+        result = await asyncio.to_thread(
+            engine_submit_test,
             buffered,
             session_id=session_id,
             user_id=user_oid,
