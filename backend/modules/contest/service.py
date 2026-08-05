@@ -452,13 +452,22 @@ class ContestService:
     ) -> tuple[int, int]:
         """Compute (rank, total) for one user across all submitted
         participations. Rank is 1-based; 0 means the user hasn't
-        submitted (caller should treat the field as a no-op then)."""
-        rows = await self.repo.leaderboard(contest_id, limit=10_000)
-        total = len(rows)
-        for i, r in enumerate(rows):
-            if r.get("user_id") == user_id:
-                return (i + 1, total)
-        return (0, total)
+        submitted (caller should treat the field as a no-op then).
+
+        Rank = 1 + (participations ranked strictly above this user), via
+        count queries against the (contest, score, time) index — no full
+        leaderboard scan. Exact score+time ties share a rank.
+        """
+        total = await self.repo.count_submitted(contest_id)
+        part = await self.repo.get_participation(contest_id, user_id)
+        if part is None or part.get("submitted_at") is None:
+            return (0, total)
+        above = await self.repo.count_ranked_above(
+            contest_id,
+            score=float(part.get("score") or 0),
+            time_taken_seconds=float(part.get("time_taken_seconds") or 0),
+        )
+        return (above + 1, total)
 
     def _build_result(
         self,

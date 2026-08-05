@@ -579,6 +579,31 @@ class MockTestRepository:
             }},
         )
 
+    async def bulk_update_response_grading(
+        self, session_id: int, gradings: list[dict],
+    ) -> None:
+        """Persist every per-question grading in one round-trip.
+
+        Each item: {question_id, user_answer, is_correct, correctness}.
+        Replaces a per-question update_one loop in submit_test.
+        """
+        if not gradings:
+            return
+        stamp = now_utc()
+        ops = [
+            UpdateOne(
+                {"session_id": session_id, "question_id": int(g["question_id"])},
+                {"$set": {
+                    "user_answer": g["user_answer"],
+                    "is_correct": bool(g["is_correct"]),
+                    "correctness": g["correctness"],
+                    "answered_at": stamp,
+                }},
+            )
+            for g in gradings
+        ]
+        await self.responses.bulk_write(ops, ordered=False)
+
     async def bulk_upsert_attempts(self, attempt_docs: list[dict]) -> None:
         if not attempt_docs:
             return

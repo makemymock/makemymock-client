@@ -572,6 +572,46 @@ class MockTestService:
             return True
         return max(last_events) <= cutoff
 
+    async def _feeds_map_batch(
+        self,
+        user_id: ObjectId,
+        qid_to_obj: dict[int, str],
+        now: datetime,
+    ) -> dict[int, bool]:
+        """Batched form of `_attempt_feeds_recommender` for submit_test.
+
+        Two queries total (attempts + practice-views via `$in`) instead of
+        two find_one per question. Same cooldown semantics: a question feeds
+        the recommender unless it was touched within the cooldown window.
+        """
+        cutoff = now - timedelta(hours=RECOMMENDER_COOLDOWN_HOURS)
+        int_ids = list(qid_to_obj.keys())
+        obj_ids = list({o for o in qid_to_obj.values() if o})
+
+        attempt_last: dict[int, datetime] = {}
+        async for a in self.repo.attempts.find(
+            {"user_id": user_id, "question_id": {"$in": int_ids}},
+            {"question_id": 1, "last_event_at": 1, "attempted_at": 1},
+        ):
+            last = a.get("last_event_at") or a.get("attempted_at")
+            if isinstance(last, datetime):
+                attempt_last[int(a["question_id"])] = last
+
+        view_at: dict[str, datetime] = {}
+        async for v in self.repo.practice_views.find(
+            {"user_id": user_id, "obj_id": {"$in": obj_ids}},
+            {"obj_id": 1, "viewed_at": 1},
+        ):
+            va = v.get("viewed_at")
+            if isinstance(va, datetime):
+                view_at[str(v["obj_id"])] = va
+
+        feeds: dict[int, bool] = {}
+        for qid, obj in qid_to_obj.items():
+            events = [e for e in (attempt_last.get(qid), view_at.get(obj)) if e is not None]
+            feeds[qid] = (not events) or (max(events) <= cutoff)
+        return feeds
+
     async def get_browse_detail(
         self, user_id: ObjectId, composite_id: str,
     ) -> BrowseQuestionDetail:
@@ -1309,6 +1349,7 @@ class MockTestService:
         evaluations: list[AnswerEvaluation] = []
         difficulty_by_q: dict[int, str] = {}
         session_topic_lookup: dict[tuple[int, int], int] = {}
+        grading_updates: list[dict] = []
 
         for qid, response_row in responses_by_qid.items():
             md = map_docs.get(qid)
@@ -1386,30 +1427,29 @@ class MockTestService:
                 score_contribution=0,
             ))
 
-            # Persist per-response grading.
-            await self.repo.update_response_grading(
-                session_id, qid,
-                user_answer=graded.user_answer,
-                is_correct=graded.is_correct,
-                correctness=graded.correctness,
-            )
+            # Accumulate per-response grading — flushed in one bulk_write
+            # after the loop instead of an update_one per question.
+            grading_updates.append({
+                "question_id": qid,
+                "user_answer": graded.user_answer,
+                "is_correct": graded.is_correct,
+                "correctness": graded.correctness,
+            })
+
+        # Flush every per-response grading update in a single round-trip.
+        await self.repo.bulk_update_response_grading(session_id, grading_updates)
 
         # Cooldown gate — split the evaluations into feeding / non-feeding.
         # Each question that the user has recently touched (attempt or
         # solution view within RECOMMENDER_COOLDOWN_HOURS) is silently
         # excluded from the engine so its prior signal stays authoritative.
         now = datetime.now(timezone.utc)
-        feeds_map: dict[int, bool] = {}
-        for qid in responses_by_qid.keys():
-            md = map_docs.get(qid)
-            if md is None:
-                continue
-            feeds_map[qid] = await self._attempt_feeds_recommender(
-                user_id=user_oid,
-                obj_id=str(md["obj_id"]),
-                int_id=int(qid),
-                now=now,
-            )
+        qid_to_obj = {
+            qid: str(map_docs[qid]["obj_id"])
+            for qid in responses_by_qid.keys()
+            if map_docs.get(qid) is not None
+        }
+        feeds_map = await self._feeds_map_batch(user_oid, qid_to_obj, now)
 
         feeding_evaluations = [e for e in evaluations if feeds_map.get(int(e.question_id), True)]
         non_feeding_qids = [

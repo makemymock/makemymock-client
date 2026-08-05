@@ -196,3 +196,21 @@ class ContestRepository:
         return await self.part_col.count_documents(
             {"contest_id": contest_id, "submitted_at": {"$ne": None}},
         )
+
+    async def count_ranked_above(
+        self, contest_id: ObjectId, *, score: float, time_taken_seconds: float,
+    ) -> int:
+        """Count submitted participations ranked strictly above (score, time).
+
+        Same ordering as `leaderboard` — higher score first, then lower time —
+        so `count + 1` is this user's rank, computed off the index without
+        pulling the whole board into memory.
+        """
+        return await self.part_col.count_documents({
+            "contest_id": contest_id,
+            "submitted_at": {"$ne": None},
+            "$or": [
+                {"score": {"$gt": score}},
+                {"score": score, "time_taken_seconds": {"$lt": time_taken_seconds}},
+            ],
+        })
