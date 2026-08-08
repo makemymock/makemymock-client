@@ -134,6 +134,12 @@ async def _ensure_indexes() -> None:
         unique=True,
     )
 
+    # solverx_solution_cache — prompt hash cache for sub-20ms instant solution streaming
+    await mongo.db["solverx_solution_cache"].create_index(
+        [("prompt_hash", ASCENDING)],
+        unique=True,
+    )
+
     # ---------- id-mapping helpers ----------
     # Question int-id map: unique by (obj_id, sub_index).
     await mongo.db["question_id_map"].create_index(

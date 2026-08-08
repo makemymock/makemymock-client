@@ -33,6 +33,10 @@ import json
 import logging
 import re
 import secrets
+from collections import defaultdict
+from datetime import datetime, timezone
+import hashlib
+import time
 from typing import Any, AsyncIterator, Optional
 
 from bson import ObjectId
@@ -41,8 +45,10 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from config.settings import settings
 from core.usage_events import usage_context
 from modules.solverx.constants import (
+    MAX_REQUESTS_PER_MINUTE,
     MODE_SOLVE,
     MODE_THEORY,
+    RATE_LIMIT_WINDOW_SECONDS,
     SIMPLE_COMPLEXITIES,
     SOLVE_STATUS_MESSAGES,
     THEORY_STATUS_MESSAGES,
@@ -73,6 +79,26 @@ from modules.solverx.prompts import (
 from modules.solverx.repository import SolverXRepository
 
 logger = logging.getLogger(__name__)
+
+# Sliding-window rate limiter per user (in-memory)
+_user_request_timestamps: dict[str, list[float]] = defaultdict(list)
+
+
+def _check_rate_limit(user_id_str: str) -> bool:
+    now = time.monotonic()
+    cutoff = now - RATE_LIMIT_WINDOW_SECONDS
+    timestamps = [t for t in _user_request_timestamps[user_id_str] if t > cutoff]
+    _user_request_timestamps[user_id_str] = timestamps
+    if len(timestamps) >= MAX_REQUESTS_PER_MINUTE:
+        return False
+    _user_request_timestamps[user_id_str].append(now)
+    return True
+
+
+def _compute_prompt_hash(mode: str, complexity_mode: str, question_text: str) -> str:
+    normalized = re.sub(r"\s+", " ", question_text.strip().lower())
+    key = f"{mode}:{complexity_mode}:{normalized}"
+    return hashlib.sha256(key.encode("utf-8")).hexdigest()
 
 
 # ---------------------------------------------------------------------------
@@ -961,6 +987,50 @@ class SolverXService:
         is_simple = complexity_mode in SIMPLE_COMPLEXITIES
         status_script = THEORY_STATUS_MESSAGES if is_theory else SOLVE_STATUS_MESSAGES
 
+        # 1. Rate limiter check (max 15 requests per minute)
+        if not _check_rate_limit(str(user_oid)):
+            yield _sse("error", {"message": "Rate limit exceeded. Please wait a few seconds before asking SolverX again."})
+            return
+
+        # 2. Prompt caching check (Exact match on mode + complexity + question)
+        prompt_hash = _compute_prompt_hash(mode, complexity_mode, question_text) if not image_data_url else None
+        if prompt_hash:
+            cached_doc = await self.repo.get_cached_solution(prompt_hash)
+            if cached_doc and cached_doc.get("events"):
+                logger.info("Serving SolverX solution from prompt cache (hash=%s)", prompt_hash)
+                # Persist conversation + message so it appears in history sidebar
+                try:
+                    conv_oid, created = await self._ensure_conversation(
+                        conversation_id=conversation_id,
+                        user_oid=user_oid,
+                        mode=mode,
+                        first_question=question_text,
+                    )
+                    await self.repo.create_message(
+                        new_message_doc(
+                            conversation_id=conv_oid,
+                            role="user",
+                            text=question_text,
+                            complexity_mode=complexity_mode,
+                            image_data_url=image_data_url,
+                        )
+                    )
+                    await self.repo.touch_conversation(
+                        conv_oid, last_preview=question_text, increment_messages=1
+                    )
+                    yield _sse(
+                        "conversation",
+                        {"conversation_id": str(conv_oid), "created": created},
+                    )
+                except Exception as exc:
+                    logger.debug("Failed to record cached conversation touch: %s", exc)
+
+                for evt in cached_doc["events"]:
+                    if not evt.startswith("event: conversation"):
+                        yield evt
+                        await asyncio.sleep(0.015)
+                return
+
         # Persist conversation + user message up front so the history list
         # updates even if generation fails mid-flight.
         try:
@@ -994,6 +1064,7 @@ class SolverXService:
             yield _sse("error", {"message": "Could not start conversation."})
             return
 
+        recorded_events: list[str] = []
         try:
             if is_simple:
                 async for evt in self._simple_pipeline(
@@ -1005,6 +1076,7 @@ class SolverXService:
                     history_messages=history_messages,
                     status_script=status_script,
                 ):
+                    recorded_events.append(evt)
                     yield evt
             else:
                 async for evt in self._deep_pipeline(
@@ -1017,7 +1089,18 @@ class SolverXService:
                     history_messages=history_messages,
                     status_script=status_script,
                 ):
+                    recorded_events.append(evt)
                     yield evt
+
+            if prompt_hash and recorded_events and any("event: done" in e for e in recorded_events):
+                await self.repo.set_cached_solution(prompt_hash, {
+                    "prompt_hash": prompt_hash,
+                    "mode": mode,
+                    "complexity_mode": complexity_mode,
+                    "question_text": question_text,
+                    "events": recorded_events,
+                    "created_at": datetime.now(timezone.utc),
+                })
         except Exception as exc:  # noqa: BLE001
             logger.exception("SolverX pipeline crashed: %s", exc)
             yield _sse(

@@ -10,6 +10,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from modules.solverx.constants import (
     CONVERSATIONS_COLLECTION,
     MESSAGES_COLLECTION,
+    SOLUTION_CACHE_COLLECTION,
 )
 
 
@@ -17,6 +18,7 @@ class SolverXRepository:
     def __init__(self, db: AsyncIOMotorDatabase):
         self.conv = db[CONVERSATIONS_COLLECTION]
         self.msg = db[MESSAGES_COLLECTION]
+        self.cache = db[SOLUTION_CACHE_COLLECTION]
 
     # ---- conversation ----
 
@@ -83,3 +85,18 @@ class SolverXRepository:
     ) -> list[dict]:
         cursor = self.msg.find({"conversation_id": conv_oid}).sort("created_at", 1)
         return [doc async for doc in cursor]
+
+    # ---- solution cache (exact prompt hash lookup) ----
+
+    async def get_cached_solution(self, prompt_hash: str) -> Optional[dict]:
+        """Fetch pre-computed solution events by prompt hash."""
+        return await self.cache.find_one({"prompt_hash": prompt_hash})
+
+    async def set_cached_solution(self, prompt_hash: str, doc: dict[str, Any]) -> None:
+        """Store solution events by prompt hash with upsert."""
+        await self.cache.update_one(
+            {"prompt_hash": prompt_hash},
+            {"$set": doc},
+            upsert=True,
+        )
+

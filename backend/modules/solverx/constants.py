@@ -2,6 +2,11 @@
 
 CONVERSATIONS_COLLECTION = "solverx_conversations"
 MESSAGES_COLLECTION = "solverx_messages"
+SOLUTION_CACHE_COLLECTION = "solverx_solution_cache"
+
+# ---- Rate limiting ----
+MAX_REQUESTS_PER_MINUTE = 15
+RATE_LIMIT_WINDOW_SECONDS = 60
 
 # ---- Conversation modes ----
 MODE_SOLVE = "solve"

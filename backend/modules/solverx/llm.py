@@ -187,74 +187,78 @@ def _build_config(
 # ---------------------------------------------------------------------------
 
 
+def _is_retryable_quota_error(exc: Exception) -> bool:
+    msg = str(exc).lower()
+    return any(k in msg for k in ("429", "resource_exhausted", "quota", "503", "service_unavailable", "overloaded"))
+
+
 async def chat_json(
     messages: list[dict[str, Any]],
     *,
     model: str,
-    temperature: float = 0.3,
-    max_tokens: Optional[int] = 1500,
-    response_mime: Optional[str] = None,
+    temperature: float = 0.2,
+    max_tokens: Optional[int] = 4000,
+    response_mime: str = "application/json",
     disable_thinking: bool = False,
 ) -> str:
-    """Non-streaming call. Returns the model's text content.
+    """Non-streaming call. Returns the raw response string."""
+    models_to_try = [model]
+    if model == settings.GEMINI_MODEL_PRO:
+        models_to_try.extend([settings.GEMINI_MODEL_FLASH, settings.GEMINI_MODEL_FLASH_LITE])
+    elif model == settings.GEMINI_MODEL_FLASH:
+        models_to_try.append(settings.GEMINI_MODEL_FLASH_LITE)
 
-    `response_mime="application/json"` puts the model in strict-JSON mode.
-    `disable_thinking=True` turns off Gemini's extended-thinking budget —
-    use it for recipe-following tasks (e.g. SVG / TikZ generation) where
-    invisible reasoning tokens would otherwise eat the whole budget and
-    leave the response empty.
-    """
-    started = time.monotonic()
-    try:
-        client = _get_client()
-        sys_instr, contents = _convert_messages(messages)
-        cfg = _build_config(
-            system_instruction=sys_instr,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            response_mime=response_mime,
-            disable_thinking=disable_thinking,
-        )
-        res = await client.aio.models.generate_content(
-            model=model,
-            contents=contents,
-            config=cfg,
-        )
-        # Surface finish_reason + usage_metadata + text length on every
-        # call. Lets "why was the response empty?" be a one-line glance
-        # at the log instead of guesswork.
+    last_exc = None
+    for target_model in models_to_try:
+        started = time.monotonic()
         try:
-            candidates = getattr(res, "candidates", None) or []
-            finish = (
-                getattr(candidates[0], "finish_reason", None)
-                if candidates else None
+            client = _get_client()
+            sys_instr, contents = _convert_messages(messages)
+            cfg = _build_config(
+                system_instruction=sys_instr,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                response_mime=response_mime,
+                disable_thinking=disable_thinking,
             )
-            usage = getattr(res, "usage_metadata", None)
-            logger.info(
-                "Vertex AI chat_json (%s) finish_reason=%s usage=%s text_len=%d",
-                model,
-                finish,
-                usage,
-                len(res.text or ""),
+            res = await client.aio.models.generate_content(
+                model=target_model,
+                contents=contents,
+                config=cfg,
             )
-        except Exception:  # noqa: BLE001 — diagnostics only
-            pass
-        await _record_call(
-            model=model,
-            usage_metadata=getattr(res, "usage_metadata", None),
-            started=started,
-            status="ok",
-        )
-        return res.text or ""
-    except LLMError:
-        await _record_call(model=model, usage_metadata=None, started=started,
-                           status="error", error="LLMError")
-        raise
-    except Exception as exc:  # noqa: BLE001 — opaque SDK errors
-        logger.warning("Vertex AI non-stream error (%s): %s", model, exc)
-        await _record_call(model=model, usage_metadata=None, started=started,
-                           status="error", error=str(exc)[:200])
-        raise LLMError(f"Vertex AI error: {exc}") from exc
+            try:
+                candidates = getattr(res, "candidates", None) or []
+                finish = (
+                    getattr(candidates[0], "finish_reason", None)
+                    if candidates else None
+                )
+                usage = getattr(res, "usage_metadata", None)
+                logger.info(
+                    "Vertex AI chat_json (%s) finish_reason=%s usage=%s text_len=%d",
+                    target_model,
+                    finish,
+                    usage,
+                    len(res.text or ""),
+                )
+            except Exception:
+                pass
+            await _record_call(
+                model=target_model,
+                usage_metadata=getattr(res, "usage_metadata", None),
+                started=started,
+                status="ok",
+            )
+            return res.text or ""
+        except Exception as exc:
+            last_exc = exc
+            if _is_retryable_quota_error(exc) and target_model != models_to_try[-1]:
+                logger.warning("Vertex AI model %s exhausted quota (%s), falling back...", target_model, exc)
+                continue
+            logger.warning("Vertex AI non-stream error (%s): %s", target_model, exc)
+            await _record_call(model=target_model, usage_metadata=None, started=started,
+                               status="error", error=str(exc)[:200])
+            raise LLMError(f"Vertex AI error: {exc}") from exc
+    raise LLMError(f"Vertex AI all fallback models exhausted: {last_exc}")
 
 
 async def chat_stream(
@@ -264,71 +268,75 @@ async def chat_stream(
     temperature: float = 0.5,
     max_tokens: Optional[int] = 6000,
 ) -> AsyncIterator[str]:
-    """Streaming call. Yields content deltas as they arrive.
+    """Streaming call with circuit breaker fallback. Yields content deltas as they arrive."""
+    models_to_try = [model]
+    if model == settings.GEMINI_MODEL_PRO:
+        models_to_try.extend([settings.GEMINI_MODEL_FLASH, settings.GEMINI_MODEL_FLASH_LITE])
+    elif model == settings.GEMINI_MODEL_FLASH:
+        models_to_try.append(settings.GEMINI_MODEL_FLASH_LITE)
 
-    The SDK returns an async iterator of `GenerateContentResponse`
-    chunks; each `.text` is the next slice of generated text.
-    """
-    started = time.monotonic()
-    last_chunk = None
-    try:
-        client = _get_client()
-        sys_instr, contents = _convert_messages(messages)
-        cfg = _build_config(
-            system_instruction=sys_instr,
-            temperature=temperature,
-            max_tokens=max_tokens,
-        )
-        stream = await client.aio.models.generate_content_stream(
-            model=model,
-            contents=contents,
-            config=cfg,
-        )
-        async for chunk in stream:
-            last_chunk = chunk
-            text = getattr(chunk, "text", None)
-            if text:
-                yield text
-
-        # Surface why the stream ended. If `finish_reason` is anything
-        # other than "STOP" the model didn't finish on its own (truncated
-        # by MAX_TOKENS, killed by SAFETY, RECITATION, etc.) and we need
-        # to know to fix budgets / prompts.
+    last_exc = None
+    for target_model in models_to_try:
+        started = time.monotonic()
+        last_chunk = None
+        has_yielded = False
         try:
-            candidates = getattr(last_chunk, "candidates", None) or []
-            if candidates:
-                finish_reason = getattr(candidates[0], "finish_reason", None)
-                usage = getattr(last_chunk, "usage_metadata", None)
-                if finish_reason and str(finish_reason).split(".")[-1] not in ("STOP", "FINISH_REASON_STOP"):
-                    logger.warning(
-                        "Vertex AI stream (%s) ended with finish_reason=%s usage=%s",
-                        model,
-                        finish_reason,
-                        usage,
-                    )
-                else:
-                    logger.info(
-                        "Vertex AI stream (%s) finished normally; usage=%s",
-                        model,
-                        usage,
-                    )
-        except Exception:  # noqa: BLE001 — diagnostics only
-            pass
-        await _record_call(
-            model=model,
-            usage_metadata=getattr(last_chunk, "usage_metadata", None),
-            started=started,
-            status="ok",
-        )
-    except LLMError:
-        await _record_call(model=model, usage_metadata=None, started=started,
-                           status="error", error="LLMError")
-        raise
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("Vertex AI stream error (%s): %s", model, exc)
-        await _record_call(model=model, usage_metadata=None, started=started,
-                           status="error", error=str(exc)[:200])
-        raise LLMError(f"Vertex AI stream error: {exc}") from exc
+            client = _get_client()
+            sys_instr, contents = _convert_messages(messages)
+            cfg = _build_config(
+                system_instruction=sys_instr,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+            stream = await client.aio.models.generate_content_stream(
+                model=target_model,
+                contents=contents,
+                config=cfg,
+            )
+            async for chunk in stream:
+                last_chunk = chunk
+                text = getattr(chunk, "text", None)
+                if text:
+                    has_yielded = True
+                    yield text
+
+            try:
+                candidates = getattr(last_chunk, "candidates", None) or []
+                if candidates:
+                    finish_reason = getattr(candidates[0], "finish_reason", None)
+                    usage = getattr(last_chunk, "usage_metadata", None)
+                    if finish_reason and str(finish_reason).split(".")[-1] not in ("STOP", "FINISH_REASON_STOP"):
+                        logger.warning(
+                            "Vertex AI stream (%s) ended with finish_reason=%s usage=%s",
+                            target_model,
+                            finish_reason,
+                            usage,
+                        )
+                    else:
+                        logger.info(
+                            "Vertex AI stream (%s) finished normally; usage=%s",
+                            target_model,
+                            usage,
+                        )
+            except Exception:
+                pass
+            await _record_call(
+                model=target_model,
+                usage_metadata=getattr(last_chunk, "usage_metadata", None),
+                started=started,
+                status="ok",
+            )
+            return
+        except Exception as exc:
+            last_exc = exc
+            if _is_retryable_quota_error(exc) and not has_yielded and target_model != models_to_try[-1]:
+                logger.warning("Vertex AI stream model %s exhausted quota (%s), falling back...", target_model, exc)
+                continue
+            logger.warning("Vertex AI stream error (%s): %s", target_model, exc)
+            await _record_call(model=target_model, usage_metadata=None, started=started,
+                               status="error", error=str(exc)[:200])
+            raise LLMError(f"Vertex AI stream error: {exc}") from exc
+    raise LLMError(f"Vertex AI stream all fallback models exhausted: {last_exc}")
 
 
 async def _record_call(
