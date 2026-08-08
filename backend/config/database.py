@@ -153,6 +153,16 @@ async def _ensure_indexes() -> None:
     await mongo.db["questions"].create_index(
         [("subject", ASCENDING), ("chapter", ASCENDING), ("topic", ASCENDING)],
     )
+    # Covered index for browse catalog filtering (subject, chapter, topic, difficulty, questionType)
+    await mongo.db["questions"].create_index(
+        [
+            ("subject", ASCENDING),
+            ("chapter", ASCENDING),
+            ("topic", ASCENDING),
+            ("difficulty", ASCENDING),
+            ("questionType", ASCENDING),
+        ],
+    )
 
     # ---------- 1-vs-1 battles ----------
     # History lookups go by either player's user_id, sorted newest first.

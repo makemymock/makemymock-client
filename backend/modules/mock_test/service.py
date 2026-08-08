@@ -2136,8 +2136,11 @@ class MockTestService:
                 correctness=a.get("correctness"),
             ))
         topic_chapter_map = await self.repo.topic_chapter_map(topic_ids)
-        scores = priority_scores_for_topics(
-            topic_ids, engine_attempts, datetime.now(timezone.utc),
+        scores = await asyncio.to_thread(
+            priority_scores_for_topics,
+            topic_ids,
+            engine_attempts,
+            datetime.now(timezone.utc),
             topic_chapters=topic_chapter_map or None,
         )
 
@@ -2358,7 +2361,7 @@ class MockTestService:
         )
 
         # --- Cumulative attempts over time (per chapter) ---
-        cumulative = _cumulative_by_day(chapter_attempts)
+        cumulative = await asyncio.to_thread(_cumulative_by_day, chapter_attempts)
 
         # --- Per-topic accuracy trends (kept lightweight: just per topic in chapter) ---
         per_topic_priority = [
@@ -2479,7 +2482,7 @@ class MockTestService:
         # Accuracy trend per session.
         accuracy_trend = await self._accuracy_trend_for_topics(user_oid, {topic_id})
 
-        cumulative = _cumulative_by_day(topic_attempts)
+        cumulative = await asyncio.to_thread(_cumulative_by_day, topic_attempts)
 
         recent = sorted(
             topic_attempts,

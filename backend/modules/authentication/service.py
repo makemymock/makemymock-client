@@ -19,7 +19,12 @@ from core.exceptions import (
     UsernameAlreadyTaken,
 )
 from core.jwt_handler import create_access_token, create_refresh_token, decode_token
-from core.security import hash_password, verify_password
+from core.security import (
+    hash_password,
+    hash_password_async,
+    verify_password,
+    verify_password_async,
+)
 from modules.authentication.model import new_otp_doc, new_user_doc
 from modules.authentication.repository import OTPRepository, UserRepository
 from modules.authentication.schema import (
@@ -80,10 +85,11 @@ class AuthService:
             raise UsernameAlreadyTaken()
 
         # Pre-create the user as unverified, then send OTP.
+        hashed_pwd = await hash_password_async(payload.password)
         user_doc = new_user_doc(
             email=payload.email,
             username=payload.username,
-            hashed_password=hash_password(payload.password),
+            hashed_password=hashed_pwd,
             is_verified=False,
         )
         await self.users.create(user_doc)
@@ -161,7 +167,8 @@ class AuthService:
             await self.otps.delete_for_email(payload.email)
             raise OTPTooManyAttempts()
 
-        if not verify_password(payload.otp_code, otp["otp_code"]):
+        is_valid_otp = await verify_password_async(payload.otp_code, otp["otp_code"])
+        if not is_valid_otp:
             await self.otps.increment_attempts(otp["_id"])
             raise OTPInvalid()
 
@@ -179,7 +186,10 @@ class AuthService:
     # ---------- login ----------
     async def login(self, payload: LoginRequest) -> AuthSuccessResponse:
         user = await self.users.get_by_email(payload.email)
-        if user is None or not verify_password(payload.password, user["hashed_password"]):
+        if user is None:
+            raise InvalidCredentials()
+        is_valid_pw = await verify_password_async(payload.password, user["hashed_password"])
+        if not is_valid_pw:
             raise InvalidCredentials()
         if not user.get("is_active", True):
             raise AccountInactive()
