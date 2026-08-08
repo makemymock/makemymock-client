@@ -42,6 +42,7 @@ from modules.mock_test.grader import (
     grade_single_correct,
 )
 from modules.mock_test.model import (
+    new_analytics_rollup_doc,
     new_attempt_doc,
     new_response_doc,
     new_topic_allocation_doc,
@@ -1541,6 +1542,17 @@ class MockTestService:
             partial=partial_count,
         )
 
+        today_ist_str = datetime.now(IST).strftime("%Y-%m-%d")
+        await self.repo.increment_analytics_rollup(
+            user_oid,
+            attempts_count=total,
+            correct_count=correct_count,
+            partial_count=partial_count,
+            incorrect_count=incorrect_count,
+            total_score=total_score,
+            date_ist_str=today_ist_str,
+        )
+
         max_score = float(total) if total else 1.0
         accuracy_pct = (total_score / max_score) * 100 if max_score else 0.0
 
@@ -1851,10 +1863,48 @@ class MockTestService:
         topics.sort(key=lambda t: t.priority_score, reverse=True)
         return AnalyticsTopicsResponse(topics=topics)
 
+    async def _ensure_analytics_rollup(self, user_oid: ObjectId) -> dict:
+        """Fetch pre-aggregated rollup doc, or lazy-backfill from raw attempts on first read."""
+        doc = await self.repo.get_analytics_rollup(user_oid)
+        if doc is not None:
+            return doc
+        attempts = await self.repo.list_user_attempts(user_oid)
+        total_attempts = len(attempts)
+        correct_count = sum(1 for a in attempts if a.get("is_correct"))
+        partial_count = sum(
+            1 for a in attempts
+            if not a.get("is_correct") and (a.get("correctness") or 0) > 0
+        )
+        incorrect_count = total_attempts - correct_count - partial_count
+        total_score = 0.0
+        daily_active: dict[str, int] = defaultdict(int)
+        for a in attempts:
+            corr = a.get("correctness")
+            if corr is None:
+                corr = 1.0 if a.get("is_correct") else 0.0
+            total_score += float(corr)
+            ts = a.get("attempted_at")
+            if isinstance(ts, datetime):
+                if ts.tzinfo is None:
+                    ts = ts.replace(tzinfo=timezone.utc)
+                d_str = ts.astimezone(IST).strftime("%Y-%m-%d")
+                daily_active[d_str] += 1
+        rollup = new_analytics_rollup_doc(
+            user_id=user_oid,
+            total_attempts=total_attempts,
+            correct_count=correct_count,
+            partial_count=partial_count,
+            incorrect_count=incorrect_count,
+            total_score=total_score,
+            daily_active_ist=dict(daily_active),
+        )
+        await self.repo.upsert_analytics_rollup(rollup)
+        return rollup
+
     async def get_activity_heatmap(
         self, user_oid: ObjectId, range_days: int = 182,
     ) -> ActivityHeatmapResponse:
-        """Dense daily-count series anchored to IST midnight.
+        """Dense daily-count series anchored to IST midnight from materialized rollup.
 
         India Standard Time (UTC+5:30, no DST) is the canonical timezone
         for this product — student-facing dates need to line up with
@@ -1868,22 +1918,9 @@ class MockTestService:
         now_ist = datetime.now(IST)
         today_ist = now_ist.replace(hour=0, minute=0, second=0, microsecond=0)
         start_ist = today_ist - timedelta(days=range_days - 1)
-        end_ist_exclusive = today_ist + timedelta(days=1)
 
-        attempts = await self.repo.list_user_attempts(user_oid)
-        counts: dict[str, int] = defaultdict(int)
-        for a in attempts:
-            at = a.get("attempted_at")
-            if not isinstance(at, datetime):
-                continue
-            # Mongo BSON datetimes come back naive; the spec is they're
-            # stored as UTC, so attach that tz before shifting to IST.
-            if at.tzinfo is None:
-                at = at.replace(tzinfo=timezone.utc)
-            at_ist = at.astimezone(IST)
-            if at_ist < start_ist or at_ist >= end_ist_exclusive:
-                continue
-            counts[at_ist.strftime("%Y-%m-%d")] += 1
+        rollup = await self._ensure_analytics_rollup(user_oid)
+        daily_counts = rollup.get("daily_active_ist") or {}
 
         days: list[HeatmapDay] = []
         max_count = 0
@@ -1891,7 +1928,7 @@ class MockTestService:
         for i in range(range_days):
             d = start_ist + timedelta(days=i)
             key = d.strftime("%Y-%m-%d")
-            c = int(counts.get(key, 0))
+            c = int(daily_counts.get(key, 0))
             days.append(HeatmapDay(date=key, count=c))
             if c > max_count:
                 max_count = c
@@ -1906,7 +1943,7 @@ class MockTestService:
         )
 
     async def get_confidence(self, user_oid: ObjectId) -> ConfidenceResponse:
-        """Compute the gamified Confidence Score (0–100) + trophy tier.
+        """Compute the gamified Confidence Score (0–100) + trophy tier in O(1).
 
         The score is a weighted blend of five sub-scores. Each sub-score
         is normalised to [0, 100] independently so weights are tunable
@@ -1925,12 +1962,13 @@ class MockTestService:
         All day-windows use IST (see the `IST` constant) so streaks
         match what the student sees on their wall clock.
         """
-        attempts = await self.repo.list_user_attempts(user_oid)
-        sessions = await self.repo.list_user_sessions(user_oid, limit=500)
+        rollup = await self._ensure_analytics_rollup(user_oid)
+        total_attempts = int(rollup.get("total_attempts", 0))
+        total_score = float(rollup.get("total_score", 0.0))
+        daily_counts = rollup.get("daily_active_ist") or {}
+
         # Read battles directly off the shared db handle — battles is a
-        # different module but we only want a simple count + winner check,
-        # not enough surface area to justify a cross-module HTTP hop or
-        # importing the BattleRepository here.
+        # different module but we only want a simple count + winner check.
         battle_cur = self.db["battles"].find({
             "$or": [
                 {"player_a.user_id": user_oid},
@@ -1941,9 +1979,9 @@ class MockTestService:
 
         now_ist = datetime.now(IST)
         cutoff = now_ist - timedelta(days=30)
+        cutoff_str = cutoff.strftime("%Y-%m-%d")
 
         # ---- Volume (V) ----
-        total_attempts = len(attempts)
         if total_attempts <= 0:
             v_score = 0.0
         else:
@@ -1957,30 +1995,13 @@ class MockTestService:
             acc_pct = 0.0
             a_score = 0.0
         else:
-            score_sum = 0.0
-            for at in attempts:
-                corr = at.get("correctness")
-                if corr is None:
-                    corr = 1.0 if at.get("is_correct") else 0.0
-                score_sum += float(corr)
-            acc_pct = score_sum / total_attempts * 100.0
+            acc_pct = total_score / total_attempts * 100.0
             raw_a = max(0.0, (acc_pct - 30.0) * 100.0 / 70.0)
-            # Ramp down accuracy weight while sample size is tiny —
-            # 80% on 3 questions is noise, not skill.
             sample_ramp = min(total_attempts, 10) / 10.0
             a_score = raw_a * sample_ramp
 
         # ---- Consistency (C) — distinct IST days w/ ≥ 1 attempt in last 30 ----
-        active_days_30: set = set()
-        for at in attempts:
-            ts = at.get("attempted_at")
-            if not isinstance(ts, datetime):
-                continue
-            if ts.tzinfo is None:
-                ts = ts.replace(tzinfo=timezone.utc)
-            ts_ist = ts.astimezone(IST)
-            if ts_ist >= cutoff:
-                active_days_30.add(ts_ist.date())
+        active_days_30 = [k for k, v in daily_counts.items() if k >= cutoff_str and int(v) > 0]
         c_score = min(100.0, len(active_days_30) / 30.0 * 100.0)
 
         # ---- Battle (B) — engagement + win rate ----
@@ -1992,8 +2013,7 @@ class MockTestService:
             wins = 0
             for x in battles:
                 w = x.get("winner_user_id")
-                # Winner is stored as ObjectId; compare safely against the
-                # caller's user_oid. None on draws → not counted as a win.
+                # Winner is stored as ObjectId; compare safely against caller
                 if w == user_oid:
                     wins += 1
             win_rate = wins / battle_count
@@ -2001,10 +2021,6 @@ class MockTestService:
             b_score = min(100.0, engagement + win_rate * 50.0)
 
         # ---- POTD (P) — distinct IST days the user actually SOLVED POTD.
-        # Pulled from the dedicated `potd_user_state` collection (where
-        # status='solved' is the strict signal), rather than counting any
-        # 1-question mock-test session like we used to. Same 30-day window
-        # and same 0–100 scaling — just a stricter "engaged" predicate.
         from modules.potd.repository import PotdRepository  # local import: avoid cycle
         cutoff_date_iso = cutoff.date().isoformat()
         potd_repo = PotdRepository(self.db)

@@ -159,3 +159,29 @@ def new_attempt_doc(
         # Cooldown clock — bumped on any event (attempt or solution view).
         "last_event_at": attempted_at,
     }
+
+
+def new_analytics_rollup_doc(
+    *,
+    user_id: ObjectId,
+    total_attempts: int = 0,
+    correct_count: int = 0,
+    partial_count: int = 0,
+    incorrect_count: int = 0,
+    total_score: float = 0.0,
+    daily_active_ist: Optional[dict[str, int]] = None,
+) -> dict[str, Any]:
+    """Materialized student analytics rollup for O(1) dashboard and confidence queries."""
+    now = now_utc()
+    return {
+        "user_id": user_id,
+        "total_attempts": int(total_attempts),
+        "correct_count": int(correct_count),
+        "partial_count": int(partial_count),
+        "incorrect_count": int(incorrect_count),
+        "total_score": float(total_score),
+        "daily_active_ist": daily_active_ist or {},
+        "created_at": now,
+        "updated_at": now,
+    }
+

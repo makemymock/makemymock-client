@@ -128,6 +128,12 @@ async def _ensure_indexes() -> None:
         [("session_id", ASCENDING), ("display_order", ASCENDING)],
     )
 
+    # student_analytics_rollup — one pre-aggregated rollup doc per user for O(1) analytics
+    await mongo.db["student_analytics_rollup"].create_index(
+        [("user_id", ASCENDING)],
+        unique=True,
+    )
+
     # ---------- id-mapping helpers ----------
     # Question int-id map: unique by (obj_id, sub_index).
     await mongo.db["question_id_map"].create_index(

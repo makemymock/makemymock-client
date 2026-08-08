@@ -15,6 +15,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from pymongo import ReturnDocument, UpdateOne
 
 from modules.mock_test.constants import (
+    ANALYTICS_ROLLUP_COLLECTION,
     ATTEMPTS_COLLECTION,
     CHAPTER_ID_MAP_COLLECTION,
     COUNTERS_COLLECTION,
@@ -64,6 +65,7 @@ class MockTestRepository:
         self.subject_map = db[SUBJECT_ID_MAP_COLLECTION]
         self.practice_views = db[PRACTICE_VIEWS_COLLECTION]
         self.notebook = db[NOTEBOOK_COLLECTION]
+        self.analytics_rollup = db[ANALYTICS_ROLLUP_COLLECTION]
 
     # ---------- counters ----------
 
@@ -766,3 +768,50 @@ class MockTestRepository:
     async def list_topics_for_chapter(self, chapter_id: int) -> list[dict]:
         cursor = self.topic_map.find({"chapter_id": int(chapter_id)})
         return [doc async for doc in cursor]
+
+    # ---------- analytics rollup (O(1) pre-aggregated stats) ----------
+
+    async def get_analytics_rollup(self, user_id: ObjectId) -> Optional[dict]:
+        """Fetch pre-aggregated student rollup document."""
+        return await self.analytics_rollup.find_one({"user_id": user_id})
+
+    async def upsert_analytics_rollup(self, doc: dict) -> None:
+        """Upsert full materialized rollup document (used by lazy backfill)."""
+        await self.analytics_rollup.update_one(
+            {"user_id": doc["user_id"]},
+            {"$set": doc},
+            upsert=True,
+        )
+
+    async def increment_analytics_rollup(
+        self,
+        user_id: ObjectId,
+        *,
+        attempts_count: int,
+        correct_count: int,
+        partial_count: int,
+        incorrect_count: int,
+        total_score: float,
+        date_ist_str: str,
+    ) -> None:
+        """Atomically increment rollup counters and bump the IST daily bucket."""
+        await self.analytics_rollup.update_one(
+            {"user_id": user_id},
+            {
+                "$inc": {
+                    "total_attempts": int(attempts_count),
+                    "correct_count": int(correct_count),
+                    "partial_count": int(partial_count),
+                    "incorrect_count": int(incorrect_count),
+                    "total_score": float(total_score),
+                    f"daily_active_ist.{date_ist_str}": int(attempts_count),
+                },
+                "$set": {"updated_at": now_utc()},
+                "$setOnInsert": {
+                    "user_id": user_id,
+                    "created_at": now_utc(),
+                },
+            },
+            upsert=True,
+        )
+

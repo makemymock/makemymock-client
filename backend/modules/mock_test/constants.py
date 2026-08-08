@@ -8,6 +8,7 @@ SESSIONS_COLLECTION = "mock_test_sessions"
 TOPICS_COLLECTION = "mock_test_topics"
 RESPONSES_COLLECTION = "mock_test_responses"
 ATTEMPTS_COLLECTION = "user_topic_attempts"
+ANALYTICS_ROLLUP_COLLECTION = "student_analytics_rollup"
 
 # Browse / practice: records that a user revealed a question's solution.
 # Kept separate from `user_topic_attempts` so a peeked question never feeds
