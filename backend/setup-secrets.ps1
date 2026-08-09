@@ -15,7 +15,7 @@ param(
     [string]$ProjectId      = "project-c9782021-0683-4eb3-88b",
     [string]$ServiceAccount = "makemymock-run@project-c9782021-0683-4eb3-88b.iam.gserviceaccount.com",
     [string]$EnvFile        = ".env",
-    [string[]]$Secrets      = @("MONGO_URI","PYQ_MONGO_URI","JWT_SECRET_KEY","JWT_REFRESH_SECRET_KEY","BREVO_API_KEY","SMTP_PASSWORD")
+    [string[]]$Secrets      = @("MONGO_URI","PYQ_MONGO_URI","JWT_SECRET_KEY","JWT_REFRESH_SECRET_KEY","BREVO_API_KEY","SMTP_PASSWORD","UPSTASH_REDIS_REST_URL","UPSTASH_REDIS_REST_TOKEN")
 )
 
 $ErrorActionPreference = "Stop"

@@ -21,3 +21,4 @@ python-multipart
 # permitted", which kills every SolverX Vertex AI call. Pip's
 # resolver under `>=1.0.0` happily picks 1.2.0, so be explicit.
 google-genai>=1.20.0,<2.0
+upstash-redis>=1.1.0,<2.0

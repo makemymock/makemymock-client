@@ -292,7 +292,7 @@ async def battle_ws(
             try:
                 await websocket.send_json({"type": "queue_timeout"})
             finally:
-                manager.release_slot(user_id)
+                await manager.release_slot(user_id)
                 await websocket.close()
             return
 
@@ -302,11 +302,11 @@ async def battle_ws(
     except WebSocketDisconnect:
         # Player bailed; if a battle is running, the loop will detect
         # disconnect and end gracefully.
-        manager.release_slot(user_id)
+        await manager.release_slot(user_id)
         return
     except Exception:
         logger.exception("battle_ws error for user %s", user_id)
-        manager.release_slot(user_id)
+        await manager.release_slot(user_id)
         try:
             await websocket.close(code=WS_CLOSE_INTERNAL)
         except Exception:

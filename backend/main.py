@@ -8,8 +8,10 @@ from pydantic import ValidationError
 
 from api import api_router
 from config.database import close_mongo_connection, connect_to_mongo
+from config.redis import close_redis_connection, connect_to_redis
 from config.settings import settings
 from core.exceptions import AppException
+from modules.battle.matchmaker import init_matchmaker_redis
 from modules.pattern_learning.db import (
     close_client as close_pattern_learning_db,
     ensure_indexes as ensure_pattern_learning_indexes,
@@ -26,6 +28,8 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     await connect_to_mongo()
+    await connect_to_redis()
+    init_matchmaker_redis()
     try:
         await ensure_pattern_learning_indexes()
     except Exception as exc:  # noqa: BLE001 — a PYQ-cluster blip must not block boot
@@ -33,6 +37,7 @@ async def lifespan(_: FastAPI):
     try:
         yield
     finally:
+        await close_redis_connection()
         await close_mongo_connection()
         await close_pattern_miner_db()
         await close_pattern_learning_db()

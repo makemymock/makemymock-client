@@ -5,6 +5,7 @@ from fastapi.security import OAuth2PasswordBearer
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from config.database import get_database
+from config.redis import get_redis
 from config.settings import settings
 from core.exceptions import (
     AccountInactive,
@@ -19,6 +20,7 @@ oauth2_scheme = OAuth2PasswordBearer(
 )
 
 DBDep = Annotated[AsyncIOMotorDatabase, Depends(get_database)]
+RedisDep = Annotated[object, Depends(get_redis)]
 
 
 async def get_current_user(

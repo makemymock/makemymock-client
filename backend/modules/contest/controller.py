@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from core.dependencies import CurrentVerifiedUser, DBDep
+from core.dependencies import CurrentVerifiedUser, DBDep, RedisDep
 from modules.contest.schema import (
     ContestListResponse,
     ContestLobbyResponse,
@@ -36,9 +36,9 @@ router = APIRouter(prefix="/contests", tags=["Contests"])
     summary="Upcoming, live, and past contests for the current user",
 )
 async def list_contests(
-    user: CurrentVerifiedUser, db: DBDep,
+    user: CurrentVerifiedUser, db: DBDep, redis: RedisDep,
 ) -> ContestListResponse:
-    return await ContestService(db).list_for_user(user["_id"])
+    return await ContestService(db, redis).list_for_user(user["_id"])
 
 
 @router.get(
@@ -47,9 +47,9 @@ async def list_contests(
     summary="Contest detail + the user's per-contest state",
 )
 async def get_contest(
-    contest_id: str, user: CurrentVerifiedUser, db: DBDep,
+    contest_id: str, user: CurrentVerifiedUser, db: DBDep, redis: RedisDep,
 ) -> ContestLobbyResponse:
-    return await ContestService(db).get_lobby(contest_id, user)
+    return await ContestService(db, redis).get_lobby(contest_id, user)
 
 
 @router.post(
@@ -58,9 +58,9 @@ async def get_contest(
     summary="Enter the contest lobby (opens 5 minutes before start)",
 )
 async def enter_lobby(
-    contest_id: str, user: CurrentVerifiedUser, db: DBDep,
+    contest_id: str, user: CurrentVerifiedUser, db: DBDep, redis: RedisDep,
 ) -> EnterLobbyResponse:
-    return await ContestService(db).enter_lobby(contest_id, user)
+    return await ContestService(db, redis).enter_lobby(contest_id, user)
 
 
 @router.post(
@@ -69,9 +69,9 @@ async def enter_lobby(
     summary="Begin the contest. Returns the question payload + server timer.",
 )
 async def start_contest(
-    contest_id: str, user: CurrentVerifiedUser, db: DBDep,
+    contest_id: str, user: CurrentVerifiedUser, db: DBDep, redis: RedisDep,
 ) -> StartContestResponse:
-    return await ContestService(db).start(contest_id, user)
+    return await ContestService(db, redis).start(contest_id, user)
 
 
 @router.post(
@@ -84,8 +84,9 @@ async def submit_contest(
     payload: SubmitContestRequest,
     user: CurrentVerifiedUser,
     db: DBDep,
+    redis: RedisDep,
 ) -> ContestResultResponse:
-    return await ContestService(db).submit(contest_id, user, payload)
+    return await ContestService(db, redis).submit(contest_id, user, payload)
 
 
 @router.get(
@@ -94,9 +95,9 @@ async def submit_contest(
     summary="Fetch the user's saved result for a submitted contest",
 )
 async def get_result(
-    contest_id: str, user: CurrentVerifiedUser, db: DBDep,
+    contest_id: str, user: CurrentVerifiedUser, db: DBDep, redis: RedisDep,
 ) -> ContestResultResponse:
-    return await ContestService(db).get_result(contest_id, user)
+    return await ContestService(db, redis).get_result(contest_id, user)
 
 
 @router.get(
@@ -105,6 +106,7 @@ async def get_result(
     summary="Top participants for a contest (ranked by score, then time taken)",
 )
 async def get_leaderboard(
-    contest_id: str, user: CurrentVerifiedUser, db: DBDep,
+    contest_id: str, user: CurrentVerifiedUser, db: DBDep, redis: RedisDep,
 ) -> LeaderboardResponse:
-    return await ContestService(db).get_leaderboard(contest_id, user)
+    return await ContestService(db, redis).get_leaderboard(contest_id, user)
+

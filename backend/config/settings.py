@@ -83,6 +83,13 @@ class Settings(BaseSettings):
     # its own DB on the same PYQ cluster — isolated from the read-only catalog.
     PYQ_PROGRESS_DB_NAME: str = "pattern_learning"
 
+    # ---- Upstash Redis (REST) ----
+    # Used for battle matchmaking queue, slot deduplication, and contest
+    # leaderboard caching. Leave blank to fall back to in-memory state
+    # (single-process only — fine for local dev).
+    UPSTASH_REDIS_REST_URL: str = ""
+    UPSTASH_REDIS_REST_TOKEN: str = ""
+
 
 @lru_cache
 def get_settings() -> Settings:

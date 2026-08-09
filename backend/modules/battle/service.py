@@ -112,8 +112,8 @@ async def run_battle_loop(
         except Exception:
             pass
     finally:
-        manager.release_slot(str(battle.player_a.user_id))
-        manager.release_slot(str(battle.player_b.user_id))
+        await manager.release_slot(str(battle.player_a.user_id))
+        await manager.release_slot(str(battle.player_b.user_id))
         battle.completion_event.set()
         # Give a beat for the final message to flush, then close.
         await asyncio.sleep(0.2)
@@ -149,8 +149,8 @@ async def _run_round(battle: Battle, idx: int, q_doc: dict) -> dict:
     await _send_both(battle, payload)
     sent_at = time.monotonic()
 
-    # Collect answers concurrently — first to lock in still gets a speed
-    # bonus; the other player has the rest of the timer to catch up.
+    # Collect answers concurrently — both players have the full per-question
+    # timer to submit, with faster correct answers earning a higher speed bonus.
     answers: dict[str, dict] = {}
 
     async def collect(player_key: str, player: Player):
@@ -167,9 +167,17 @@ async def _run_round(battle: Battle, idx: int, q_doc: dict) -> dict:
             except WebSocketDisconnect:
                 player.disconnected = True
                 return
-            except Exception:
-                player.disconnected = True
-                return
+            except (ValueError, TypeError) as exc:
+                # Malformed JSON or non-dict payload — ignore frame without forfeiting match
+                logger.warning("Ignored unparseable WS payload from %s: %s", player.username, exc)
+                continue
+            except Exception as exc:
+                # Only mark disconnected if the WebSocket is actually closed/terminated
+                if getattr(player.ws, "client_state", None) == WebSocketState.DISCONNECTED or getattr(player.ws, "application_state", None) == WebSocketState.DISCONNECTED:
+                    player.disconnected = True
+                    return
+                logger.warning("Unexpected error receiving WS frame from %s: %s", player.username, exc)
+                continue
             if msg.get("type") != "submit_answer":
                 continue
             if str(msg.get("question_id")) != qid:

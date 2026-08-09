@@ -38,6 +38,13 @@ from modules.contest.grader import (
     is_attempt_empty,
     score_for,
 )
+from modules.contest.redis_cache import (
+    increment_participants,
+    leaderboard_add,
+    leaderboard_rank,
+    leaderboard_total,
+    try_claim_submission,
+)
 from modules.contest.repository import ContestRepository
 from modules.contest.schema import (
     ContestAnswerInput,
@@ -137,8 +144,9 @@ def _to_payload(doc: dict, display_order: int) -> ContestQuestion:
 # ---------------------------------------------------------------------------
 
 class ContestService:
-    def __init__(self, db: AsyncIOMotorDatabase):
+    def __init__(self, db: AsyncIOMotorDatabase, redis: object = None):
         self.repo = ContestRepository(db)
+        self._redis = redis
 
     # --------------------- listing ---------------------
 
@@ -221,6 +229,8 @@ class ContestService:
         user_id = user["_id"] if isinstance(user["_id"], ObjectId) else ObjectId(user["_id"])
         username = user.get("username") or ""
         part = await self.repo.upsert_lobby_entry(doc["_id"], user_id, username)
+        # Increment Redis participant counter (best-effort).
+        await increment_participants(self._redis, contest_id)
         return EnterLobbyResponse(
             user_state=_user_state(part, _compute_status(start, end, now)),  # type: ignore[arg-type]
             entered_at=_as_utc(part["entered_at"]),
@@ -278,6 +288,15 @@ class ContestService:
         if doc is None:
             raise ContestNotFound()
         user_id = user["_id"] if isinstance(user["_id"], ObjectId) else ObjectId(user["_id"])
+
+        # Redis SETNX dedup — fast-reject double submits before touching
+        # MongoDB. Falls back to the MongoDB check below on Redis miss.
+        redis_claimed = await try_claim_submission(
+            self._redis, contest_id, str(user_id),
+        )
+        if redis_claimed is False:
+            raise ContestAlreadySubmitted()
+
         part = await self.repo.get_participation(doc["_id"], user_id)
         if part is None or not part.get("started_at"):
             raise ContestNotStarted()
@@ -437,6 +456,12 @@ class ContestService:
             time_taken_seconds=time_taken_seconds,
         )
 
+        # Update Redis leaderboard sorted set (best-effort).
+        await leaderboard_add(
+            self._redis, str(doc["_id"]), str(user_id),
+            total_score, time_taken_seconds,
+        )
+
         # Re-fetch the participation row so the response carries the
         # canonical submitted_at the DB stamped (not our local one).
         part_after = await self.repo.get_participation(doc["_id"], user_id)
@@ -454,10 +479,19 @@ class ContestService:
         participations. Rank is 1-based; 0 means the user hasn't
         submitted (caller should treat the field as a no-op then).
 
-        Rank = 1 + (participations ranked strictly above this user), via
-        count queries against the (contest, score, time) index — no full
-        leaderboard scan. Exact score+time ties share a rank.
+        Tries Redis ZREVRANK first (O(log N)). Falls back to the
+        MongoDB count_ranked_above query if Redis misses.
         """
+        cid_str = str(contest_id)
+        uid_str = str(user_id)
+
+        # Try Redis first — O(log N) rank lookup.
+        redis_rank = await leaderboard_rank(self._redis, cid_str, uid_str)
+        redis_total = await leaderboard_total(self._redis, cid_str)
+        if redis_rank is not None and redis_total is not None:
+            return (redis_rank, redis_total)
+
+        # Fallback to MongoDB.
         total = await self.repo.count_submitted(contest_id)
         part = await self.repo.get_participation(contest_id, user_id)
         if part is None or part.get("submitted_at") is None:
