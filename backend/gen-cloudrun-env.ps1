@@ -19,7 +19,8 @@ $ErrorActionPreference = "Stop"
 if (-not (Test-Path $EnvFile)) { throw "$EnvFile not found. Run from the backend/ directory." }
 
 # These live in Secret Manager and must never enter the committed config.
-$SecretKeys = @("MONGO_URI","PYQ_MONGO_URI","JWT_SECRET_KEY","JWT_REFRESH_SECRET_KEY","BREVO_API_KEY","SMTP_PASSWORD")
+$SecretKeys = @("MONGO_URI","PYQ_MONGO_URI","JWT_SECRET_KEY","JWT_REFRESH_SECRET_KEY","BREVO_API_KEY","SMTP_PASSWORD","UPSTASH_REDIS_REST_URL","UPSTASH_REDIS_REST_TOKEN")
+
 
 $out = New-Object System.Collections.Generic.List[string]
 foreach ($line in Get-Content $EnvFile) {
