@@ -58,6 +58,8 @@ jobs:
           SECRETS="$SECRETS,SMTP_PASSWORD=SMTP_PASSWORD:latest"
           SECRETS="$SECRETS,BREVO_API_KEY=BREVO_API_KEY:latest"
           SECRETS="$SECRETS,PYQ_MONGO_URI=PYQ_MONGO_URI:latest"
+          SECRETS="$SECRETS,UPSTASH_REDIS_REST_URL=UPSTASH_REDIS_REST_URL:latest"
+          SECRETS="$SECRETS,UPSTASH_REDIS_REST_TOKEN=UPSTASH_REDIS_REST_TOKEN:latest"
 
           gcloud run deploy "$SERVICE" \
             --image "$IMAGE" \
@@ -69,7 +71,7 @@ jobs:
             --allow-unauthenticated \
             --port 8080 \
             --cpu 1 --memory 512Mi \
-            --min-instances 1 --max-instances 1 \
+            --min-instances 1 --max-instances 10 \
             --timeout 300
 
       - name: Show URL + health check
