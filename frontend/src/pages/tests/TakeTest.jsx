@@ -14,20 +14,6 @@ import { examDraft } from '../../utils/examDraft';
 import { parseApiError } from '../../utils/validators';
 import styles from './takeTest.module.css';
 
-// UX rule: single → multi → passage → matching → integer.
-const TYPE_RANK = {
-  single_correct: 0,
-  multi_correct: 1,
-  passage: 2,
-  matching: 3,
-  integer: 4,
-};
-
-function typeRankFor(q) {
-  if (q.passage_id != null) return TYPE_RANK.passage;
-  return TYPE_RANK[q.question_type] ?? 99;
-}
-
 function isAnswerNonEmpty(a) {
   if (!a) return false;
   if (typeof a.selected_option === 'string' && a.selected_option) return true;
@@ -64,21 +50,8 @@ const TakeTest = () => {
   const [submitting, setSubmitting] = useState(false);
   const submitGuardRef = useRef(false);
 
-  // Sort questions for display per UX rule. Stable secondary key:
-  // passage_id / question_id so a passage's siblings stay clustered.
   const orderedQuestions = useMemo(() => {
-    if (!session) return [];
-    const list = [...session.questions];
-    list.sort((a, b) => {
-      const ra = typeRankFor(a);
-      const rb = typeRankFor(b);
-      if (ra !== rb) return ra - rb;
-      const ga = a.passage_id != null ? a.passage_id : a.question_id;
-      const gb = b.passage_id != null ? b.passage_id : b.question_id;
-      if (ga !== gb) return ga - gb;
-      return a.question_id - b.question_id;
-    });
-    return list;
+    return session?.questions || [];
   }, [session]);
 
   // Load session

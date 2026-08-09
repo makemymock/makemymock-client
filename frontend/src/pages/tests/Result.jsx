@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import ExamShell from '../../components/mockTest/ExamShell/ExamShell';
 import QuestionViewer from '../../components/mockTest/QuestionViewer/QuestionViewer';
@@ -61,10 +61,7 @@ const Result = () => {
     }
   };
 
-  const sortedResults = useMemo(
-    () => (data ? [...data.results].sort((a, b) => a.display_order - b.display_order) : []),
-    [data],
-  );
+  const sortedResults = data?.results || [];
 
   if (loading) {
     return (
