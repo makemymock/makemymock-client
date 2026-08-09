@@ -10,6 +10,7 @@ answer, grade server-side, and persist the result.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 from datetime import datetime, timezone
@@ -29,6 +30,11 @@ from modules.battle.constants import (
     SPEED_BONUS_MAX,
 )
 from modules.battle.matchmaker import Battle, BattleMatchmaker, Player
+from modules.battle.matchmaker.keys import (
+    BATTLE_SESSION_TTL,
+    battle_round_answers,
+    player_inbox,
+)
 from modules.battle.model import new_battle_doc
 from modules.battle.repository import BattleRepository
 
@@ -43,27 +49,35 @@ async def run_battle_loop(
     battle: Battle,
     db: AsyncIOMotorDatabase,
     manager: BattleMatchmaker,
+    *,
+    redis: Optional[object] = None,
 ) -> None:
     """Drive an entire battle from match → completion → persistence.
 
-    Errors are caught and converted to a "battle_complete" / disconnect
-    event so the players always get *some* terminal message before we
-    close out.
+    Routes to local in-process loop if both players are on this container,
+    or distributed loop if players are on separate containers.
     """
+    if getattr(battle, "is_distributed", False):
+        await _run_distributed_battle_loop(battle, db, manager, redis)
+        return
+
     repo = BattleRepository(db)
     started_at_wall = datetime.now(timezone.utc)
     battle.started_at = time.monotonic()
 
     try:
-        # 1) Fetch questions.
-        questions = await repo.sample_random_questions(QUESTIONS_PER_BATTLE)
-        if len(questions) < QUESTIONS_PER_BATTLE:
-            await _send_both(battle, {
-                "type": "error",
-                "message": "Could not source enough questions for a battle.",
-            })
-            return
-        battle.questions = questions
+        # 1) Fetch questions if not already attached.
+        if not battle.questions:
+            questions = await repo.sample_random_questions(QUESTIONS_PER_BATTLE)
+            if len(questions) < QUESTIONS_PER_BATTLE:
+                await _send_both(battle, {
+                    "type": "error",
+                    "message": "Could not source enough questions for a battle.",
+                })
+                return
+            battle.questions = questions
+        else:
+            questions = battle.questions
 
         # 2) Announce the match to both players.
         await _send_both(battle, {
@@ -75,9 +89,7 @@ async def run_battle_loop(
             "opponent_for_b": {"username": battle.player_a.username},
         }, route_per_player=True)
 
-        # 3) Countdown — `5, 4, 3, 2, 1, GO!` so the tension builds. The
-        # client renders each value with its own animation; `value=0` is the
-        # "GO!" frame that briefly holds before the first question lands.
+        # 3) Countdown — `5, 4, 3, 2, 1, GO!`
         for n in range(COUNTDOWN_SECONDS, 0, -1):
             await _send_both(battle, {"type": "countdown", "value": n})
             await asyncio.sleep(1.0)
@@ -119,6 +131,266 @@ async def run_battle_loop(
         await asyncio.sleep(0.2)
         await _close_ws(battle.player_a.ws)
         await _close_ws(battle.player_b.ws)
+
+
+# ---------------------------------------------------------------------------
+# Distributed game loop (Cross-Container Coordination)
+# ---------------------------------------------------------------------------
+
+async def _run_distributed_battle_loop(
+    battle: Battle,
+    db: AsyncIOMotorDatabase,
+    manager: BattleMatchmaker,
+    redis: Optional[object],
+) -> None:
+    repo = BattleRepository(db)
+    started_at_wall = datetime.now(timezone.utc)
+    battle.started_at = time.monotonic()
+
+    local_player = battle.player_a if battle.local_role == "a" else battle.player_b
+    remote_player = battle.player_b if battle.local_role == "a" else battle.player_a
+    local_role = battle.local_role
+    remote_role = "b" if local_role == "a" else "a"
+    local_uid = str(local_player.user_id)
+    remote_uid = str(remote_player.user_id)
+
+    try:
+        # 1. Announce match to local player
+        await _safe_send(local_player.ws, {
+            "type": "matched",
+            "battle_id": battle.battle_id,
+            "questions_count": len(battle.questions),
+            "time_per_question": SECONDS_PER_QUESTION,
+            "opponent": {"username": remote_player.username},
+        })
+
+        # 2. Synchronized countdown (5..0)
+        for n in range(COUNTDOWN_SECONDS, 0, -1):
+            await _safe_send(local_player.ws, {"type": "countdown", "value": n})
+            await asyncio.sleep(1.0)
+        await _safe_send(local_player.ws, {"type": "countdown", "value": 0})
+        await asyncio.sleep(COUNTDOWN_GO_PAUSE_SECONDS)
+
+        # 3. Question rounds
+        rounds: list[dict] = []
+        for idx, q_doc in enumerate(battle.questions):
+            round_doc = await _run_distributed_round(
+                battle, idx, q_doc, local_player, remote_player, local_role, remote_role, local_uid, remote_uid, redis,
+            )
+            rounds.append(round_doc)
+            if local_player.disconnected or remote_player.disconnected:
+                break
+            if idx < len(battle.questions) - 1:
+                await asyncio.sleep(REVEAL_PAUSE_SECONDS)
+
+        # 4. Determine winner & send completion
+        winner_key = _determine_winner(battle)
+        result_for_local = (
+            "win" if winner_key == local_role else "loss" if winner_key == remote_role else "draw"
+        )
+        await _safe_send(local_player.ws, {
+            "type": "battle_complete",
+            "battle_id": battle.battle_id,
+            "rounds_played": len(rounds),
+            "result": result_for_local,
+            "your_score": local_player.score,
+            "your_correct": local_player.correct_count,
+            "opponent_score": remote_player.score,
+            "opponent_correct": remote_player.correct_count,
+            "opponent_username": remote_player.username,
+        })
+
+        # 5. Persist to MongoDB (Only Coordinator persists to avoid duplicate writes)
+        if battle.is_coordinator:
+            await _persist_battle(repo, battle, rounds, started_at_wall, winner_key)
+
+    except Exception:
+        logger.exception("Distributed battle %s error for role %s", battle.battle_id, local_role)
+        try:
+            await _safe_send(local_player.ws, {
+                "type": "error",
+                "message": "The battle ran into an unexpected error.",
+            })
+        except Exception:
+            pass
+    finally:
+        await manager.release_slot(local_uid)
+        battle.completion_event.set()
+        await asyncio.sleep(0.2)
+        await _close_ws(local_player.ws)
+
+
+async def _run_distributed_round(
+    battle: Battle,
+    idx: int,
+    q_doc: dict,
+    local_player: Player,
+    remote_player: Player,
+    local_role: str,
+    remote_role: str,
+    local_uid: str,
+    remote_uid: str,
+    redis: Optional[object],
+) -> dict:
+    total = len(battle.questions)
+    options = _public_options(q_doc)
+    correct_key = _correct_option_of(q_doc)
+    question_text = q_doc.get("questionText", "")
+    question_image = q_doc.get("questionImg") or None
+    difficulty = (q_doc.get("difficulty") or "medium").lower()
+    qid = str(q_doc["_id"])
+    ans_key = battle_round_answers(battle.battle_id, idx)
+    inbox_key = player_inbox(local_uid)
+
+    payload = {
+        "type": "question",
+        "index": idx,
+        "total": total,
+        "question_id": qid,
+        "question_text": question_text,
+        "question_image": question_image,
+        "options": options,
+        "difficulty": difficulty,
+        "time_limit_seconds": SECONDS_PER_QUESTION,
+    }
+    await _safe_send(local_player.ws, payload)
+    sent_at = time.monotonic()
+    deadline = sent_at + SECONDS_PER_QUESTION
+
+    local_ans: Optional[dict] = None
+    remote_ans: Optional[dict] = None
+
+    async def collect_local():
+        nonlocal local_ans
+        while time.monotonic() < deadline:
+            remaining = deadline - time.monotonic()
+            try:
+                msg = await asyncio.wait_for(
+                    local_player.ws.receive_json(),
+                    timeout=max(0.05, remaining),
+                )
+            except asyncio.TimeoutError:
+                return
+            except WebSocketDisconnect:
+                local_player.disconnected = True
+                if redis is not None:
+                    await redis.lpush(player_inbox(remote_uid), json.dumps({"type": "player_disconnected", "role": local_role}))
+                return
+            except Exception:
+                if getattr(local_player.ws, "client_state", None) == WebSocketState.DISCONNECTED or getattr(local_player.ws, "application_state", None) == WebSocketState.DISCONNECTED:
+                    local_player.disconnected = True
+                    return
+                continue
+            if msg.get("type") != "submit_answer" or str(msg.get("question_id")) != qid:
+                continue
+            response_time = time.monotonic() - sent_at
+            local_ans = {
+                "selected_option": str(msg.get("selected_option") or ""),
+                "response_time": response_time,
+            }
+            if redis is not None:
+                await redis.hset(ans_key, values={local_role: json.dumps(local_ans)})
+                await redis.expire(ans_key, BATTLE_SESSION_TTL)
+                await redis.lpush(player_inbox(remote_uid), json.dumps({"type": "opponent_answered", "question_id": qid}))
+            return
+
+    async def monitor_remote():
+        nonlocal remote_ans
+        while time.monotonic() < deadline:
+            if redis is None:
+                break
+            try:
+                raw = await redis.rpop(inbox_key)
+                if raw:
+                    data = json.loads(raw) if isinstance(raw, str) else raw
+                    if data.get("type") == "opponent_answered":
+                        await _safe_send(local_player.ws, {"type": "opponent_answered", "question_id": qid})
+                    elif data.get("type") == "player_disconnected":
+                        remote_player.disconnected = True
+                        return
+
+                if remote_ans is None:
+                    stored = await redis.hget(ans_key, remote_role)
+                    if stored:
+                        remote_ans = json.loads(stored) if isinstance(stored, str) else stored
+
+                if remote_ans is not None and local_ans is not None:
+                    return
+            except Exception as exc:
+                logger.debug("Error monitoring remote answer: %s", exc)
+            await asyncio.sleep(0.08)
+
+    await asyncio.gather(collect_local(), monitor_remote())
+
+    if redis is not None and remote_ans is None:
+        try:
+            stored = await redis.hget(ans_key, remote_role)
+            if stored:
+                remote_ans = json.loads(stored) if isinstance(stored, str) else stored
+        except Exception:
+            pass
+
+    a_ans = local_ans if local_role == "a" else remote_ans
+    b_ans = local_ans if local_role == "b" else remote_ans
+
+    a_correct = bool(a_ans and a_ans.get("selected_option") == correct_key)
+    b_correct = bool(b_ans and b_ans.get("selected_option") == correct_key)
+    a_delta = _score_for(a_correct, (a_ans or {}).get("response_time"))
+    b_delta = _score_for(b_correct, (b_ans or {}).get("response_time"))
+
+    battle.player_a.score += a_delta
+    battle.player_b.score += b_delta
+    if a_correct:
+        battle.player_a.correct_count += 1
+    if b_correct:
+        battle.player_b.correct_count += 1
+
+    your_ans = a_ans if local_role == "a" else b_ans
+    your_correct = a_correct if local_role == "a" else b_correct
+    your_delta = a_delta if local_role == "a" else b_delta
+    your_total = battle.player_a.score if local_role == "a" else battle.player_b.score
+
+    opp_ans = b_ans if local_role == "a" else a_ans
+    opp_correct = b_correct if local_role == "a" else a_correct
+    opp_delta = b_delta if local_role == "a" else a_delta
+    opp_total = battle.player_b.score if local_role == "a" else battle.player_a.score
+
+    await _safe_send(local_player.ws, {
+        "type": "question_result",
+        "question_id": qid,
+        "correct_option": correct_key,
+        "your_answer": (your_ans or {}).get("selected_option"),
+        "your_correct": your_correct,
+        "your_score_delta": your_delta,
+        "your_total_score": your_total,
+        "opponent_answer": (opp_ans or {}).get("selected_option"),
+        "opponent_correct": opp_correct,
+        "opponent_score_delta": opp_delta,
+        "opponent_total_score": opp_total,
+    })
+
+    round_doc = {
+        "index": idx,
+        "question_id": qid,
+        "question_text": question_text,
+        "options": options,
+        "correct_option": correct_key,
+        "player_a": {
+            "answer": (a_ans or {}).get("selected_option"),
+            "correct": a_correct,
+            "response_time": (a_ans or {}).get("response_time"),
+            "score_delta": a_delta,
+        },
+        "player_b": {
+            "answer": (b_ans or {}).get("selected_option"),
+            "correct": b_correct,
+            "response_time": (b_ans or {}).get("response_time"),
+            "score_delta": b_delta,
+        },
+    }
+    battle.player_a.answers.append(round_doc["player_a"])
+    battle.player_b.answers.append(round_doc["player_b"])
+    return round_doc
 
 
 # ---------------------------------------------------------------------------
@@ -373,9 +645,11 @@ async def _send_both(
     )
 
 
-async def _safe_send(ws: WebSocket, msg: dict) -> bool:
+async def _safe_send(ws: Optional[WebSocket], msg: dict) -> bool:
+    if ws is None:
+        return False
     try:
-        if ws.application_state == WebSocketState.DISCONNECTED:
+        if getattr(ws, "application_state", None) == WebSocketState.DISCONNECTED or getattr(ws, "client_state", None) == WebSocketState.DISCONNECTED:
             return False
         await ws.send_json(msg)
         return True
@@ -383,9 +657,11 @@ async def _safe_send(ws: WebSocket, msg: dict) -> bool:
         return False
 
 
-async def _close_ws(ws: WebSocket) -> None:
+async def _close_ws(ws: Optional[WebSocket]) -> None:
+    if ws is None:
+        return
     try:
-        if ws.application_state != WebSocketState.DISCONNECTED:
+        if getattr(ws, "application_state", None) != WebSocketState.DISCONNECTED:
             await ws.close()
     except Exception:
         pass

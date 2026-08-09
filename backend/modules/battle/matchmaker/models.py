@@ -20,7 +20,7 @@ class Player:
     """A participant in an active battle."""
     user_id: ObjectId       # Mongo ObjectId from the users collection
     username: str
-    ws: WebSocket
+    ws: Optional[WebSocket] = None
     score: int = 0
     correct_count: int = 0
     disconnected: bool = False
@@ -37,6 +37,9 @@ class Battle:
     questions: list[dict] = field(default_factory=list)   # raw catalog docs
     completion_event: asyncio.Event = field(default_factory=asyncio.Event)
     started_at: float = 0.0
+    is_distributed: bool = False
+    local_role: str = "a"       # "a" or "b" (which player is local to this container)
+    is_coordinator: bool = True  # True if this container orchestrates question sampling & MongoDB save
 
 
 @dataclass

@@ -42,3 +42,27 @@ def invite_host(code: str) -> str:
     """``battle:invite:{code}`` — Hash storing the host's user_id and
     username while they wait for their friend to join."""
     return f"battle:invite:{code}"
+
+
+# ── Distributed Battle Coordination ──────────────────────────────────
+
+INBOX_TTL = 300           # 5 min
+BATTLE_SESSION_TTL = 600  # 10 min
+
+
+def player_inbox(user_id: str) -> str:
+    """``battle:inbox:{user_id}`` — Redis List holding incoming messages/events
+    for this player from remote coordinator containers."""
+    return f"battle:inbox:{user_id}"
+
+
+def battle_state_key(battle_id: str) -> str:
+    """``battle:state:{battle_id}`` — Shared battle state across containers."""
+    return f"battle:state:{battle_id}"
+
+
+def battle_round_answers(battle_id: str, round_idx: int) -> str:
+    """``battle:{battle_id}:round:{round_idx}:ans`` — Hash storing player answers
+    for round_idx (keys: 'a', 'b')."""
+    return f"battle:{battle_id}:round:{round_idx}:ans"
+

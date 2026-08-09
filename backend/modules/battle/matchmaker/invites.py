@@ -4,70 +4,30 @@ Fundamentally different from the public queue: matches are keyed by an
 invite code, not FIFO order. Kept separate from ``queue.py`` so the two
 flows can't accidentally interfere.
 
-Redis stores the host's info in a Hash; when the friend arrives, the
-Hash is consumed and a Battle is built.
-
+Supports both local in-process and distributed cross-container invite pairing.
 Falls back to an in-memory dict when Redis is unavailable.
 """
 
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from typing import Optional
 
+from bson import ObjectId
 from fastapi import WebSocket
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from modules.battle.constants import QUESTIONS_PER_BATTLE
+from modules.battle.matchmaker.common import (
+    build_local_battle,
+    dispatch_remote_match,
+    wait_match_or_disconnect,
+)
 from modules.battle.matchmaker.keys import INVITE_TTL, invite_host
 from modules.battle.matchmaker.models import Battle, Player, Waiter
 
 logger = logging.getLogger(__name__)
-
-
-def _build_battle(first: Waiter, second: Waiter) -> Battle:
-    """Compose a ``Battle`` from two paired waiters."""
-    from modules.battle.model import make_battle_id
-
-    a = Player(
-        user_id=first.user["_id"],
-        username=first.user.get("username", "Player"),
-        ws=first.ws,
-    )
-    b = Player(
-        user_id=second.user["_id"],
-        username=second.user.get("username", "Player"),
-        ws=second.ws,
-    )
-    return Battle(battle_id=make_battle_id(), player_a=a, player_b=b)
-
-
-async def _wait_match_or_disconnect(waiter: Waiter, timeout: float) -> Optional[Battle]:
-    """Await match future while concurrently monitoring WebSocket disconnect."""
-    async def _detect_disconnect():
-        try:
-            while True:
-                msg = await waiter.ws.receive()
-                if msg.get("type") == "websocket.disconnect":
-                    return
-        except Exception:
-            return
-
-    monitor_task = asyncio.create_task(_detect_disconnect())
-    future_task = asyncio.create_task(asyncio.wait_for(waiter.future, timeout=timeout))
-    try:
-        done, pending = await asyncio.wait(
-            [future_task, monitor_task],
-            return_when=asyncio.FIRST_COMPLETED,
-        )
-        for t in pending:
-            t.cancel()
-        if future_task in done and not future_task.cancelled() and future_task.exception() is None:
-            return future_task.result()
-        return None
-    finally:
-        monitor_task.cancel()
 
 
 class InviteMatchmaker:
@@ -80,7 +40,6 @@ class InviteMatchmaker:
 
     def __init__(self, redis: Optional[object] = None) -> None:
         self._redis = redis
-        # Local registry: code → Waiter (process-local WS + Future).
         self._hosts: dict[str, Waiter] = {}
         self._lock = asyncio.Lock()
 
@@ -95,11 +54,7 @@ class InviteMatchmaker:
         manager: object,
         invite_repo: object,
     ) -> Optional[Battle]:
-        """Try to pair this user with the invite host.
-
-        First caller parks as host; second caller pairs with the host
-        and spawns the game loop.
-        """
+        """Try to pair this user with the invite host."""
         loop = asyncio.get_running_loop()
         future: asyncio.Future = loop.create_future()
         waiter = Waiter(user=user, ws=ws, future=future)
@@ -124,7 +79,15 @@ class InviteMatchmaker:
             return spawned
 
         # Host path: park and wait for the friend or disconnect.
-        battle = await _wait_match_or_disconnect(waiter, timeout=timeout)
+        battle = await wait_match_or_disconnect(
+            waiter,
+            timeout=timeout,
+            redis=self._redis,
+            user_id=user_id,
+            db=db,
+            manager=manager,
+            battle_tag="battle-invite",
+        )
         if battle is None:
             await self._cancel(code, user_id)
         return battle
@@ -138,37 +101,75 @@ class InviteMatchmaker:
         """Attempt to pair via Redis Hash."""
         key = invite_host(code)
         try:
-            # Check if a host is already parked for this code.
             host_data = await self._redis.hgetall(key)
 
             if host_data and host_data.get("user_id") != user_id:
                 # Friend arrived! Pair with the host.
                 await self._redis.delete(key)
+                host_uid = host_data["user_id"]
 
                 host_waiter = self._hosts.pop(code, None)
                 if host_waiter is not None:
-                    battle = _build_battle(host_waiter, waiter)
+                    # 1. Local match on same container
+                    battle = build_local_battle(host_waiter, waiter)
                     if not host_waiter.future.done():
                         host_waiter.future.set_result(battle)
 
-                    # Mark invite accepted + stamp battle id.
                     await self._mark_invite_accepted(
                         invite_repo, code, user, battle.battle_id,
                     )
                     asyncio.create_task(
-                        run_battle_loop(battle, db, manager),
+                        run_battle_loop(battle, db, manager, redis=self._redis),
                         name=f"battle-invite-{battle.battle_id}",
                     )
                     return battle
                 else:
-                    logger.warning(
-                        "Invite host for code=%s found in Redis but no "
-                        "local Waiter — cannot pair.", code,
+                    # 2. Distributed invite match across containers!
+                    from modules.battle.model import make_battle_id
+                    from modules.battle.repository import BattleRepository
+
+                    repo = BattleRepository(db)
+                    questions = await repo.sample_random_questions(QUESTIONS_PER_BATTLE)
+                    battle_id = make_battle_id()
+
+                    await dispatch_remote_match(
+                        self._redis,
+                        recipient_uid=host_uid,
+                        battle_id=battle_id,
+                        questions=questions,
+                        opponent_user=user,
                     )
-                    return None
+
+                    await self._mark_invite_accepted(
+                        invite_repo, code, user, battle_id,
+                    )
+
+                    player_a = Player(
+                        user_id=ObjectId(host_uid),
+                        username=host_data.get("username", "Player"),
+                        ws=None,
+                    )
+                    player_b = Player(
+                        user_id=user["_id"],
+                        username=user.get("username", "Player"),
+                        ws=waiter.ws,
+                    )
+                    battle = Battle(
+                        battle_id=battle_id,
+                        player_a=player_a,
+                        player_b=player_b,
+                        questions=questions,
+                        is_distributed=True,
+                        local_role="b",
+                        is_coordinator=True,
+                    )
+                    asyncio.create_task(
+                        run_battle_loop(battle, db, manager, redis=self._redis),
+                        name=f"battle-invite-coord-{battle.battle_id}",
+                    )
+                    return battle
 
             elif host_data and host_data.get("user_id") == user_id:
-                # Same user reconnecting (tab refresh) — cancel old waiter and replace.
                 old = self._hosts.get(code)
                 if old is not None and not old.future.done():
                     old.future.cancel()
@@ -202,9 +203,8 @@ class InviteMatchmaker:
         async with self._lock:
             host = self._hosts.get(code)
             if host is not None and str(host.user["_id"]) != user_id:
-                # Friend arrived. Pair with the host.
                 del self._hosts[code]
-                battle = _build_battle(host, waiter)
+                battle = build_local_battle(host, waiter)
                 if not host.future.done():
                     host.future.set_result(battle)
 
@@ -212,47 +212,41 @@ class InviteMatchmaker:
                     invite_repo, code, user, battle.battle_id,
                 )
                 asyncio.create_task(
-                    run_battle_loop(battle, db, manager),
+                    run_battle_loop(battle, db, manager, redis=self._redis),
                     name=f"battle-invite-{battle.battle_id}",
                 )
                 return battle
 
             elif host is not None and str(host.user["_id"]) == user_id:
-                # Same user reconnecting — cancel old waiter and replace.
-                if not host.future.done():
-                    host.future.cancel()
+                old = self._hosts.get(code)
+                if old is not None and not old.future.done():
+                    old.future.cancel()
                 self._hosts[code] = waiter
                 return None
 
             else:
-                # This user becomes the host.
                 self._hosts[code] = waiter
                 return None
 
     # ---- Helpers ----
 
-    @staticmethod
     async def _mark_invite_accepted(
-        invite_repo, code: str, user: dict, battle_id: str,
+        self, invite_repo: object, code: str, friend_user: dict, battle_id: str,
     ) -> None:
-        """Best-effort: stamp the invite doc as accepted. A Mongo hiccup
-        here shouldn't block the battle."""
+        """Stamp the invite doc as accepted with the friend's user ID and
+        the generated battle ID. Best-effort — failure must not kill match.
+        """
         try:
-            await invite_repo.mark_accepted(
-                code,
-                invitee_oid=user["_id"],
-                invitee_username=user.get("username") or "Player",
-            )
-            await invite_repo.attach_battle_id(code, battle_id)
+            if hasattr(invite_repo, "mark_accepted"):
+                await invite_repo.mark_accepted(
+                    code, friend_user["_id"], battle_id,
+                )
         except Exception:
-            logger.exception("Invite mark-accepted failed for code=%s", code)
+            logger.exception("Failed to mark invite %s accepted in DB", code)
 
     async def _cancel(self, code: str, user_id: str) -> None:
-        """Remove a parked host on timeout/disconnect."""
-        # Only remove if we are the parked host.
-        host = self._hosts.get(code)
-        if host is not None and str(host.user["_id"]) == user_id:
-            self._hosts.pop(code, None)
+        """Remove a host's parked waiter on timeout or disconnect."""
+        self._hosts.pop(code, None)
 
         if self._redis is not None:
             try:

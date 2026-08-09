@@ -1,32 +1,42 @@
+import React, { Suspense, lazy } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import Landing from '../pages/landing/Landing';
 import Signup from '../pages/signup/Signup';
 import Login from '../pages/login/Login';
 import Dashboard from '../pages/dashboard/Dashboard';
-import ProfileSetup from '../pages/profile/ProfileSetup';
-import UserProfile from '../pages/profile/UserProfile';
-import TakeTest from '../pages/tests/TakeTest';
-import Result from '../pages/tests/Result';
-import BrowseQuestion from '../pages/tests/BrowseQuestion';
-import Analytics from '../pages/analytics/Analytics';
-import ChapterAnalytics from '../pages/analytics/ChapterAnalytics';
-import TopicAnalytics from '../pages/analytics/TopicAnalytics';
-import History from '../pages/history/History';
-import BattleArena from '../pages/battle/BattleArena';
-import BattleHistory from '../pages/battle/BattleHistory';
-import BattleJoin from '../pages/battle/BattleJoin';
-import Compete from '../pages/compete/Compete';
-import ContestLobby from '../pages/compete/ContestLobby';
-import ContestPlay from '../pages/compete/ContestPlay';
-import ContestResult from '../pages/compete/ContestResult';
-import SolverX from '../pages/solverx/SolverX';
-import Practice from '../pages/practice/Practice';
-import PatternPath from '../pages/learn/PatternPath';
-import QuestionPath from '../pages/learn/QuestionPath';
-import SolveQuestion from '../pages/learn/SolveQuestion';
 import AppLayout from '../components/layout/AppLayout';
 import ProtectedRoute from './ProtectedRoute';
 import { tokenStorage } from '../utils/token';
+import Loader from '../components/common/Loader/Loader';
+
+// Lazy-load sub-routes and heavy features to minimize initial bundle size
+const ProfileSetup = lazy(() => import('../pages/profile/ProfileSetup'));
+const UserProfile = lazy(() => import('../pages/profile/UserProfile'));
+const TakeTest = lazy(() => import('../pages/tests/TakeTest'));
+const Result = lazy(() => import('../pages/tests/Result'));
+const BrowseQuestion = lazy(() => import('../pages/tests/BrowseQuestion'));
+const Analytics = lazy(() => import('../pages/analytics/Analytics'));
+const ChapterAnalytics = lazy(() => import('../pages/analytics/ChapterAnalytics'));
+const TopicAnalytics = lazy(() => import('../pages/analytics/TopicAnalytics'));
+const History = lazy(() => import('../pages/history/History'));
+const BattleArena = lazy(() => import('../pages/battle/BattleArena'));
+const BattleHistory = lazy(() => import('../pages/battle/BattleHistory'));
+const BattleJoin = lazy(() => import('../pages/battle/BattleJoin'));
+const Compete = lazy(() => import('../pages/compete/Compete'));
+const ContestLobby = lazy(() => import('../pages/compete/ContestLobby'));
+const ContestPlay = lazy(() => import('../pages/compete/ContestPlay'));
+const ContestResult = lazy(() => import('../pages/compete/ContestResult'));
+const SolverX = lazy(() => import('../pages/solverx/SolverX'));
+const Practice = lazy(() => import('../pages/practice/Practice'));
+const PatternPath = lazy(() => import('../pages/learn/PatternPath'));
+const QuestionPath = lazy(() => import('../pages/learn/QuestionPath'));
+const SolveQuestion = lazy(() => import('../pages/learn/SolveQuestion'));
+
+const Suspended = ({ children, fullscreen = false }) => (
+  <Suspense fallback={<Loader fullscreen={fullscreen} cover={!fullscreen} label="Loading MakeMyMock…" />}>
+    {children}
+  </Suspense>
+);
 
 const RedirectIfAuthed = ({ children }) => {
   if (tokenStorage.isAuthenticated()) {
@@ -63,7 +73,9 @@ const AppRoutes = () => {
         path="/profile/setup"
         element={
           <ProtectedRoute>
-            <ProfileSetup />
+            <Suspended fullscreen>
+              <ProfileSetup />
+            </Suspended>
           </ProtectedRoute>
         }
       />
@@ -79,37 +91,177 @@ const AppRoutes = () => {
         }
       >
         <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/profile" element={<UserProfile />} />
+        <Route
+          path="/profile"
+          element={
+            <Suspended>
+              <UserProfile />
+            </Suspended>
+          }
+        />
         {/* Practice hub — Drill session (mock test) + Patterns (pattern path). */}
-        <Route path="/tests" element={<Practice />} />
-        <Route path="/tests/browse/:questionId" element={<BrowseQuestion />} />
-        <Route path="/tests/:sessionId" element={<TakeTest />} />
-        <Route path="/tests/:sessionId/result" element={<Result />} />
-        <Route path="/analytics" element={<Analytics />} />
-        <Route path="/analytics/chapter/:chapterId" element={<ChapterAnalytics />} />
-        <Route path="/analytics/topic/:topicId" element={<TopicAnalytics />} />
-        <Route path="/history" element={<History />} />
-        <Route path="/compete" element={<Compete />} />
+        <Route
+          path="/tests"
+          element={
+            <Suspended>
+              <Practice />
+            </Suspended>
+          }
+        />
+        <Route
+          path="/tests/browse/:questionId"
+          element={
+            <Suspended>
+              <BrowseQuestion />
+            </Suspended>
+          }
+        />
+        <Route
+          path="/tests/:sessionId"
+          element={
+            <Suspended fullscreen>
+              <TakeTest />
+            </Suspended>
+          }
+        />
+        <Route
+          path="/tests/:sessionId/result"
+          element={
+            <Suspended>
+              <Result />
+            </Suspended>
+          }
+        />
+        <Route
+          path="/analytics"
+          element={
+            <Suspended>
+              <Analytics />
+            </Suspended>
+          }
+        />
+        <Route
+          path="/analytics/chapter/:chapterId"
+          element={
+            <Suspended>
+              <ChapterAnalytics />
+            </Suspended>
+          }
+        />
+        <Route
+          path="/analytics/topic/:topicId"
+          element={
+            <Suspended>
+              <TopicAnalytics />
+            </Suspended>
+          }
+        />
+        <Route
+          path="/history"
+          element={
+            <Suspended>
+              <History />
+            </Suspended>
+          }
+        />
+        <Route
+          path="/compete"
+          element={
+            <Suspended>
+              <Compete />
+            </Suspended>
+          }
+        />
         {/* Legacy /battle entry — keep the URL working but land on
             the new Compete > Battle tab. Deep links to /battle/play
             and /battle/history are unchanged. */}
         <Route path="/battle" element={<Navigate to="/compete?tab=battle" replace />} />
-        <Route path="/battle/play" element={<BattleArena />} />
-        <Route path="/battle/history" element={<BattleHistory />} />
-        <Route path="/battle/join/:code" element={<BattleJoin />} />
+        <Route
+          path="/battle/play"
+          element={
+            <Suspended fullscreen>
+              <BattleArena />
+            </Suspended>
+          }
+        />
+        <Route
+          path="/battle/history"
+          element={
+            <Suspended>
+              <BattleHistory />
+            </Suspended>
+          }
+        />
+        <Route
+          path="/battle/join/:code"
+          element={
+            <Suspended>
+              <BattleJoin />
+            </Suspended>
+          }
+        />
         {/* Contest — lobby + fullscreen play + result. */}
-        <Route path="/contest/:contestId" element={<ContestLobby />} />
-        <Route path="/contest/:contestId/play" element={<ContestPlay />} />
-        <Route path="/contest/:contestId/result" element={<ContestResult />} />
-        <Route path="/solverx" element={<SolverX />} />
+        <Route
+          path="/contest/:contestId"
+          element={
+            <Suspended>
+              <ContestLobby />
+            </Suspended>
+          }
+        />
+        <Route
+          path="/contest/:contestId/play"
+          element={
+            <Suspended fullscreen>
+              <ContestPlay />
+            </Suspended>
+          }
+        />
+        <Route
+          path="/contest/:contestId/result"
+          element={
+            <Suspended>
+              <ContestResult />
+            </Suspended>
+          }
+        />
+        <Route
+          path="/solverx"
+          element={
+            <Suspended fullscreen>
+              <SolverX />
+            </Suspended>
+          }
+        />
         {/* Pattern Path — Duolingo-style learning over mined reasoning
             patterns. The landing now lives inside the Practice hub as the
             Patterns tab; deep links to a chapter / pattern / question are
             unchanged. */}
         <Route path="/learn" element={<Navigate to="/tests?section=patterns" replace />} />
-        <Route path="/learn/chapters/:chapter" element={<PatternPath />} />
-        <Route path="/learn/patterns/:patternId" element={<QuestionPath />} />
-        <Route path="/learn/questions/:questionId" element={<SolveQuestion />} />
+        <Route
+          path="/learn/chapters/:chapter"
+          element={
+            <Suspended>
+              <PatternPath />
+            </Suspended>
+          }
+        />
+        <Route
+          path="/learn/patterns/:patternId"
+          element={
+            <Suspended>
+              <QuestionPath />
+            </Suspended>
+          }
+        />
+        <Route
+          path="/learn/questions/:questionId"
+          element={
+            <Suspended>
+              <SolveQuestion />
+            </Suspended>
+          }
+        />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />
