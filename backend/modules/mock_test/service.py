@@ -154,8 +154,14 @@ def _next_tier(index: int) -> Optional[dict[str, Any]]:
     return _CONFIDENCE_TIERS[index + 1] if index + 1 < len(_CONFIDENCE_TIERS) else None
 
 
-# Display order rule (frontend & backend agree):
-# single → multi → passage → matching → integer
+# Display order rule (backend canonical order):
+# physics → chemistry → maths, then single → multi → passage → matching → integer
+_SUBJECT_RANK = {
+    "physics": 0,
+    "chemistry": 1,
+    "maths": 2,
+}
+
 _TYPE_RANK = {
     "single_correct": 0,
     "multi_correct": 1,
@@ -163,6 +169,11 @@ _TYPE_RANK = {
     "matching": 3,
     "integer": 4,
 }
+
+
+def _subject_rank_for_doc(doc: dict) -> int:
+    subject = str(doc.get("subject") or "").strip().lower()
+    return _SUBJECT_RANK.get(subject, 99)
 
 
 def _options_from_doc(doc: dict) -> list[QuestionPayloadOption]:
@@ -1093,23 +1104,17 @@ class MockTestService:
                 status.HTTP_422_UNPROCESSABLE_ENTITY,
             )
 
-        # Display order — engine result, then re-sort by type-rank per UX rule.
-        # We keep engine order as the *served* order for analytics truth, but
-        # display_order encodes the UX rule. Frontend re-sorts on render too.
+        # Display order is canonical here so every client sees the same order.
         selected = list(mock_test.questions) + list(mock_test.extras)
-        # Group passages so siblings stay together.
-        passage_first_pos: dict[int, int] = {}
-        for idx, (q, _tid) in enumerate(selected):
-            pid = q.passage_id
-            if pid is not None and pid not in passage_first_pos:
-                passage_first_pos[pid] = idx
         def sort_key(item):
             (q, _t) = item
+            doc = qid_doc.get(q.id, {})
+            subject_rank = _subject_rank_for_doc(doc)
             type_rank = _TYPE_RANK.get(q.question_type, 99)
             if q.passage_id is not None:
                 type_rank = _TYPE_RANK["passage"]
             group_key = q.passage_id if q.passage_id is not None else q.id
-            return (type_rank, group_key, q.id)
+            return (subject_rank, type_rank, group_key, q.id)
         selected.sort(key=sort_key)
 
         # Persist session, topic allocations, and blank response rows.
