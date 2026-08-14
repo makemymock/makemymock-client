@@ -1,9 +1,14 @@
 import api from './axiosInstance';
 import { tokenStorage } from '../utils/token';
+import { getAttribution } from '../utils/attribution';
 
 export const authService = {
   async signup({ username, email, password }) {
-    const { data } = await api.post('/auth/signup', { username, email, password });
+    const attribution = getAttribution();
+    const { data } = await api.post('/auth/signup', {
+      username, email, password,
+      ...(attribution ? { attribution } : {}),
+    });
     return data;
   },
 

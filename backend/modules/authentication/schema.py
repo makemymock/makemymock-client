@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Optional
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, StringConstraints
 
@@ -11,11 +11,26 @@ Password = Annotated[str, StringConstraints(min_length=8, max_length=128)]
 OTPCode = Annotated[str, StringConstraints(min_length=6, max_length=6, pattern=r"^\d{6}$")]
 
 
+UtmValue = Annotated[str, StringConstraints(max_length=200)]
+
+
+class Attribution(BaseModel):
+    """First-touch marketing attribution, captured client-side at landing."""
+    utm_source: Optional[UtmValue] = None
+    utm_medium: Optional[UtmValue] = None
+    utm_campaign: Optional[UtmValue] = None
+    utm_content: Optional[UtmValue] = None
+    utm_term: Optional[UtmValue] = None
+    referrer: Optional[Annotated[str, StringConstraints(max_length=500)]] = None
+    landing_path: Optional[Annotated[str, StringConstraints(max_length=300)]] = None
+
+
 # ---------- Request schemas ----------
 class SignupRequest(BaseModel):
     email: EmailStr
     username: Username
     password: Password
+    attribution: Optional[Attribution] = None
 
 
 class VerifyOTPRequest(BaseModel):

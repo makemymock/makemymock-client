@@ -6,7 +6,7 @@ allowed keys here so repository / service code stays consistent.
 """
 
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Optional
 
 
 def new_user_doc(
@@ -15,9 +15,10 @@ def new_user_doc(
     username: str,
     hashed_password: str,
     is_verified: bool = False,
+    attribution: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     now = datetime.now(timezone.utc)
-    return {
+    doc = {
         "email": email.lower().strip(),
         "username": username.strip(),
         "hashed_password": hashed_password,
@@ -26,6 +27,10 @@ def new_user_doc(
         "created_at": now,
         "updated_at": now,
     }
+    if attribution:
+        # First-touch marketing source; server stamps when it was recorded.
+        doc["attribution"] = {**attribution, "captured_at": now}
+    return doc
 
 
 def new_otp_doc(

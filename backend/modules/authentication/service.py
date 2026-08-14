@@ -86,11 +86,16 @@ class AuthService:
 
         # Pre-create the user as unverified, then send OTP.
         hashed_pwd = await hash_password_async(payload.password)
+        attribution = (
+            payload.attribution.model_dump(exclude_none=True)
+            if payload.attribution else None
+        ) or None
         user_doc = new_user_doc(
             email=payload.email,
             username=payload.username,
             hashed_password=hashed_pwd,
             is_verified=False,
+            attribution=attribution,
         )
         await self.users.create(user_doc)
         await self._issue_and_send_otp(payload.email, payload.username)
